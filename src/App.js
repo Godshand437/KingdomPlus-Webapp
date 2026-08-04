@@ -335,6 +335,16 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('sanctuary');
   const [currentSlide, setCurrentSlide] = useState(0);
   const [feedTab, setFeedTab] = useState('For You');
+// Supabase Auth State
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  
+  // Current User Session
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem('kp_current_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
 
   const [generatedAddress, setGeneratedAddress] = useState('');
   const [walletKeypair, setWalletKeypair] = useState(null);
@@ -721,6 +731,10 @@ useEffect(() => {
           created_at: new Date()
         };
 
+const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance };
+      setCurrentUser(sessionRecord);
+      localStorage.setItem('kp_current_user', JSON.stringify(sessionRecord));
+
         if (formData.accountType === 'Church' || formData.accountType === 'Minister') {
           await supabase.from('church_profiles').insert([{ ...profileData, church_name: formData.churchName || formData.fullName }]);
         } else {
@@ -728,9 +742,6 @@ useEffect(() => {
         }
       }
 
-      const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance };
-      setCurrentUser(sessionRecord);
-      localStorage.setItem('kp_current_user', JSON.stringify(sessionRecord));
       
       setStep(5);
     } catch (error) {
@@ -2658,19 +2669,10 @@ useEffect(() => {
     });
   };
 
-// Supabase Auth State
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  
-  // Current User Session
-  const [currentUser, setCurrentUser] = useState(() => {
-    const saved = localStorage.getItem('kp_current_user');
-    return saved ? JSON.parse(saved) : null;
-  });
 
   
   return (
-     <div className="app-container">
+     <>
 
       {/* Hidden file input for uploading reels/status */}
       <input
@@ -5645,6 +5647,6 @@ useEffect(() => {
 
       {renderStreamPlayer()}
 
-    </div>
+    </>
   );
 }
