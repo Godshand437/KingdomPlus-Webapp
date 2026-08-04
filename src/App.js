@@ -330,6 +330,8 @@ const VerifiedChurchIcon = () => (
 
 export default function App() {
   const [step, setStep] = useState(0);
+  const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [authError, setAuthError] = useState(null);
   const [activeTab, setActiveTab] = useState('sanctuary');
   const [currentSlide, setCurrentSlide] = useState(0);
   const [feedTab, setFeedTab] = useState('For You');
@@ -1469,23 +1471,43 @@ useEffect(() => {
     let targetAddress = cleanInput;
     
     if (!isWalletAddress) {
-      for (const [email, record] of Object.entries(usersDb)) {
-        if (record.formData?.username?.toLowerCase() === cleanUsername || record.formData?.churchName?.toLowerCase() === cleanUsername) {
-          recipientRecord = record;
-          recipientEmail = email;
-          targetAddress = record.generatedAddress;
-          break;
+      // 1. Search Individual Believers in Supabase
+      let { data: userProfile } = await supabase
+        .from('user_profiles')
+        .select('*')
+        .ilike('username', cleanUsername) // ilike for case-insensitive search
+        .single();
+        
+      if (userProfile) {
+        recipientRecord = userProfile;
+        recipientEmail = userProfile.email;
+        targetAddress = userProfile.wallet_address;
+      } else {
+        // 2. Search Church Ministries in Supabase if individual is not found
+        let { data: churchProfile } = await supabase
+          .from('church_profiles')
+          .select('*')
+          .ilike('church_name', cleanUsername) 
+          .single();
+          
+        if (churchProfile) {
+          recipientRecord = churchProfile;
+          recipientEmail = churchProfile.email;
+          targetAddress = churchProfile.wallet_address;
         }
       }
+
       if (!recipientRecord || !targetAddress) {
         alert(`Username @${cleanUsername} not found or they haven't generated a vault yet.`);
         return;
       }
+      
       if (recipientEmail === currentUser?.email) {
         alert("You cannot send KPC to yourself!");
         return;
       }
     }
+    
 
     setIsTransferring(true);
     try {
@@ -1496,39 +1518,40 @@ useEffect(() => {
       const src = await getOrCreateAssociatedTokenAccount(connection, senderKeypair, KPC_MINT, new PublicKey(generatedAddress));
       const dest = await getOrCreateAssociatedTokenAccount(connection, senderKeypair, KPC_MINT, new PublicKey(targetAddress));
       
-      await transfer(connection, senderKeypair, src.address, dest.address, senderKeypair.publicKey, amount * Math.pow(10, 8));
+      const signature = await transfer(connection, senderKeypair, src.address, dest.address, senderKeypair.publicKey, amount * Math.pow(10, 8));
       
       setKpcBalance(prev => prev - amount);
-      const targetName = isWalletAddress ? `${targetAddress.substring(0, 6)}...` : `@${recipientRecord.formData.username || cleanUsername}`;
-      logTransaction(`Sent to ${targetName}`, -amount, 'SPEND');
+      
+      // Update target name based on Supabase record structure
+      const receiverName = recipientRecord?.username || recipientRecord?.church_name || cleanUsername;
+      const targetName = isWalletAddress ? `${targetAddress.substring(0, 6)}...` : `@${receiverName}`;
+      
+      logTransaction(`Sent to ${targetName}`, -amount, 'SPEND', signature);
 
-      if (!isWalletAddress && recipientEmail) {
-        const updatedRecipient = {
-          ...recipientRecord,
-          kpcBalance: (recipientRecord.kpcBalance || 0) + amount,
-          txHistory: [
-            {
-              id: Date.now() + Math.random(),
-              title: `Received from @${formData.username || 'Believer'}`,
-              amount: amount,
-              type: 'EARN',
-              date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-              status: 'Confirmed',
-              signature: `5K2p...${Math.floor(1000 + Math.random() * 9000)}`
-            },
-            ...(recipientRecord.txHistory || [])
-          ]
-        };
-        const newDb = { ...usersDb, [recipientEmail]: updatedRecipient };
-        setUsersDb(newDb);
-        localStorage.setItem('kp_users_db', JSON.stringify(newDb));
+      // --- SUPABASE UPDATE ---
+      if (!isWalletAddress && recipientRecord) {
+        const newBalance = (recipientRecord.wallet_balance || 0) + amount;
+        
+        // Determine correct table based on the recipient's account structure
+        const tableName = recipientRecord.church_name ? 'church_profiles' : 'user_profiles';
+        
+        const { error: updateError } = await supabase
+          .from(tableName)
+          .update({ wallet_balance: newBalance })
+          .eq('id', recipientRecord.id);
+
+        if (updateError) {
+          console.error("Failed to update recipient balance in Supabase:", updateError);
+        }
       }
+      // ------------------------------------------
 
       alert(`🎉 Successfully transferred ${amount} KPC to ${isWalletAddress ? 'Wallet Address' : '@' + cleanUsername}!`);
       setActiveModal(null);
       setTransferUsername('');
       setTransferAmount('');
     } catch (error) {
+      console.error("Transfer error:", error);
       setKpcBalance(prev => prev - amount);
       const targetName = isWalletAddress ? `${targetAddress.substring(0, 6)}...` : `@${cleanUsername}`;
       logTransaction(`Sent to ${targetName}`, -amount, 'SPEND');
@@ -1572,7 +1595,7 @@ useEffect(() => {
   const [verifiedMinistersList, setVerifiedMinistersList] = useState([]);
 
   // Search DB for a user and upgrade them to a Verified Minister
-  const handleVerifyMinister = (e) => {
+  const handleVerifyMinister = async (e) => {
     e.preventDefault();
     const cleanSearch = ministerSearchInput.trim().toLowerCase().replace('@', '');
     if (!cleanSearch) return;
@@ -1580,60 +1603,51 @@ useEffect(() => {
     let targetEmail = null;
     let targetUser = null;
 
-    // Locate believer in database
-    for (const [email, record] of Object.entries(usersDb)) {
-      if (record.formData?.username?.toLowerCase() === cleanSearch || record.email?.toLowerCase() === cleanSearch) {
-        targetEmail = email;
-        targetUser = record;
-        break;
-      }
-    }
+    // Locate believer in database via Supabase
+    const { data: foundUser, error: searchError } = await supabase
+      .from('user_profiles')
+      .select('*')
+      .or(`username.ilike.${cleanSearch},email.ilike.${cleanSearch}`)
+      .single();
 
-    if (!targetUser) {
+    if (!foundUser) {
       alert(`No believer found with username @${cleanSearch} or email.`);
       return;
     }
 
-    if (targetUser.isVerifiedMinister) {
-      alert(`@${targetUser.formData?.username || cleanSearch} is already a verified minister!`);
+    // Check if they are already a minister
+    if (foundUser.account_type === 'Minister') {
+      alert(`@${foundUser.username || cleanSearch} is already a verified minister!`);
       return;
     }
 
-    // 1. Upgrade target user record in persistent database
-    const upgradedUser = {
-      ...targetUser,
-      accountType: 'Minister',
-      isVerifiedMinister: true,
-      userTier: 'Apostle', // Grants highest earning tier automatically!
-      txHistory: [
-        {
-          id: Date.now(),
-          title: `Ordained as Minister by ${formData.churchName || 'Church Admin'}`,
-          amount: 0,
-          type: 'AIRDROP',
-          date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-          status: 'Confirmed',
-          signature: `ordain_${Math.random().toString(36).substring(2, 8)}`
-        },
-        ...(targetUser.txHistory || [])
-      ]
-    };
+    // Upgrade target user record in Supabase
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .update({ 
+        account_type: 'Minister' 
+      })
+      .eq('id', foundUser.id);
 
-    setUsersDb(prevDb => {
-      const updated = { ...prevDb, [targetEmail]: upgradedUser };
-      localStorage.setItem('kp_users_db', JSON.stringify(updated));
-      return updated;
-    });
+    if (updateError) {
+      console.error("Failed to upgrade minister in Supabase:", updateError);
+      alert("Failed to ordain minister on the server.");
+      return;
+    }
 
-    // 2. Update local UI state
+    // Update local UI state for the Church Dashboard
     setVerifiedMinistersList(prev => [
-      { name: upgradedUser.formData?.fullName || 'Minister', handle: `@${upgradedUser.formData?.username}`, role: 'Ordained Minister' },
+      { 
+        name: foundUser.full_name || 'Minister', 
+        handle: `@${foundUser.username}`, 
+        role: 'Ordained Minister' 
+      },
       ...prev
     ]);
 
     setMinisterSearchInput('');
-    alert(`Hallelujah! @${upgradedUser.formData?.username} is now a Verified Minister under your church.`);
-  };
+    alert(`Hallelujah! @${foundUser.username} is now a Verified Minister under your church.`);
+ };
 
 // --- CHURCH STUDIO REFS, LIVE STREAM & MODAL STATES ---
   const coverInputRef = useRef(null);
@@ -1649,7 +1663,6 @@ useEffect(() => {
     const file = e.target.files[0];
     if (!file) return;
 
-    // Use FileReader to convert image to Base64 so it persists in localStorage!
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64Image = reader.result;
@@ -1660,19 +1673,19 @@ useEffect(() => {
 
       setFormData(updatedForm);
       if (currentUser?.email) {
+        // Update the current active session locally
         const updatedUser = { ...currentUser, formData: updatedForm };
         setCurrentUser(updatedUser);
         localStorage.setItem('kp_current_user', JSON.stringify(updatedUser));
-        setUsersDb(prev => {
-          const newDb = { ...prev, [currentUser.email]: updatedUser };
-          localStorage.setItem('kp_users_db', JSON.stringify(newDb));
-          return newDb;
-        });
+        
+        // NOTE: If you want to save this permanently to Supabase later, 
+        // you would use supabase.storage to upload the file and then 
+        // save the returned URL to your user_profiles/church_profiles table.
       }
     };
-
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(file); // Ensure the reader actually processes the file
   };
+
   // --- 2. TOGGLE LIVE SERVICE BROADCAST ALERT ---
   const handleToggleLiveBroadcast = () => {
     if (!isLiveStreaming) {
@@ -2645,9 +2658,19 @@ useEffect(() => {
     });
   };
 
+// Supabase Auth State
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  
+  // Current User Session
+  const [currentUser, setCurrentUser] = useState(() => {
+    const saved = localStorage.getItem('kp_current_user');
+    return saved ? JSON.parse(saved) : null;
+  });
+
   
   return (
-    <div className="app-container">
+     <div className="app-container">
 
       {/* Hidden file input for uploading reels/status */}
       <input
@@ -4325,15 +4348,15 @@ useEffect(() => {
 
             <div className="login-divider">OR</div>
 
-            <form onSubmit={handleLoginUser} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            <form onSubmit={handleLogin} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '15px' }}>
               <div className="login-input-wrap">
                 <div className="login-input-icon"><MailIcon /></div>
                 <input
                   type="email"
                   placeholder="you@kingdom.app"
                   className="login-input"
-                  value={loginIdentifier}
-                  onChange={(e) => setLoginIdentifier(e.target.value)}
+                  value={authEmail}
+                  onChange={(e) => setAuthEmail(e.target.value)}
                   required
                 />
               </div>
@@ -4344,8 +4367,8 @@ useEffect(() => {
                   type="password"
                   placeholder="Password"
                   className="login-input"
-                  value={loginPassword}
-                  onChange={(e) => setLoginPassword(e.target.value)}
+                  value={authPassword}
+                  onChange={(e) => setAuthPassword(e.target.value)}
                   required
                 />
               </div>
@@ -5270,7 +5293,7 @@ useEffect(() => {
                 </div>
               )}
 
-              {/* ==================== TAB 3: PEOPLE ==================== */}
+             {/* ==================== TAB 3: PEOPLE ==================== */}
               {hubTab === 'PEOPLE' && (
                 <div style={{ padding: '0 20px' }}>
                   <div className="glass-scroll" style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px', overflowX: 'auto' }}>
@@ -5294,8 +5317,8 @@ useEffect(() => {
                   </div>
                   <div className="glass-scroll" style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', height: 'calc(100vh - 300px)' }}>
                     {peopleSubTab === 'GLOBAL' ? (
-                      Object.values(usersDb || {}).filter(u => u.email !== currentUser?.email).length > 0 ? (
-                        Object.values(usersDb || {}).filter(u => u.email !== currentUser?.email).map((dbUser, idx) => (
+                      [].filter(u => u.email !== currentUser?.email).length > 0 ? (
+                        [].filter(u => u.email !== currentUser?.email).map((dbUser, idx) => (
                           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               
@@ -5616,7 +5639,7 @@ useEffect(() => {
             </div>
           )}
 
-          {!activeChat && <AppBottomNav />}
+         {!activeChat && <AppBottomNav />}
         </div>
       )}
 
