@@ -2973,35 +2973,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         accept="image/*,video/*"
       />
 
-      {/* Full-Screen Status Viewer Overlay */}
-      {activeViewStatus && (
-        <div className="status-viewer-overlay">
-          <div className="viewer-header">
-            <div className="viewer-author">
-              <img src={activeViewStatus.avatar} alt="author" />
-              <span>{activeViewStatus.authorName}</span>
-            </div>
-            <button className="viewer-close" onClick={() => setActiveViewStatus(null)}><XIcon /></button>
-          </div>
-
-          <img src={activeViewStatus.bgImage} alt="status" className="viewer-content" />
-
-          <div className="viewer-footer">
-            <div className="viewer-input-wrap">
-              <input type="text" placeholder="Send message..." />
-            </div>
-            <div className="viewer-action-btn" style={{ marginRight: '15px' }}>
-              <HeartIcon />
-              <span>Like</span>
-            </div>
-            <div className="viewer-action-btn">
-              <ShareIcon />
-              <span>Share</span>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* STEP 0 */}
       {step === 0 && (
         <div className="inner-pad">
@@ -3335,17 +3306,17 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     />
   </div>
 
-  {/* Existing Statuses (Mapped) */}
-  {/* Note: To achieve the WhatsApp segments, you map grouped users here. 
-      For now, we use a conic-gradient to simulate the green (unviewed) / grey (viewed) ring */}
   {groupedTestimonies.map(group => (
     <div key={group.userId} className="testimony-item" onClick={() => setActiveViewStatus(group.statuses[0])}>
       <div 
         className="testimony-circle" 
         style={{ 
-          padding: '2px',
-          background: group.allViewed ? '#8e9aab' : '#2ecc71', // Grey if viewed, Green if new
-          borderRadius: '50%'
+          padding: '4px',
+          background: group.allViewed ? '#8e9aab' : '#3b82f6',
+          borderRadius: '50%',
+          width: '64',
+          height: '64'
+
         }}
       >
         <div style={{ border: '2px solid #101926', borderRadius: '50%', overflow: 'hidden', width: '100%', height: '100%' }}>
@@ -3360,7 +3331,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 </div>
 
 
-{/* --- FULL SCREEN VIEWER MODAL (Shorts Style) --- */}
+{/* --- FULL SCREEN STATUS VIEWER MODAL --- */}
 {activeViewStatus && (
   <div className="status-viewer-modal">
     {/* Top Progress Bar */}
@@ -3368,7 +3339,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
       <div className="status-progress-bar" style={{ width: `${statusProgress}%` }}></div>
     </div>
     
-    {/* Header Info */}
     <div className="status-viewer-header">
       <div className="status-viewer-author">
         <img src={activeViewStatus.avatar_url} alt="author" className="status-viewer-avatar" />
@@ -3379,10 +3349,8 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
       </button>
     </div>
 
-    {/* Right Action Bar (TikTok / Shorts Style) */}
     <div className="status-action-bar" style={{ position: 'absolute', right: '15px', bottom: '100px', display: 'flex', flexDirection: 'column', gap: '20px', zIndex: 10 }}>
       
-      {/* Like Button */}
       <div className="action-icon-group" style={{ textAlign: 'center', color: '#fff' }}>
         <div className="icon-btn" style={{ background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '50%' }}>
           <HeartIcon />
@@ -3390,7 +3358,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         <span style={{ fontSize: '12px' }}>{activeViewStatus.likes || 0}</span>
       </div>
 
-      {/* Comment Button */}
       <div className="action-icon-group" style={{ textAlign: 'center', color: '#fff' }}>
         <div className="icon-btn" style={{ background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '50%' }}>
           <MessageIcon />
@@ -3398,7 +3365,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         <span style={{ fontSize: '12px' }}>Comment</span>
       </div>
 
-      {/* The "I Tap" Button (Tipping/Transaction) */}
       <div className="action-icon-group" onClick={() => handleTapTransaction(activeViewStatus)} style={{ textAlign: 'center', color: '#f3ca58', cursor: 'pointer' }}>
         <div className="icon-btn" style={{ background: 'rgba(243, 202, 88, 0.2)', border: '1px solid #f3ca58', padding: '10px', borderRadius: '50%' }}>
           <HandCoinIcon /> 
@@ -3406,7 +3372,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         <span style={{ fontSize: '12px', fontWeight: 'bold' }}>I Tap</span>
       </div>
 
-      {/* Share Button */}
       <div className="action-icon-group" style={{ textAlign: 'center', color: '#fff' }}>
         <div className="icon-btn" style={{ background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '50%' }}>
           <ShareIcon />
