@@ -882,18 +882,32 @@ const uploadNewTestimony = async (e) => {
 
 
 useEffect(() => {
-    if (step === 4 && !generatedAddress) {
-      setIsGenerating(true);
-      try {
-        const newKeypair = Keypair.generate();
-        setWalletKeypair(newKeypair);
-        setGeneratedAddress(newKeypair.publicKey.toString());
-        setIsGenerating(false);
-      } catch (err) { 
-        console.error("Wallet generation failed", err);
-        setIsGenerating(false); 
+    const initializeWallet = async () => {
+      if (step === 4 && !generatedAddress) {
+        setIsGenerating(true);
+        
+        try {
+          const newKeypair = Keypair.generate();
+          const newAddress = newKeypair.publicKey.toString();
+          
+          setWalletKeypair(newKeypair);
+          setGeneratedAddress(newAddress);
+          
+          if (typeof requestKPCAirdrop === 'function') {
+            await requestKPCAirdrop(newAddress); 
+          }
+          
+          setIsGenerating(false);
+          
+        } catch (err) {
+          console.error("Wallet generation or airdrop failed:", err);
+          setIsGenerating(false);
+        }
       }
-    }
+    };
+
+    initializeWallet();
+    
   }, [step, generatedAddress]);
 
   const truncateAddress = (addr) => !addr ? '' : `${addr.slice(0, 6)}...${addr.slice(-6)}`;
