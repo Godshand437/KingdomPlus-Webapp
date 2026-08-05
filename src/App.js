@@ -335,34 +335,254 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('sanctuary');
   const [currentSlide, setCurrentSlide] = useState(0);
   const [feedTab, setFeedTab] = useState('For You');
-// Supabase Auth State
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
-  
-  // Current User Session
   const [currentUser, setCurrentUser] = useState(() => {
     const saved = localStorage.getItem('kp_current_user');
     return saved ? JSON.parse(saved) : null;
   });
 
 
-  const [generatedAddress, setGeneratedAddress] = useState('');
+  const [generatedAddress, setGeneratedAddress] = useState(() => {
+    const saved = localStorage.getItem('kp_current_user');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.wallet_address || parsed.generatedAddress || '';
+    }
+    return '';
+  });
+
   const [walletKeypair, setWalletKeypair] = useState(null);
-  const [kpcBalance, setKpcBalance] = useState(0);
+ const [kpcBalance, setKpcBalance] = useState(() => {
+    const saved = localStorage.getItem('kp_current_user');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.wallet_balance || parsed.kpcBalance || 0;
+    }
+    return 0;
+  });
+
   const [isGenerating, setIsGenerating] = useState(true);
   const [isAirdropping, setIsAirdropping] = useState(false);
 
-  // Status/Testimony Viewer State (Global Overlay)
+  // Status/Testimony Viewer State
   const fileInputRef = useRef(null);
   const [activeViewStatus, setActiveViewStatus] = useState(null);
-  const [testimonies, setTestimonies] = useState([
-    { id: 1, authorName: 'Pastor Josh', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=100&q=80', bgImage: 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?auto=format&fit=crop&w=300&q=80', views: '0' },
-    { id: 2, authorName: 'Grace Choir', avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=100&q=80', bgImage: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=300&q=80', views: '0' },
-    { id: 3, authorName: 'Sarah F', avatar: 'https://images.unsplash.com/photo-1506804886640-ed09fb0317e0?auto=format&fit=crop&w=100&q=80', bgImage: 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&w=300&q=80', views: '0' },
-  ]);
+  const [statusProgress, setStatusProgress] = useState(0);
+  const [isUploadingStatus, setIsUploadingStatus] = useState(false);
+  
+  const welcomeVideoStatus = {
+    id: 'welcome-001',
+    authorName: 'KingdomPlus',
+    avatar: '/assets/logo.png', // Replace with your actual logo path
+    media_url: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4', // Replace with your actual welcome video URL
+    media_type: 'video',
+    views: '∞',
+    isPermanent: true
+  };
 
+  const [testimonies, setTestimonies] = useState([welcomeVideoStatus]);
+
+  const groupedTestimonies = Object.values(
+    testimonies.reduce((acc, status) => {
+      const uid = status.user_id || status.id;
+      if (!acc[uid]) {
+        acc[uid] = {
+          userId: uid,
+          authorName: status.author_name || status.authorName,
+          avatar: status.avatar_url || status.avatar,
+          allViewed: false,
+          statuses: []
+        };
+      }
+      acc[uid].statuses.push(status);
+      return acc;
+    }, {})
+  );
+
+const handleTapTransaction = async (status) => {
+    const tapAmount = 5;
+
+    if (kpcBalance < tapAmount) {
+      alert(`Insufficient funds. You need ${tapAmount} KPC to tap into this testimony.`);
+      return;
+    }
+
+    if (status.user_id === currentUser?.id) {
+      alert("You cannot tap into your own testimony!");
+      return;
+    }
+
+    setKpcBalance(prev => prev - tapAmount);
+    logTransaction(`Tapped into ${status.author_name || status.authorName}'s testimony`, -tapAmount, 'SPEND');
+
+    try {
+
+      if (status.user_id) {
+        let { data: recipientProfile } = await supabase
+          .from('user_profiles')
+          .select('id, wallet_balance')
+          .eq('id', status.user_id)
+          .single();
+
+        if (recipientProfile) {
+          await supabase
+            .from('user_profiles')
+            .update({ wallet_balance: Number(recipientProfile.wallet_balance || 0) + tapAmount })
+            .eq('id', status.user_id);
+        } else {
+
+          let { data: churchProfile } = await supabase
+            .from('church_profiles')
+            .select('id, wallet_balance')
+            .eq('id', status.user_id)
+            .single();
+            
+          if (churchProfile) {
+            await supabase
+              .from('church_profiles')
+              .update({ wallet_balance: Number(churchProfile.wallet_balance || 0) + tapAmount })
+              .eq('id', status.user_id);
+          }
+        }
+      }
+      
+      if (status.id !== 'welcome-001') {
+        await supabase
+          .from('testimonies')
+          .update({ taps: (status.taps || 0) + 1 })
+          .eq('id', status.id);
+      }
+
+      alert("Hallelujah! You've successfully tapped into this testimony.");
+    } catch (err) {
+      console.error("Tap transaction failed in DB", err);
+    }
+  };
+
+  useEffect(() => {
+    const fetchTestimonies = async () => {
+      if (step !== 6) return;
+      
+      const { data, error } = await supabase
+        .from('testimonies')
+        .select('*')
+        .gt('expires_at', new Date().toISOString())
+        .order('created_at', { ascending: false });
+
+      if (!error && data) {
+        setTestimonies([welcomeVideoStatus, ...data]);
+      }
+    };
+
+    fetchTestimonies();
+  }, [step]);
   const [kingdomTab, setKingdomTab] = useState('Devotions');
   const [kingdomSubTab, setKingdomSubTab] = useState('Global');
+
+const uploadNewTestimony = async (e) => {
+  const file = e.target.files[0];
+  if (!file || !currentUser) return;
+  
+  setIsUploadingStatus(true); 
+  
+  try {
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${currentUser.id}-${Date.now()}.${fileExt}`;
+    
+    const { error: uploadError } = await supabase.storage
+      .from('status_media')
+      .upload(fileName, file);
+      
+    if (uploadError) throw uploadError;
+
+    const { data: publicUrlData } = supabase.storage
+      .from('status_media')
+      .getPublicUrl(fileName);
+      
+    const isVideo = file.type.startsWith('video/');
+
+    const newStatus = {
+      user_id: currentUser.id,
+      author_name: currentUser.full_name || currentUser.church_name || 'You',
+      avatar_url: currentUser.image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
+      media_url: publicUrlData.publicUrl,
+      media_type: isVideo ? 'video' : 'image',
+      text_content: '',
+    };
+
+    const { data: insertedData, error: insertError } = await supabase
+      .from('testimonies')
+      .insert([newStatus])
+      .select()
+      .single();
+
+    if (insertError) throw insertError;
+
+    alert("Testimony uploaded successfully!");
+    
+  } catch (error) {
+    console.error("Upload failed:", error);
+    alert("Failed to post testimony.");
+  } finally {
+    setIsUploadingStatus(false);
+  }
+};
+     
+
+// Auto-advance/close logic for the status viewer
+  useEffect(() => {
+    let timer;
+    if (activeViewStatus) {
+      setStatusProgress(0);
+      
+      // If it's a video, we let the video element handle the progress.
+      // If it's an image, we use a 5-second timer.
+      if (activeViewStatus.media_type !== 'video') {
+        const duration = 10000;
+        const interval = 50; 
+        
+        timer = setInterval(() => {
+          setStatusProgress(prev => {
+            if (prev >= 100) {
+              clearInterval(timer);
+              setActiveViewStatus(null);
+              return 100;
+            }
+            return prev + (interval / duration) * 100;
+          });
+        }, interval);
+      }
+    }
+    return () => clearInterval(timer);
+  }, [activeViewStatus]);
+
+  const handleVideoProgress = (e) => {
+    const percent = (e.target.currentTime / e.target.duration) * 100;
+    setStatusProgress(percent);
+  };
+
+// Notification State
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState([
+    { id: 1, type: 'SYSTEM', title: 'Welcome to KingdomPlus', message: 'Your Kingdom Vault is ready. Start exploring!', time: '1d ago', isRead: true }
+  ]);
+
+  const unreadCount = notifications.filter(n => !n.isRead).length;
+
+  const handleMarkAllRead = () => {
+    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
+  };
+
+  const getNotifIcon = (type) => {
+    switch(type) {
+      case 'EARN': return <div style={{ color: '#2ecc71' }}><HandCoinIcon /></div>;
+      case 'TRANSFER': return <div style={{ color: '#f3ca58' }}><WalletIcon /></div>;
+      case 'SOCIAL': return <div style={{ color: '#29beaf' }}><MessageIcon /></div>;
+      case 'SYSTEM': return <div style={{ color: '#4facfe' }}><InfoIcon /></div>;
+      default: return <div style={{ color: '#8e9aab' }}><BellIcon /></div>;
+    }
+  };
 
   // Send / Swap State
   const [sendSwapTab, setSendSwapTab] = useState('Send');
@@ -371,7 +591,7 @@ export default function App() {
   const [sendMemo, setSendMemo] = useState('');
 
   // Media Hub State
-  const [mediaTab, setMediaTab] = useState('Music'); // Music | Videos | Movies
+  const [mediaTab, setMediaTab] = useState('Music'); 
   const [videoSubTab, setVideoSubTab] = useState('All');
 
   // Social Feed Posts
@@ -659,6 +879,8 @@ export default function App() {
     }
   };
 
+
+
 useEffect(() => {
     if (step === 4 && !generatedAddress) {
       setIsGenerating(true);
@@ -697,7 +919,7 @@ useEffect(() => {
       const amountToSend = 50 * Math.pow(10, 8);
       airdropSignature = await transfer(connection, faucetKeypair, senderTokenAccount.address, recipientTokenAccount.address, faucetKeypair.publicKey, amountToSend);
 
-      alert(`Success! 50 KPC deposited to your vault.\nTX ID: ${airdropSignature}`);
+      alert(`Success! 50 KPC deposited to your wallet.\nTX ID: ${airdropSignature}`);
     } catch (error) {
       console.error("Airdrop failed:", error);
       alert("Devnet Airdrop timeout. Simulating 50 KPC deposit for app demonstration!");
@@ -726,9 +948,9 @@ useEffect(() => {
           account_type: formData.accountType,
           denomination: formData.denomination || formData.customDenomination,
           phone_number: formData.phone,
-          wallet_address: generatedAddress, // Added to database
-          wallet_balance: finalBalance,     // Added to database
-          created_at: new Date()
+          wallet_address: generatedAddress,
+          wallet_balance: finalBalance,
+          created_at: new Date().toISOString()
         };
 
 const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance };
@@ -759,35 +981,84 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     setAuthError(null);
 
     try {
-      // 1. Authenticate with Supabase
-      const { data: authData, error: authError } = await supabase.auth.signInWithPassword({
-        email: authEmail, 
-        password: authPassword, 
+      let loginEmail = authEmail.trim();
+      
+      const isEmail = loginEmail.includes('@') && loginEmail.includes('.');
+
+      if (!isEmail) {
+
+        let { data: userProfile } = await supabase
+          .from('user_profiles')
+          .select('email')
+          .ilike('username', loginEmail)
+          .single();
+
+        if (userProfile && userProfile.email) {
+          loginEmail = userProfile.email;
+        } else {
+
+          let { data: churchProfile } = await supabase
+            .from('church_profiles')
+            .select('email')
+            .ilike('username', loginEmail)
+            .single();
+
+          if (churchProfile && churchProfile.email) {
+            loginEmail = churchProfile.email;
+          } else {
+            throw new Error("Username not found.");
+          }
+        }
+      }
+
+      const { data: authData, error: authErr } = await supabase.auth.signInWithPassword({
+        email: loginEmail,
+        password: authPassword,
       });
 
-      if (authError) throw authError;
+      if (authErr) throw authErr;
 
       const userId = authData.user.id;
 
-      // 2. Fetch their profile data 
       let profileData = null;
-      let { data: userProfile } = await supabase.from('user_profiles').select('*').eq('id', userId).single();
-      
-      if (userProfile) {
-        profileData = userProfile;
+      let { data: fullUserProfile } = await supabase.from('user_profiles').select('*').eq('id', userId).single();
+
+      if (fullUserProfile) {
+        profileData = fullUserProfile;
       } else {
-        let { data: churchProfile } = await supabase.from('church_profiles').select('*').eq('id', userId).single();
-        profileData = churchProfile;
+        let { data: fullChurchProfile } = await supabase.from('church_profiles').select('*').eq('id', userId).single();
+        profileData = fullChurchProfile;
+      }
+
+      if (profileData) {
+        if (profileData.wallet_address) setGeneratedAddress(profileData.wallet_address);
+        if (profileData.wallet_balance !== undefined && profileData.wallet_balance !== null) setKpcBalance(Number(profileData.wallet_balance));
+        setFormData(prev => ({
+          ...prev,
+          fullName: profileData.full_name || profileData.church_name || '',
+          username: profileData.username || '',
+          email: profileData.email || '',
+          accountType: profileData.account_type || 'Believer',
+          denomination: profileData.denomination || '',
+          churchName: profileData.church_name || profileData.local_church || ''
+        }));
       }
 
       alert(`Welcome back, ${profileData?.full_name || profileData?.church_name || 'Believer'}!`);
       
-      setCurrentUser(profileData);
-      setStep(6); // Route to Dashboard Hub
+      const sessionRecord = {
+        ...profileData,
+        wallet_address: profileData?.wallet_address || '',
+        wallet_balance: Number(profileData?.wallet_balance || 0)
+      };
+      setCurrentUser(sessionRecord);
+      localStorage.setItem('kp_current_user', JSON.stringify(sessionRecord));
+      
+      setStep(6);
 
     } catch (error) {
-      setAuthError("Invalid email or password.");
-      alert("Login failed: Invalid email or password.");
+      setAuthError("Invalid credentials.");
+      alert("Login failed: " + (error.message || "Invalid credentials"));
     } finally {
       setIsAuthLoading(false);
     }
@@ -1419,7 +1690,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     return [];
   });
 
-  const [txFilter, setTxFilter] = useState('ALL'); // 'ALL', 'EARN', 'SPEND'
+  const [txFilter, setTxFilter] = useState('ALL');
 
   // --- UNIVERSAL TRANSACTION LOGGER ---
   const logTransaction = (title, amount, type = 'EARN', signature = null) => {
@@ -1427,7 +1698,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
       id: Date.now() + Math.random(),
       title: title,
       amount: amount,
-      type: type, // 'EARN', 'SPEND', or 'AIRDROP'
+      type: type,
       date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
       status: 'Confirmed',
       signature: signature || `5K2p...${Math.floor(1000 + Math.random() * 9000)}`
@@ -1453,11 +1724,22 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
     localStorage.setItem('kp_current_user', JSON.stringify(updatedProfile));
 
-  }, [kpcBalance, generatedAddress, userTier, claimedVideos, claimedArticles, formData, txHistory, currentUser?.email]);
+ const syncToSupabase = async () => {
+      const userId = currentUser.id;
+      if (userId) {
+        const tableName = currentUser.account_type === 'Church' ? 'church_profiles' : 'user_profiles';
+        await supabase.from(tableName).update({
+          wallet_address: generatedAddress,
+          wallet_balance: kpcBalance
+        }).eq('id', userId);
+      }
+    };
+    syncToSupabase();
+  }, [kpcBalance, generatedAddress, userTier, formData, txHistory, currentUser?.id]);
 
 
 // --- TREASURY MODALS & WEB3 ECONOMY ENGINE ---
-  const [activeModal, setActiveModal] = useState(null); // 'send', 'qr', 'scan', 'hire', 'upgrade', or null
+  const [activeModal, setActiveModal] = useState(null);
   const [transferUsername, setTransferUsername] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
@@ -1482,11 +1764,10 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     let targetAddress = cleanInput;
     
     if (!isWalletAddress) {
-      // 1. Search Individual Believers in Supabase
       let { data: userProfile } = await supabase
         .from('user_profiles')
         .select('*')
-        .ilike('username', cleanUsername) // ilike for case-insensitive search
+        .ilike('username', cleanUsername)
         .single();
         
       if (userProfile) {
@@ -1494,7 +1775,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         recipientEmail = userProfile.email;
         targetAddress = userProfile.wallet_address;
       } else {
-        // 2. Search Church Ministries in Supabase if individual is not found
         let { data: churchProfile } = await supabase
           .from('church_profiles')
           .select('*')
@@ -1533,7 +1813,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
       
       setKpcBalance(prev => prev - amount);
       
-      // Update target name based on Supabase record structure
       const receiverName = recipientRecord?.username || recipientRecord?.church_name || cleanUsername;
       const targetName = isWalletAddress ? `${targetAddress.substring(0, 6)}...` : `@${receiverName}`;
       
@@ -1542,10 +1821,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
       // --- SUPABASE UPDATE ---
       if (!isWalletAddress && recipientRecord) {
         const newBalance = (recipientRecord.wallet_balance || 0) + amount;
-        
-        // Determine correct table based on the recipient's account structure
         const tableName = recipientRecord.church_name ? 'church_profiles' : 'user_profiles';
-        
         const { error: updateError } = await supabase
           .from(tableName)
           .update({ wallet_balance: newBalance })
@@ -1596,7 +1872,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
       setKpcBalance(prev => prev - cost);
       setUserTier(selectedTier);
       logTransaction(`Upgraded Vault to ${selectedTier} Tier`, -cost, 'SPEND');
-      alert(`👑 Congratulations! You are now ranked as an ${selectedTier.toUpperCase()} with enhanced staking & earning multipliers!`);
+      alert(`Congratulations! You are now ranked as an ${selectedTier.toUpperCase()} with enhanced staking & earning multipliers!`);
       setActiveModal(null);
     }
   };
@@ -2752,7 +3028,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
           <div className="footer-actions">
             <button className="action-button" onClick={() => setStep(1)}>GET STARTED</button>
-            {/* Step 15 represents your Login Screen */}
             <div className="login-prompt">Already have an account? <span style={{ color: '#29beaf', cursor: 'pointer', marginLeft: '5px' }} onClick={() => setStep(15)}>Log In</span></div>
           </div>
         </div>
@@ -2887,12 +3162,94 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
                     <span className="balance-usd" style={{ color: '#8e9aab', fontSize: '11px' }}> / ${(kpcBalance * 0.25).toFixed(2)}</span>
                   </div>
                 </div>
-                <div className="icon-circle">
-                  <BellIcon />
-                  <div className="notification-dot"></div>
-                </div>
+                <div 
+      className="notif-icon-wrapper" 
+      onClick={() => setIsNotifOpen(!isNotifOpen)} 
+      style={{ position: 'relative', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', padding: '5px' }}
+    >
+      <BellIcon />
+      {unreadCount > 0 && (
+        <span style={{ 
+          position: 'absolute', top: '0px', right: '0px', 
+          background: '#e74c3c', color: '#fff', fontSize: '10px', 
+          fontWeight: 'bold', borderRadius: '50%', padding: '2px 5px',
+          minWidth: '15px', textAlign: 'center'
+        }}>
+          {unreadCount}
+        </span>
+      )}
+    </div>
               </div>
             </div>
+
+{/* Notification Dropdown Panel */}
+{isNotifOpen && (
+  <div className="notif-panel-overlay" onClick={() => setIsNotifOpen(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99 }}>
+    {/* The overlay catches outside clicks to close the dropdown */}
+    <div 
+      className="notif-dropdown" 
+      onClick={(e) => e.stopPropagation()} 
+      style={{ 
+        position: 'absolute', top: '70px', right: '20px', 
+        background: '#101926', border: '1px solid #2a3441', 
+        borderRadius: '16px', width: '320px', zIndex: 100, 
+        boxShadow: '0 10px 30px rgba(0,0,0,0.8)', overflow: 'hidden'
+      }}
+    >
+      <div style={{ padding: '15px 20px', borderBottom: '1px solid #1a2433', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: '#0a0f18' }}>
+        <h3 style={{ margin: 0, color: '#fff', fontSize: '16px', fontWeight: '600' }}>Notifications</h3>
+        {unreadCount > 0 && (
+          <span onClick={handleMarkAllRead} style={{ fontSize: '13px', color: '#29beaf', cursor: 'pointer', fontWeight: '500' }}>
+            Mark all as read
+          </span>
+        )}
+      </div>
+
+      <div style={{ maxHeight: '350px', overflowY: 'auto' }}>
+        {notifications.length === 0 ? (
+          <div style={{ padding: '30px 20px', textAlign: 'center', color: '#8e9aab' }}>No new notifications</div>
+        ) : (
+          notifications.map(notif => (
+            <div 
+              key={notif.id} 
+              style={{ 
+                padding: '16px 20px', 
+                borderBottom: '1px solid #1a2433', 
+                display: 'flex', 
+                gap: '15px', 
+                background: notif.isRead ? 'transparent' : 'rgba(41, 190, 175, 0.05)',
+                cursor: 'pointer',
+                transition: 'background 0.2s ease'
+              }}
+            >
+               <div style={{ 
+                 width: '40px', height: '40px', borderRadius: '50%', 
+                 background: '#1a2433', display: 'flex', justifyContent: 'center', 
+                 alignItems: 'center', flexShrink: 0 
+               }}>
+                 {getNotifIcon(notif.type)}
+               </div>
+               <div style={{ flex: 1 }}>
+                 <div style={{ color: '#fff', fontSize: '14px', fontWeight: notif.isRead ? '500' : '700', marginBottom: '4px' }}>
+                   {notif.title}
+                 </div>
+                 <div style={{ color: '#8e9aab', fontSize: '13px', lineHeight: '1.4' }}>
+                   {notif.message}
+                 </div>
+                 <div style={{ color: notif.isRead ? '#596a7d' : '#29beaf', fontSize: '11px', marginTop: '8px', fontWeight: '500' }}>
+                   {notif.time}
+                 </div>
+               </div>
+               {!notif.isRead && (
+                 <div style={{ width: '8px', height: '8px', background: '#29beaf', borderRadius: '50%', alignSelf: 'center' }}></div>
+               )}
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  </div>
+)}
 
             {/* THE ROLE-BASED GATEWAY SWITCH */}
             {formData?.accountType === 'Church' || currentUser?.accountType === 'Church' ? (
@@ -2941,31 +3298,123 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
                 </div>
 
                 {/* Testimonies Reel */}
-                <div className="section-header">
-                  <h3>Testimonies of Faith</h3>
-                  <a href="#post" className="section-link" onClick={() => fileInputRef.current.click()}>Post your reel</a>
-                </div>
+<div className="section-header">
+  <h3>Testimonies of Faith</h3>
+  <span className="section-link" onClick={() => fileInputRef.current.click()} style={{cursor: 'pointer'}}>
+    Post your reel
+  </span>
+</div>
 
-                <div className="horizontal-scroll">
-                  <div className="testimony-item" onClick={() => fileInputRef.current.click()}>
-                    <div className="testimony-circle testimony-add">
-                      <PlusIcon />
-                    </div>
-                    <span className="testimony-name">Add your<br />testimony</span>
-                  </div>
+<div className="horizontal-scroll">
+  {/* Add Status Button */}
+  <div className="testimony-item" onClick={() => fileInputRef.current.click()}>
+    <div className="testimony-circle testimony-add" style={{ border: '2px dashed #29beaf' }}>
+      <PlusIcon />
+    </div>
+    <span className="testimony-name">Add your<br />testimony</span>
+    <input 
+      type="file" 
+      accept="image/*,video/*" 
+      ref={fileInputRef} 
+      style={{ display: 'none' }} 
+      onChange={uploadNewTestimony} 
+    />
+  </div>
 
-                  {testimonies.map(status => (
-                    <div key={status.id} className="testimony-item" onClick={() => setActiveViewStatus(status)}>
-                      <div className="testimony-circle testimony-view">
-                        <img src={status.avatar} alt={status.authorName} />
-                        <div className="play-overlay"><PlayIcon /></div>
-                      </div>
-                      <span className="testimony-name" style={{ whiteSpace: 'nowrap' }}>
-                        {status.authorName.split(' ')[0]}
-                      </span>
-                    </div>
-                  ))}
-                </div>
+  {/* Existing Statuses (Mapped) */}
+  {/* Note: To achieve the WhatsApp segments, you map grouped users here. 
+      For now, we use a conic-gradient to simulate the green (unviewed) / grey (viewed) ring */}
+  {groupedTestimonies.map(group => (
+    <div key={group.userId} className="testimony-item" onClick={() => setActiveViewStatus(group.statuses[0])}>
+      <div 
+        className="testimony-circle" 
+        style={{ 
+          padding: '2px',
+          background: group.allViewed ? '#8e9aab' : '#2ecc71', // Grey if viewed, Green if new
+          borderRadius: '50%'
+        }}
+      >
+        <div style={{ border: '2px solid #101926', borderRadius: '50%', overflow: 'hidden', width: '100%', height: '100%' }}>
+          <img src={group.avatar} alt={group.authorName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+        </div>
+      </div>
+      <span className="testimony-name" style={{ whiteSpace: 'nowrap' }}>
+        {group.authorName.split(' ')[0]}
+      </span>
+    </div>
+  ))}
+</div>
+
+
+{/* --- FULL SCREEN VIEWER MODAL (Shorts Style) --- */}
+{activeViewStatus && (
+  <div className="status-viewer-modal">
+    {/* Top Progress Bar */}
+    <div className="status-progress-container">
+      <div className="status-progress-bar" style={{ width: `${statusProgress}%` }}></div>
+    </div>
+    
+    {/* Header Info */}
+    <div className="status-viewer-header">
+      <div className="status-viewer-author">
+        <img src={activeViewStatus.avatar_url} alt="author" className="status-viewer-avatar" />
+        <span>{activeViewStatus.author_name}</span>
+      </div>
+      <button className="close-status-btn" onClick={() => setActiveViewStatus(null)}>
+        <XIcon />
+      </button>
+    </div>
+
+    {/* Right Action Bar (TikTok / Shorts Style) */}
+    <div className="status-action-bar" style={{ position: 'absolute', right: '15px', bottom: '100px', display: 'flex', flexDirection: 'column', gap: '20px', zIndex: 10 }}>
+      
+      {/* Like Button */}
+      <div className="action-icon-group" style={{ textAlign: 'center', color: '#fff' }}>
+        <div className="icon-btn" style={{ background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '50%' }}>
+          <HeartIcon />
+        </div>
+        <span style={{ fontSize: '12px' }}>{activeViewStatus.likes || 0}</span>
+      </div>
+
+      {/* Comment Button */}
+      <div className="action-icon-group" style={{ textAlign: 'center', color: '#fff' }}>
+        <div className="icon-btn" style={{ background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '50%' }}>
+          <MessageIcon />
+        </div>
+        <span style={{ fontSize: '12px' }}>Comment</span>
+      </div>
+
+      {/* The "I Tap" Button (Tipping/Transaction) */}
+      <div className="action-icon-group" onClick={() => handleTapTransaction(activeViewStatus)} style={{ textAlign: 'center', color: '#f3ca58', cursor: 'pointer' }}>
+        <div className="icon-btn" style={{ background: 'rgba(243, 202, 88, 0.2)', border: '1px solid #f3ca58', padding: '10px', borderRadius: '50%' }}>
+          <HandCoinIcon /> 
+        </div>
+        <span style={{ fontSize: '12px', fontWeight: 'bold' }}>I Tap</span>
+      </div>
+
+      {/* Share Button */}
+      <div className="action-icon-group" style={{ textAlign: 'center', color: '#fff' }}>
+        <div className="icon-btn" style={{ background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '50%' }}>
+          <ShareIcon />
+        </div>
+        <span style={{ fontSize: '12px' }}>Share</span>
+      </div>
+    </div>
+
+    {/* Media Content */}
+    <div className="status-media-content" style={{ backgroundColor: activeViewStatus.bg_color }}>
+      {activeViewStatus.media_type === 'video' ? (
+        <video src={activeViewStatus.media_url} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      ) : activeViewStatus.media_type === 'text' ? (
+        <div style={{ padding: '40px', textAlign: 'center', color: '#fff', fontSize: '24px' }}>
+          {activeViewStatus.text_content}
+        </div>
+      ) : (
+        <img src={activeViewStatus.media_url} alt="Status" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+      )}
+    </div>
+  </div>
+)}
 
                 {/* Interactive Worship Section */}
                 <div className="section-header" style={{ marginTop: '10px' }}>
@@ -4354,8 +4803,8 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
               <div className="login-input-wrap">
                 <div className="login-input-icon"><MailIcon /></div>
                 <input
-                  type="email"
-                  placeholder="you@kingdom.app"
+                  type="text"
+                  placeholder="Email or Username"
                   className="login-input"
                   value={authEmail}
                   onChange={(e) => setAuthEmail(e.target.value)}
@@ -4375,9 +4824,8 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
                 />
               </div>
 
-              {/* Checks database, restores user history, and routes to Dashboard (Step 6) */}
               <button type="submit" className="login-submit-btn" style={{ marginTop: '10px' }}>
-                <LoginIcon /> Sign in
+                <LoginIcon /> {isAuthLoading ? 'Signing in...' : 'Sign in'}
               </button>
             </form>
 
