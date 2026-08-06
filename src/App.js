@@ -652,7 +652,7 @@ const uploadNewTestimony = async (e) => {
     };
 
     setAnnouncements(prev => [newSlide, ...prev]);
-    setCurrentSlide(0); // Snap slider back to the first slide to show the new post
+    setCurrentSlide(0);
     setAnnounceTitleInput('');
     setAnnounceDescInput('');
     setActiveModal(null);
@@ -698,7 +698,7 @@ const uploadNewTestimony = async (e) => {
   const handleStatusUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const imageUrl = URL.createObjectURL(file); // Generates local preview URL
+      const imageUrl = URL.createObjectURL(file);
       const newStatus = {
         id: Date.now(),
         authorName: formData.fullName || 'You',
@@ -1190,7 +1190,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
     setIsClaiming(true);
     try {
-      // Simulate real video viewing delay
+
       await new Promise(resolve => setTimeout(resolve, 1500));
 
       const KPC_MINT = new PublicKey(GLOBAL_KPC_MINT);
@@ -1207,7 +1207,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
       setClaimedVideos(prev => ({ ...prev, [video.id]: true }));
       alert(`Hallelujah! You earned ${video.reward} KPC for watching.`);
     } catch (error) {
-      // Fallback for simulation
       setKpcBalance(prev => prev + video.reward);
       setClaimedVideos(prev => ({ ...prev, [video.id]: true }));
       alert(`Simulated App Mode: You earned ${video.reward} KPC for watching.`);
