@@ -374,8 +374,8 @@ export default function App() {
   const welcomeVideoStatus = {
     id: 'welcome-001',
     authorName: 'KingdomPlus',
-    avatar: '/assets/logo.png', // Replace with your actual logo path
-    media_url: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4', // Replace with your actual welcome video URL
+    avatar: '/assets/logo.png',
+    media_src: '/media/Welcome-Video.mp4',
     media_type: 'video',
     views: '∞',
     isPermanent: true
@@ -536,8 +536,6 @@ const uploadNewTestimony = async (e) => {
     if (activeViewStatus) {
       setStatusProgress(0);
       
-      // If it's a video, we let the video element handle the progress.
-      // If it's an image, we use a 5-second timer.
       if (activeViewStatus.media_type !== 'video') {
         const duration = 10000;
         const interval = 50; 
@@ -1219,7 +1217,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
   // --- STREAM-TO-EARN PLAYER STATE ---
   const [activeMedia, setActiveMedia] = useState(null);
-  const [mediaType, setMediaType] = useState(''); // 'audio' or 'video'
+  const [mediaType, setMediaType] = useState('');
   const [isPlaying, setIsPlaying] = useState(false);
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -1246,8 +1244,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     }
   }, [activeMedia]);
 
-  // For testing purposes, we set the reward threshold to 15 seconds.
-  // In a production app, this would be 80% of the video duration.
   const REWARD_THRESHOLD_SECONDS = 15;
 
   const openPlayer = (item, type) => {
@@ -1277,7 +1273,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     const current = mediaRef.current.currentTime;
     setCurrentTime(current);
 
-    // Check if they hit the threshold and haven't claimed this specific media yet
     if (current >= REWARD_THRESHOLD_SECONDS && !claimedVideos[activeMedia.id] && !isClaiming) {
       setIsClaiming(true);
 
@@ -1296,7 +1291,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         logTransaction(`Stream Reward: ${activeMedia.title}`, +activeMedia.reward, 'EARN');
         setClaimedVideos(prev => ({ ...prev, [activeMedia.id]: true }));
       } catch (error) {
-        // Local simulation fallback
+
         setKpcBalance(prev => prev + activeMedia.reward);
         setClaimedVideos(prev => ({ ...prev, [activeMedia.id]: true }));
       }
@@ -1318,9 +1313,9 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
   const dashboardWorship = [
     { id: 'dw1', title: 'Ministration-Tape-2026', artist: 'Frank-Edwards', reward: 5, src: '/media/Frank-Edwards-FRANK-EDWARDS-MINISTRATION-TAPE-2026-(CeeNaija.com).mp3', img: '/album/Frank-Edwards-Ministration-TAPE-2026.jpg' },
-    { id: 'dw2', title: 'Back To Jesus', artist: 'Matthew West', reward: 5, src: '/media/worship.mp3', img: '/album/Matthew-West-Back-To-Jesus.jpg' },
-    { id: 'dw3', title: 'I Want Jesus', artist: 'William McDowell', reward: 5, src: '/media/worship.mp3', img: '/album/William-McDowell-I-Want-Jesus.jpg' },
-    { id: 'dw4', title: 'Oh You Bring', artist: 'Hillsong United', reward: 5, src: '/media/worship.mp3', img: '/album/Hillsong-United-Rythm-of-Grace-1.png' }
+    { id: 'dw2', title: 'Back To Jesus', artist: 'Matthew West', reward: 5, src: '/media/Matthew-West-Back-To-Jesus-Lyric-Video-(CeeNaija.com).mp3', img: '/album/Matthew-West-Back-To-Jesus.jpg' },
+    { id: 'dw3', title: 'I Want Jesus', artist: 'William McDowell', reward: 5, src: '/media/William-McDowell-I-Want-Jesus-(CeeNaija.com).mp3', img: '/album/William-McDowell-I-Want-Jesus.jpg' },
+    { id: 'dw4', title: 'Oh You Bring', artist: 'Hillsong United', reward: 5, src: '/media/Hillsong_United_-_Oh_You_Bring_CeeNaija.com_.mp3', img: '/album/Hillsong-United-Rythm-of-Grace-1.png' }
   ];
 
   const newsData = [
