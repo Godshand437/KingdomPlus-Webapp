@@ -1332,7 +1332,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     }
   ];
 
-  // Logic to claim KPC for reading blogs
   const handleClaimArticleReward = async () => {
     if (!activeArticle || claimedArticles[activeArticle.id]) return;
 
@@ -3662,7 +3661,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
           <div className="feed-tabs-container">
             {['For You', 'Following', 'Church', 'Global'].map((tab) => (
               <div key={tab} className={`feed-tab ${feedTab === tab ? 'active' : ''}`} onClick={() => setFeedTab(tab)}>
-                {tab === 'For You' && <span style={{ fontSize: '12px' }}>✨</span>} {tab}
+                {tab === 'For You' && <span style={{ fontSize: '12px' }}></span>} {tab}
               </div>
             ))}
           </div>
@@ -4549,7 +4548,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
               </div>
             </div>
 
-            <div className="feed-tabs-container" style={{ marginBottom: '15px' }}>
+            <div className="feed-tabs-container" style={{ marginBottom: '15px', marginLeft: '-20px', marginRight: '-20px', padding: '0 20px' }}>
               {['Last night', 'Morning vision', 'Recurring', 'Prophetic'].map((tab) => (
                 <div key={tab} className={`feed-tab ${dreamTab === tab ? 'active' : ''}`} onClick={() => setDreamTab(tab)}>
                   {tab === 'Last night' && <MoonIcon />}
@@ -4561,7 +4560,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
               ))}
             </div>
 
-            <div style={{ padding: '0 20px' }}>
+            <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {dreams.map(dream => {
                 const moodConfig = getMoodConfig(dream.mood);
 
