@@ -832,7 +832,14 @@ const uploadNewTestimony = async (e) => {
     setDreamStepModal(1);
     setIsDreamModalOpen(false);
   };
-
+const [viewedStatuses, setViewedStatuses] = useState([]);
+const handleViewStatus = (group) => {
+  setActiveViewStatus(group.statuses[0]);
+  
+  if (!viewedStatuses.includes(group.userId)) {
+    setViewedStatuses(prev => [...prev, group.userId]);
+  }
+};
   const handleHireAndEscrow = async (freelancer) => {
     if (kpcBalance < freelancer.price) {
       alert(`Insufficient funds. This service requires ${freelancer.price} KPC.`);
@@ -2888,11 +2895,11 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
 
 // --- CHAT HUB STATE ---
-  const [hubTab, setHubTab] = useState('CHATS'); // 'CHATS', 'GROUPS', 'PEOPLE', 'REQUESTS'
+  const [hubTab, setHubTab] = useState('CHATS');
   
   // Sub-tabs for filtering
-  const [chatSubTab, setChatSubTab] = useState('ALL'); // 'ALL', 'URGENT PRAYER', 'COUNSELING', 'TESTIMONY'
-  const [peopleSubTab, setPeopleSubTab] = useState('GLOBAL'); // 'MY CHURCH', 'DENOMINATION', 'NEARBY', 'GLOBAL'
+  const [chatSubTab, setChatSubTab] = useState('ALL');
+  const [peopleSubTab, setPeopleSubTab] = useState('GLOBAL');
   const [peopleSearch, setPeopleSearch] = useState('');
   
   const [activeChat, setActiveChat] = useState(null);
@@ -2927,7 +2934,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
       { id: Date.now(), sender: 'You', text: chatInputMessage, intent: messageIntent, time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), isMe: true }
     ]);
     setChatInputMessage('');
-    setMessageIntent('NORMAL'); // Reset intent after sending
+    setMessageIntent('NORMAL');
   };
 
   const handleAddFriend = (dbUser) => {
@@ -2945,9 +2952,8 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
   const [selectedProfile, setSelectedProfile] = useState(null);
 
   const handleViewProfile = (e, entity) => {
-    e.stopPropagation(); // Prevents the chat room from opening when clicking the avatar!
+    e.stopPropagation();
     
-    // Normalize data (handles both Chat objects and Database User objects)
     const isDBUser = !!entity.email && !entity.id?.startsWith('c');
     setSelectedProfile({
       id: entity.id || entity.email,
@@ -3148,7 +3154,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
                   </div>
                 </div>
                 <div 
-      className="notif-icon-wrapper" 
+      className="icon-circle" 
       onClick={() => setIsNotifOpen(!isNotifOpen)} 
       style={{ position: 'relative', cursor: 'pointer', color: '#fff', display: 'flex', alignItems: 'center', padding: '5px' }}
     >
@@ -3167,10 +3173,8 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
               </div>
             </div>
 
-{/* Notification Dropdown Panel */}
 {isNotifOpen && (
   <div className="notif-panel-overlay" onClick={() => setIsNotifOpen(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99 }}>
-    {/* The overlay catches outside clicks to close the dropdown */}
     <div 
       className="notif-dropdown" 
       onClick={(e) => e.stopPropagation()} 
@@ -3236,7 +3240,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
   </div>
 )}
 
-            {/* THE ROLE-BASED GATEWAY SWITCH */}
             {formData?.accountType === 'Church' || currentUser?.accountType === 'Church' ? (
               renderChurchDashboard()
             ) : (
@@ -3291,7 +3294,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 </div>
 
 <div className="horizontal-scroll">
-  {/* Add Status Button */}
   <div className="testimony-item" onClick={() => fileInputRef.current.click()}>
     <div className="testimony-circle testimony-add" style={{ border: '2px dashed #29beaf' }}>
       <PlusIcon />
@@ -3307,19 +3309,18 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
   </div>
 
   {groupedTestimonies.map(group => (
-    <div key={group.userId} className="testimony-item" onClick={() => setActiveViewStatus(group.statuses[0])}>
+    <div key={group.userId} className="testimony-item" onClick={() => handleViewStatus(group)}>
       <div 
         className="testimony-circle" 
         style={{ 
-          padding: '4px',
-          background: group.allViewed ? '#8e9aab' : '#3b82f6',
+          padding: '2px', 
+          background: viewedStatuses.includes(group.userId) ? '#8e9aab' : '#3b82f6', 
           borderRadius: '50%',
-          width: '64',
-          height: '64'
-
+          width: '76px', 
+          height: '76px' 
         }}
       >
-        <div style={{ border: '2px solid #101926', borderRadius: '50%', overflow: 'hidden', width: '100%', height: '100%' }}>
+        <div style={{ border: '3px solid #101926', borderRadius: '50%', overflow: 'hidden', width: '100%', height: '100%' }}>
           <img src={group.avatar} alt={group.authorName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
         </div>
       </div>
@@ -3397,7 +3398,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
                 {/* Interactive Worship Section */}
                 <div className="section-header" style={{ marginTop: '10px' }}>
-                  <h3>Worship from Your {formData.denomination || 'Non-denominational'}</h3>
+                  <h3>Trending Gospel Songs</h3>
                 </div>
                 <div className="horizontal-scroll">
                   {dashboardWorship.map((track) => (
