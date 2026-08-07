@@ -385,7 +385,6 @@ export default function App() {
   const [showCommentsPanel, setShowCommentsPanel] = useState(false);
   const [newStatusComment, setNewStatusComment] = useState("");
   const [statusComments, setStatusComments] = useState({
-    // Pre-loaded dummy comments for the welcome status
     'welcome-001': [
       { id: 1, author: '@Godshand', text: 'Well it was a wonderful idea!!! 😂😂😂', time: '1 mo ago', likes: 0, avatar: 'G' }
     ]
@@ -393,13 +392,34 @@ export default function App() {
   
   const welcomeVideoStatus = {
     id: 'welcome-001',
-    authorName: 'KingdomPlus',
+    user_id: currentUser?.id || 'system-user',
+    authorName: currentUser?.formData?.username ? `@${currentUser.formData.username}` : (currentUser?.username ? `@${currentUser.username}` : '@believer'),
     avatar: '/assets/logo.png',
     media_src: '/assets/KingdomPlus-Status-Video.mp4',
     media_type: 'video',
-    views: '∞',
+    views: 0,
+    likes: 0,
     isPermanent: true
   };
+
+// --- SYNC WELCOME STATUS TO REGISTERED ACCOUNT ---
+  useEffect(() => {
+    if (currentUser) {
+      setTestimonies(prevTestimonies => 
+        prevTestimonies.map(status => {
+          if (status.id === 'welcome-001') {
+            return {
+              ...status,
+              user_id: currentUser.id,
+              authorName: `@${currentUser.formData?.username || currentUser.username || 'believer'}`,
+              avatar: currentUser.formData?.avatar || currentUser.image || status.avatar
+            };
+          }
+          return status;
+        })
+      );
+    }
+  }, [currentUser]);
 
   const [testimonies, setTestimonies] = useState([welcomeVideoStatus]);
 
@@ -419,6 +439,19 @@ export default function App() {
       return acc;
     }, {})
   );
+
+const toggleCommentLike = (commentId) => {
+    setStatusComments(prev => {
+      const currentComments = prev[activeViewStatus.id] || [];
+      const updatedComments = currentComments.map(c => {
+        if (c.id === commentId) {
+          return { ...c, isLiked: !c.isLiked, likes: c.isLiked ? c.likes - 1 : c.likes + 1 };
+        }
+        return c;
+      });
+      return { ...prev, [activeViewStatus.id]: updatedComments };
+    });
+  };
 
 const handleTapTransaction = async (status) => {
     const tapAmount = 5;
@@ -3389,182 +3422,218 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 </div>
 
 
-{/* --- FULL SCREEN STATUS VIEWER MODAL --- */}
-{activeViewStatus && (
-  <div 
-    className="status-viewer-modal"
-    style={{
-      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-      backgroundColor: '#0f0f0f', zIndex: 999999, display: 'flex',
-      flexDirection: 'column', overflow: 'hidden'
-    }}
-  >
-    {/* Progress Bar */}
-    <div className="status-progress-container" style={{ position: 'absolute', top: '15px', left: '15px', right: '15px', zIndex: 10 }}>
-      <div className="status-progress-bar" style={{ width: `${statusProgress || 100}%`, height: '3px', backgroundColor: '#ffffff', borderRadius: '3px', boxShadow: '0 0 10px rgba(255,255,255,0.5)', transition: 'width 0.1s linear' }}></div>
-    </div>
-    
-    {/* Header */}
-    <div className="status-viewer-header" style={{ position: 'absolute', top: '40px', left: '15px', right: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10, opacity: showCommentsPanel ? 0 : 1, transition: 'opacity 0.2s' }}>
-      <div className="status-viewer-author" style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ffffff', background: 'rgba(0,0,0,0.3)', padding: '6px 12px 6px 6px', borderRadius: '30px', backdropFilter: 'blur(8px)' }}>
-        <img 
-          src={activeViewStatus.avatar_url || activeViewStatus.avatar} 
-          alt="author" 
-          style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #f3ca58' }} 
-        />
-        <span style={{ fontWeight: '800', fontSize: '14px', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-          {activeViewStatus.author_name || activeViewStatus.authorName}
-        </span>
-      </div>
-      <button 
-        onClick={() => { setActiveViewStatus(null); setShowCommentsPanel(false); setViewerLiked(false); }} 
-        style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.2)', width: '40px', height: '40px', borderRadius: '50%', color: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}
-      >
-        <XIcon />
-      </button>
-    </div>
+{/* --- FULL SCREEN STATUS VIEWER MODAL (WITH SOUND, VIEWS & LIKES) --- */}
+{activeViewStatus && (() => {
+  // Check if the currently logged-in user owns this status
+  const isMyStatus = currentUser && (activeViewStatus.user_id === currentUser.id || activeViewStatus.id === 'welcome-001');
 
-    {/* Right-Side Action Bar */}
-    <div className="status-action-bar" style={{ position: 'absolute', right: '16px', bottom: '80px', display: 'flex', flexDirection: 'column', gap: '22px', zIndex: 10, opacity: showCommentsPanel ? 0 : 1, transition: 'opacity 0.2s' }}>
-      <div className="action-icon-group" onClick={() => setViewerLiked(!viewerLiked)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-        <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: viewerLiked ? '#ef4444' : '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
-          {viewerLiked ? <HeartSolidIcon /> : <HeartIcon />}
+  return (
+    <div 
+      className="status-viewer-modal"
+      style={{
+        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+        backgroundColor: '#0f0f0f', zIndex: 999999, display: 'flex',
+        flexDirection: 'column', overflow: 'hidden'
+      }}
+    >
+      {/* Progress Bar */}
+      <div className="status-progress-container" style={{ position: 'absolute', top: '15px', left: '15px', right: '15px', zIndex: 10 }}>
+        <div className="status-progress-bar" style={{ width: `${statusProgress || 100}%`, height: '3px', backgroundColor: '#ffffff', borderRadius: '3px', boxShadow: '0 0 10px rgba(255,255,255,0.5)', transition: 'width 0.1s linear' }}></div>
+      </div>
+      
+      {/* Header */}
+      <div className="status-viewer-header" style={{ position: 'absolute', top: '40px', left: '15px', right: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10, opacity: showCommentsPanel ? 0 : 1, transition: 'opacity 0.2s' }}>
+        <div className="status-viewer-author" style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ffffff', background: 'rgba(0,0,0,0.3)', padding: '6px 12px 6px 6px', borderRadius: '30px', backdropFilter: 'blur(8px)' }}>
+          <img 
+            src={activeViewStatus.avatar_url || activeViewStatus.avatar} 
+            alt="author" 
+            style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #f3ca58' }} 
+          />
+          <span style={{ fontWeight: '800', fontSize: '14px', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+            {activeViewStatus.author_name || activeViewStatus.authorName}
+          </span>
         </div>
-        <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-          {viewerLiked ? (activeViewStatus.likes || 0) + 1 : (activeViewStatus.likes || 0)}
-        </span>
+        <button 
+          onClick={() => { setActiveViewStatus(null); setShowCommentsPanel(false); setViewerLiked(false); }} 
+          style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.2)', width: '40px', height: '40px', borderRadius: '50%', color: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}
+        >
+          <XIcon />
+        </button>
       </div>
 
-      <div className="action-icon-group" onClick={() => setShowCommentsPanel(true)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-        <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
-          <MessageIcon />
-        </div>
-        <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-          {(statusComments[activeViewStatus.id] || []).length}
-        </span>
-      </div>
-
-      <div className="action-icon-group" onClick={() => handleTapTransaction(activeViewStatus)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-        <div style={{ background: 'linear-gradient(135deg, rgba(243, 202, 88, 0.3), rgba(243, 202, 88, 0.1))', backdropFilter: 'blur(10px)', border: '1px solid rgba(243, 202, 88, 0.6)', padding: '14px', borderRadius: '50%', color: '#f3ca58', boxShadow: '0 8px 25px rgba(243, 202, 88, 0.4)' }}>
-          <HandCoinIcon /> 
-        </div>
-        <span style={{ color: '#f3ca58', fontSize: '13px', fontWeight: '900', textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>I Tap</span>
-      </div>
-    </div>
-
-    {/* YOUTUBE SHORTS STYLE COMMENTS PANEL */}
-    {showCommentsPanel && (
-      <>
-        {/* Invisible backdrop to close panel when clicking outside */}
-        <div 
-          onClick={() => setShowCommentsPanel(false)} 
-          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '40%', zIndex: 15 }} 
-        />
+      {/* Right-Side Action Bar */}
+      <div className="status-action-bar" style={{ position: 'absolute', right: '16px', bottom: '80px', display: 'flex', flexDirection: 'column', gap: '22px', zIndex: 10, opacity: showCommentsPanel ? 0 : 1, transition: 'opacity 0.2s' }}>
         
-        <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '60%', backgroundColor: '#212121', borderTopLeftRadius: '16px', borderTopRightRadius: '16px', zIndex: 20, display: 'flex', flexDirection: 'column', animation: 'slideUp 0.3s cubic-bezier(0.1, 0.8, 0.2, 1)' }}>
+        {/* Like */}
+        <div className="action-icon-group" onClick={() => setViewerLiked(!viewerLiked)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: viewerLiked ? '#ef4444' : '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
+            {viewerLiked ? <HeartSolidIcon /> : <HeartIcon />}
+          </div>
+          <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+            {viewerLiked ? (activeViewStatus.likes || 0) + 1 : (activeViewStatus.likes || 0)}
+          </span>
+        </div>
+
+        {/* Comment */}
+        <div className="action-icon-group" onClick={() => setShowCommentsPanel(true)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
+            <MessageIcon />
+          </div>
+          <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+            {(statusComments[activeViewStatus.id] || []).length}
+          </span>
+        </div>
+
+        {/* I Tap */}
+        <div className="action-icon-group" onClick={() => handleTapTransaction(activeViewStatus)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+          <div style={{ background: 'linear-gradient(135deg, rgba(243, 202, 88, 0.3), rgba(243, 202, 88, 0.1))', backdropFilter: 'blur(10px)', border: '1px solid rgba(243, 202, 88, 0.6)', padding: '14px', borderRadius: '50%', color: '#f3ca58', boxShadow: '0 8px 25px rgba(243, 202, 88, 0.4)' }}>
+            <HandCoinIcon /> 
+          </div>
+          <span style={{ color: '#f3ca58', fontSize: '13px', fontWeight: '900', textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>I Tap</span>
+        </div>
+
+        {/* Share Button Restored */}
+        <div className="action-icon-group" onClick={() => {
+          navigator.clipboard.writeText(`https://kingdomplus.app/status/${activeViewStatus.id}`);
+          alert("Link copied to clipboard!");
+        }} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+          <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
+            <ShareIcon />
+          </div>
+          <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>Share</span>
+        </div>
+      </div>
+
+      {/* UPLOADER ONLY: View Count Bottom Left */}
+      {isMyStatus && !showCommentsPanel && (
+        <div style={{ position: 'absolute', bottom: '25px', left: '16px', zIndex: 10, display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.5)', padding: '8px 14px', borderRadius: '20px', backdropFilter: 'blur(8px)', color: '#fff' }}>
+          <EyeIcon /> <span style={{ fontSize: '13px', fontWeight: '800' }}>{activeViewStatus.views || 0} views</span>
+        </div>
+      )}
+
+      {/* YOUTUBE SHORTS STYLE COMMENTS PANEL */}
+      {showCommentsPanel && (
+        <>
+          <div 
+            onClick={() => setShowCommentsPanel(false)} 
+            style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '40%', zIndex: 15 }} 
+          />
           
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderBottom: '1px solid #3d3d3d' }}>
-            <h3 style={{ margin: 0, color: '#fff', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-              Comments <span style={{ color: '#aaaaaa', fontSize: '14px', fontWeight: 'normal' }}>{(statusComments[activeViewStatus.id] || []).length}</span>
-            </h3>
-            <div style={{ display: 'flex', gap: '16px', color: '#fff' }}>
-              <span style={{ cursor: 'pointer' }}><SettingsGearIcon /></span>
-              <span style={{ cursor: 'pointer' }} onClick={() => setShowCommentsPanel(false)}><XIcon /></span>
-            </div>
-          </div>
-
-          <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            {(statusComments[activeViewStatus.id] || []).map((comment) => (
-              <div key={comment.id} style={{ display: 'flex', gap: '12px' }}>
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#4facfe', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
-                  {comment.avatar}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                    <span style={{ color: '#aaaaaa', fontSize: '12px', fontWeight: 'bold' }}>{comment.author}</span>
-                    <span style={{ color: '#aaaaaa', fontSize: '12px' }}>• {comment.time}</span>
-                  </div>
-                  <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.4', marginBottom: '8px' }}>
-                    {comment.text}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#aaaaaa', fontSize: '12px' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}><HeartOutlineIcon /> {comment.likes || 0}</span>
-                    <span style={{ cursor: 'pointer' }}>Reply</span>
-                  </div>
-                </div>
+          <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '60%', backgroundColor: '#212121', borderTopLeftRadius: '16px', borderTopRightRadius: '16px', zIndex: 20, display: 'flex', flexDirection: 'column', animation: 'slideUp 0.3s cubic-bezier(0.1, 0.8, 0.2, 1)' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderBottom: '1px solid #3d3d3d' }}>
+              <h3 style={{ margin: 0, color: '#fff', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                Comments <span style={{ color: '#aaaaaa', fontSize: '14px', fontWeight: 'normal' }}>{(statusComments[activeViewStatus.id] || []).length}</span>
+              </h3>
+              <div style={{ display: 'flex', gap: '16px', color: '#fff' }}>
+                <span style={{ cursor: 'pointer' }}><SettingsGearIcon /></span>
+                <span style={{ cursor: 'pointer' }} onClick={() => setShowCommentsPanel(false)}><XIcon /></span>
               </div>
-            ))}
-            {(statusComments[activeViewStatus.id] || []).length === 0 && (
-              <div style={{ textAlign: 'center', color: '#aaaaaa', marginTop: '20px' }}>Be the first to comment!</div>
-            )}
-          </div>
+            </div>
 
-          <div style={{ padding: '12px 16px', borderTop: '1px solid #3d3d3d', display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#212121' }}>
-             <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#f3ca58', color: '#101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
-                {(currentUser?.formData?.fullName || 'Y').charAt(0)}
-             </div>
-             <input 
-                type="text" 
-                placeholder="Add a comment..." 
-                value={newStatusComment}
-                onChange={(e) => setNewStatusComment(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newStatusComment.trim()) {
-                    const newCommentObj = { id: Date.now(), author: `@${currentUser?.formData?.username || 'believer'}`, text: newStatusComment, time: 'Just now', likes: 0, avatar: (currentUser?.formData?.fullName || 'Y').charAt(0) };
+            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              {(statusComments[activeViewStatus.id] || []).map((comment) => (
+                <div key={comment.id} style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#4facfe', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
+                    {comment.avatar}
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                      <span style={{ color: '#aaaaaa', fontSize: '12px', fontWeight: 'bold' }}>{comment.author}</span>
+                      <span style={{ color: '#aaaaaa', fontSize: '12px' }}>• {comment.time}</span>
+                    </div>
+                    <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.4', marginBottom: '8px' }}>
+                      {comment.text}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#aaaaaa', fontSize: '12px' }}>
+                      
+                      {/* Fully Functional Comment Like Button */}
+                      <span 
+                        onClick={() => toggleCommentLike(comment.id)} 
+                        style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: comment.isLiked ? '#ef4444' : '#aaaaaa', transition: 'color 0.2s' }}
+                      >
+                        {comment.isLiked ? <HeartSolidIcon /> : <HeartOutlineIcon />} {comment.likes || 0}
+                      </span>
+                      
+                      <span style={{ cursor: 'pointer' }}>Reply</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {(statusComments[activeViewStatus.id] || []).length === 0 && (
+                <div style={{ textAlign: 'center', color: '#aaaaaa', marginTop: '20px' }}>Be the first to comment!</div>
+              )}
+            </div>
+
+            <div style={{ padding: '12px 16px', borderTop: '1px solid #3d3d3d', display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#212121' }}>
+               <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#f3ca58', color: '#101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
+                  {(currentUser?.formData?.fullName || 'Y').charAt(0)}
+               </div>
+               <input 
+                  type="text" 
+                  placeholder="Add a comment..." 
+                  value={newStatusComment}
+                  onChange={(e) => setNewStatusComment(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newStatusComment.trim()) {
+                      const newCommentObj = { id: Date.now(), author: `@${currentUser?.formData?.username || currentUser?.username || 'believer'}`, text: newStatusComment, time: 'Just now', likes: 0, isLiked: false, avatar: (currentUser?.formData?.fullName || 'Y').charAt(0) };
+                      setStatusComments(prev => ({ ...prev, [activeViewStatus.id]: [newCommentObj, ...(prev[activeViewStatus.id] || [])] }));
+                      setNewStatusComment("");
+                    }
+                  }}
+                  style={{ flex: 1, backgroundColor: 'transparent', border: 'none', color: '#fff', fontSize: '14px', outline: 'none' }}
+               />
+               <button 
+                  disabled={!newStatusComment.trim()}
+                  onClick={() => {
+                    const newCommentObj = { id: Date.now(), author: `@${currentUser?.formData?.username || 'believer'}`, text: newStatusComment, time: 'Just now', likes: 0, isLiked: false, avatar: (currentUser?.formData?.fullName || 'Y').charAt(0) };
                     setStatusComments(prev => ({ ...prev, [activeViewStatus.id]: [newCommentObj, ...(prev[activeViewStatus.id] || [])] }));
                     setNewStatusComment("");
-                  }
-                }}
-                style={{ flex: 1, backgroundColor: 'transparent', border: 'none', color: '#fff', fontSize: '14px', outline: 'none' }}
-             />
-             <button 
-                disabled={!newStatusComment.trim()}
-                onClick={() => {
-                  const newCommentObj = { id: Date.now(), author: `@${currentUser?.formData?.username || 'believer'}`, text: newStatusComment, time: 'Just now', likes: 0, avatar: (currentUser?.formData?.fullName || 'Y').charAt(0) };
-                  setStatusComments(prev => ({ ...prev, [activeViewStatus.id]: [newCommentObj, ...(prev[activeViewStatus.id] || [])] }));
-                  setNewStatusComment("");
-                }}
-                style={{ background: 'none', border: 'none', color: newStatusComment.trim() ? '#29beaf' : '#aaaaaa', cursor: newStatusComment.trim() ? 'pointer' : 'default' }}
-             >
-               <SendIcon />
-             </button>
+                  }}
+                  style={{ background: 'none', border: 'none', color: newStatusComment.trim() ? '#29beaf' : '#aaaaaa', cursor: newStatusComment.trim() ? 'pointer' : 'default' }}
+               >
+                 <SendIcon />
+               </button>
+            </div>
           </div>
-        </div>
-      </>
-    )}
-
-    {/* Media Content - Added Hold-To-Pause events & changed to objectFit: 'contain' */}
-    <div 
-      className="status-media-content" 
-      onMouseDown={() => setIsStatusPaused(true)}
-      onMouseUp={() => setIsStatusPaused(false)}
-      onTouchStart={() => setIsStatusPaused(true)}
-      onTouchEnd={() => setIsStatusPaused(false)}
-      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: activeViewStatus.bg_color || '#0f0f0f', width: '100%', height: '100%' }}
-    >
-      {activeViewStatus.media_type === 'video' ? (
-        <video 
-          ref={statusVideoRef}
-          src={activeViewStatus.media_src || activeViewStatus.media_url} 
-          autoPlay playsInline muted
-          onTimeUpdate={handleVideoProgress}
-          onEnded={() => setActiveViewStatus(null)}
-          style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-        />
-      ) : activeViewStatus.media_type === 'text' ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: '#fff', fontSize: '28px', fontWeight: '900', lineHeight: '1.4' }}>
-          {activeViewStatus.text_content}
-        </div>
-      ) : (
-        <img 
-          src={activeViewStatus.media_src || activeViewStatus.media_url || activeViewStatus.bgImage} 
-          alt="Status" 
-          style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-        />
+        </>
       )}
+
+      {/* Media Content - Muted Removed & ObjectFit Contain */}
+      <div 
+        className="status-media-content" 
+        onMouseDown={() => setIsStatusPaused(true)}
+        onMouseUp={() => setIsStatusPaused(false)}
+        onTouchStart={() => setIsStatusPaused(true)}
+        onTouchEnd={() => setIsStatusPaused(false)}
+        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: activeViewStatus.bg_color || '#0f0f0f', width: '100%', height: '100%' }}
+      >
+        {activeViewStatus.media_type === 'video' ? (
+          <video 
+            ref={statusVideoRef}
+            src={activeViewStatus.media_src || activeViewStatus.media_url} 
+            autoPlay 
+            playsInline 
+            /* muted is removed! Ensure you have interacted with the page first or browser might block autoplay */
+            onTimeUpdate={handleVideoProgress}
+            onEnded={() => setActiveViewStatus(null)}
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+          />
+        ) : activeViewStatus.media_type === 'text' ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#fff', fontSize: '28px', fontWeight: '900', lineHeight: '1.4' }}>
+            {activeViewStatus.text_content}
+          </div>
+        ) : (
+          <img 
+            src={activeViewStatus.media_src || activeViewStatus.media_url || activeViewStatus.bgImage} 
+            alt="Status" 
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+          />
+        )}
+      </div>
     </div>
-  </div>
-)}
+  );
+})()}
 
                 {/* Interactive Worship Section */}
                 <div className="section-header" style={{ marginTop: '10px' }}>
