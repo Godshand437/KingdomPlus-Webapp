@@ -395,7 +395,7 @@ export default function App() {
     id: 'welcome-001',
     authorName: 'KingdomPlus',
     avatar: '/assets/logo.png',
-    media_src: '/media/Welcome-Video.mp4',
+    media_src: '/assets/KingdomPlus-Status-Video.mp4',
     media_type: 'video',
     views: '∞',
     isPermanent: true
