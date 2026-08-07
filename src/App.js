@@ -345,6 +345,7 @@ export default function App() {
  const [viewerLiked, setViewerLiked] = useState(false); 
  const [showCommentInput, setShowCommentInput] = useState(false);
  const [viewerComment, setViewerComment] = useState("");
+ const [showTestimonyChoice, setShowTestimonyChoice] = useState(false);
 
   const [generatedAddress, setGeneratedAddress] = useState(() => {
     const saved = localStorage.getItem('kp_current_user');
@@ -392,8 +393,8 @@ export default function App() {
   
   const welcomeVideoStatus = {
     id: 'welcome-001',
-    user_id: currentUser?.id || 'system-user',
-    authorName: currentUser?.formData?.username ? `@${currentUser.formData.username}` : (currentUser?.username ? `@${currentUser.username}` : '@believer'),
+    user_id: 'Godshand',
+    authorName: '@Godshand',
     avatar: '/assets/logo.png',
     media_src: '/assets/KingdomPlus-Status-Video.mp4',
     media_type: 'video',
@@ -405,6 +406,8 @@ export default function App() {
 const [showTextStatusModal, setShowTextStatusModal] = useState(false);
 const [textStatusContent, setTextStatusContent] = useState("");
 const [textStatusBg, setTextStatusBg] = useState("#4facfe");
+const [activeNewsArticle, setActiveNewsArticle] = useState(null);
+const [showNewsComments, setShowNewsComments] = useState(false);
 
 // --- SYNC WELCOME STATUS TO REGISTERED ACCOUNT ---
   useEffect(() => {
@@ -764,13 +767,18 @@ const uploadNewTestimony = async (e) => {
   const handleStatusUpload = (e) => {
     const file = e.target.files[0];
     if (file) {
-      const imageUrl = URL.createObjectURL(file);
+      const fileUrl = URL.createObjectURL(file);
+      const isVideo = file.type.startsWith('video/');
       const newStatus = {
-        id: Date.now(),
-        authorName: formData.fullName || 'You',
-        avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
-        bgImage: imageUrl,
-        views: '0'
+        id: `status-${Date.now()}`,
+        user_id: currentUser?.id || `temp-${Date.now()}`,
+        authorName: formData.fullName ? `@${formData.username || formData.fullName.split(' ')[0]}` : '@You',
+        avatar: currentUser?.formData?.avatar || currentUser?.image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
+        media_src: fileUrl,
+        media_type: isVideo ? 'video' : 'image',
+        bg_color: '#0f0f0f',
+        views: 0,
+        likes: 0
       };
       setTestimonies([newStatus, ...testimonies]);
     }
@@ -3388,7 +3396,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 </div>
 
 <div className="horizontal-scroll">
-  <div className="testimony-item" onClick={() => fileInputRef.current.click()}>
+  <div className="testimony-item" onClick={() => setShowTestimonyChoice(true)}>
     <div className="testimony-circle testimony-add" style={{ border: '2px dashed #29beaf' }}>
       <PlusIcon />
     </div>
@@ -3433,8 +3441,19 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
   ))}
 </div>
 
+{/* --- TESTIMONY CHOICE MODAL --- */}
+{showTestimonyChoice && (
+  <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+    <div style={{ background: '#101926', padding: '24px', borderRadius: '20px', width: '80%', maxWidth: '320px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
+      <h3 style={{ color: '#fff', marginTop: 0, marginBottom: '20px', fontSize: '18px' }}>Share a Testimony</h3>
+      <button onClick={() => { setShowTestimonyChoice(false); setShowTextStatusModal(true); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'linear-gradient(90deg, #f3ca58, #29beaf)', color: '#101926', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Write Text</button>
+      <button onClick={() => { setShowTestimonyChoice(false); fileInputRef.current.click(); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Upload Photo/Video</button>
+      <button onClick={() => setShowTestimonyChoice(false)} style={{ display: 'block', width: '100%', padding: '12px', background: 'transparent', color: '#8e9aab', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+    </div>
+  </div>
+)}
 
-{/* --- FULL SCREEN STATUS VIEWER MODAL (WITH SOUND, VIEWS & LIKES) --- */}
+{/* --- FULL SCREEN STATUS VIEWER MODAL --- */}
 {activeViewStatus && (() => {
   // Check if the currently logged-in user owns this status
   const isMyStatus = currentUser && (activeViewStatus.user_id === currentUser.id || activeViewStatus.id === 'welcome-001');
@@ -3669,7 +3688,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
             bg_color: textStatusBg,
             views: 0, likes: 0,
           };
-          setTestimonies([{ ...newStatus, statuses: [newStatus] }, ...testimonies]); // Add to feed
+          setTestimonies([{ ...newStatus, statuses: [newStatus] }, ...testimonies]); 
           setShowTextStatusModal(false);
           setTextStatusContent("");
         }}
@@ -3698,6 +3717,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     </div>
   </div>
 )}
+
 
                 {/* Interactive Worship Section */}
                 <div className="section-header" style={{ marginTop: '10px' }}>
@@ -3730,7 +3750,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
                       key={news.id}
                       className="news-card"
                       style={{ cursor: 'pointer' }}
-                      onClick={() => setActiveArticle(news)}
+                      onClick={() => setActiveNewsArticle(news)}
                     >
                       <img src={news.img} alt={news.title} className="news-img" />
                       <div className="news-details">
@@ -3746,6 +3766,89 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
                     </div>
                   ))}
                 </div>
+
+{/* --- FULL SCREEN KINGDOM NEWS READER --- */}
+{activeNewsArticle && (
+  <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: '#101926', zIndex: 999999, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+    
+    {/* Top Header (Ref: 1000077973_106efd.jpg) */}
+    <div style={{ position: 'sticky', top: 0, backgroundColor: 'rgba(16, 25, 38, 0.95)', backdropFilter: 'blur(10px)', zIndex: 10, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+      <span onClick={() => { setActiveNewsArticle(null); setShowNewsComments(false); }} style={{ color: '#fff', cursor: 'pointer' }}>
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </span>
+      <h2 style={{ color: '#fff', fontSize: '18px', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+        {activeNewsArticle.title || "Kingdom News"}
+      </h2>
+    </div>
+
+    {/* Author & Engagement Row */}
+    <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#444' }} />
+        <div>
+          <div style={{ color: '#fff', fontSize: '15px', fontWeight: 'bold' }}>Kingdom Connect</div>
+          <div style={{ color: '#aaaaaa', fontSize: '12px' }}>Nigeria • {new Date().toLocaleDateString()}</div>
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#aaaaaa', fontSize: '14px', borderBottom: '1px solid #2a2a2a', paddingBottom: '16px' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><HeartOutlineIcon /> 320</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><ShareIcon /> 13</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }} onClick={() => setShowNewsComments(true)}><MessageIcon /> 48</span>
+      </div>
+    </div>
+
+    {/* Article Hero Image (Ref: 1000078445_106efd.jpg) */}
+    <img 
+      src={activeNewsArticle.image || "https://images.unsplash.com/photo-1490730141103-6cac27aaab94"} 
+      alt="news-banner" 
+      style={{ width: '100%', height: '250px', objectFit: 'cover' }} 
+    />
+
+    {/* Article Content */}
+    <div style={{ padding: '24px 20px', color: '#e0e0e0', fontSize: '16px', lineHeight: '1.6' }}>
+      <h1 style={{ color: '#fff', fontSize: '24px', fontWeight: '900', marginBottom: '20px', lineHeight: '1.3' }}>
+        {activeNewsArticle.title}
+      </h1>
+      <p>{activeNewsArticle.content || "Fasting is a powerful spiritual discipline. As we embark on this journey, ensure you spend extra time in the word..."}</p>
+      
+      {/* KPC Claim Button */}
+      <div style={{ marginTop: '30px', padding: '20px', backgroundColor: '#1a2436', borderRadius: '12px', textAlign: 'center' }}>
+        <div style={{ color: '#aaaaaa', marginBottom: '10px', fontSize: '14px' }}>Did this bless you?</div>
+        <button style={{ backgroundColor: '#fff', color: '#101926', padding: '12px 30px', borderRadius: '30px', fontWeight: 'bold', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', margin: '0 auto', cursor: 'pointer' }}>
+          <span>$</span> Claim 2 KPC
+        </button>
+      </div>
+    </div>
+
+    {/* Dark Theme Comments Section (Ref: 1000077977_106efd.jpg) */}
+    {showNewsComments && (
+      <div style={{ borderTop: '8px solid #000', backgroundColor: '#111', padding: '20px', paddingBottom: '60px' }}>
+        <h3 style={{ color: '#fff', margin: '0 0 20px 0', fontSize: '16px', fontWeight: 'normal' }}>New Comments (56)</h3>
+        
+        {/* Mock Comments matching the screenshot exactly */}
+        {[
+          { name: 'king gold official', date: '2026-06-27 23:26', text: 'hello guys', likes: 0 },
+          { name: 'fawasi', date: '2026-06-22 11:14', text: 'Hi', likes: 0 },
+          { name: 'Black panther', date: '2026-01-09 14:17', text: 'good app ❤️', likes: 1 }
+        ].map((c, i) => (
+          <div key={i} style={{ display: 'flex', gap: '15px', marginBottom: '24px' }}>
+            <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#333', flexShrink: 0 }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ color: '#aaaaaa', fontSize: '14px', marginBottom: '2px' }}>{c.name}</div>
+              <div style={{ color: '#666666', fontSize: '12px', marginBottom: '8px' }}>{c.date}</div>
+              <div style={{ color: '#fff', fontSize: '15px' }}>{c.text}</div>
+            </div>
+            <div style={{ color: '#aaaaaa', fontSize: '12px', display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
+              {c.likes} <HeartOutlineIcon />
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
 
                 {/* Community Grid */}
                 <div className="section-header" style={{ marginTop: '10px' }}>
@@ -5647,49 +5750,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         </div>
       )}
 
-      {/* --- ARTICLE READER MODAL (READ-TO-EARN) --- */}
-      {activeArticle && (
-        <div className="media-player-overlay" style={{ background: '#0a0f1a', overflowY: 'auto', display: 'block' }}>
-          <div className="player-header" style={{ position: 'sticky', background: 'rgba(10, 15, 26, 0.9)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
-            <button className="close-player-btn" onClick={() => setActiveArticle(null)}>
-              <BackArrowIcon />
-            </button>
-            <div style={{ color: '#fff', fontSize: '14px', fontWeight: '800' }}>Kingdom Blog</div>
-            <button className="close-player-btn" style={{ background: 'transparent' }}><ShareIcon /></button>
-          </div>
-
-          <img src={activeArticle.img} alt="Article Header" style={{ width: '100%', height: '250px', objectFit: 'cover' }} />
-
-          <div style={{ padding: '25px 20px 100px 20px' }}>
-            <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '900', letterSpacing: '1px', marginBottom: '10px' }}>{activeArticle.badge}</div>
-            <h1 style={{ color: '#fff', fontSize: '24px', fontWeight: '900', marginBottom: '15px', lineHeight: '1.2' }}>{activeArticle.title}</h1>
-
-            <div style={{ color: '#cbd5e1', fontSize: '16px', lineHeight: '1.7', marginBottom: '40px' }}>
-              {activeArticle.content}
-            </div>
-
-            {/* Read-To-Earn Action Area */}
-            <div style={{ background: 'rgba(30, 41, 59, 0.5)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '20px', textAlign: 'center' }}>
-              <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800', marginBottom: '10px' }}>
-                {claimedArticles[activeArticle.id] ? "Reward Claimed!" : "Did this bless you?"}
-              </div>
-              <button
-                className="movie-btn-play"
-                style={{ width: '100%', opacity: claimedArticles[activeArticle.id] ? 0.5 : 1 }}
-                onClick={handleClaimArticleReward}
-                disabled={claimedArticles[activeArticle.id] || isClaimingArticle}
-              >
-                {claimedArticles[activeArticle.id] ? (
-                  <><CheckIcon /> Earned {activeArticle.reward} KPC</>
-                ) : (
-                  <><HandCoinIcon /> Claim {activeArticle.reward} KPC for Reading</>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
+      
 {/* =========================================
           CHURCH ONBOARDING BRANCH (STEPS 19 - 22)
           ========================================= */}
