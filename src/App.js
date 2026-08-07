@@ -20,6 +20,7 @@ const PlayIcon = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="cu
 const HeartIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>);
 const MessageIcon = () => (<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>);
 const HomeIcon = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path><polyline points="9 22 9 12 15 12 15 22"></polyline></svg>);
+const WalletIcon2 = () => (<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="25" height="25" rx="2" ry="2"></rect><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"></path></svg>);
 const VolumeIcon = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path></svg>);
 const GlobeIcon = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>);
 const ProfileIcon = () => (<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>);
@@ -341,7 +342,9 @@ export default function App() {
     const saved = localStorage.getItem('kp_current_user');
     return saved ? JSON.parse(saved) : null;
   });
-
+ const [viewerLiked, setViewerLiked] = useState(false); 
+ const [showCommentInput, setShowCommentInput] = useState(false);
+ const [viewerComment, setViewerComment] = useState("");
 
   const [generatedAddress, setGeneratedAddress] = useState(() => {
     const saved = localStorage.getItem('kp_current_user');
@@ -459,6 +462,15 @@ const handleTapTransaction = async (status) => {
       console.error("Tap transaction failed in DB", err);
     }
   };
+
+useEffect(() => {
+    if (step === 6) setActiveTab('sanctuary');
+    else if (step === 10) setActiveTab('kingdom');
+    else if (step >= 11 && step <= 16) setActiveTab('treasury');
+    else if (step === 17) setActiveTab('media');
+    else if (step === 18) setActiveTab('profile');
+    else if (step === 23) setActiveTab('chat');
+  }, [step]);
 
   useEffect(() => {
     const fetchTestimonies = async () => {
@@ -1383,13 +1395,14 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         <div className="nav-icon-wrapper"><ChatIcon /></div>
         <span className="nav-label">Chat</span>
       </div>
-
-      <div className={`nav-item ${activeTab === 'kingdom' ? 'active' : ''}`} onClick={() => { setActiveTab('kingdom'); setStep(10); }}>
+      
+      <div className={`nav-item ${activeTab === 'kingdom' ? 'active' : ''}`} onClick={() => { setActiveTab('kingdom'); setKingdomTab('Devotions'); setStep(10); }}>
         <div className="nav-icon-wrapper"><GlobeIcon /></div>
         <span className="nav-label">Kingdom</span>
       </div>
+      
       <div className={`nav-item ${activeTab === 'treasury' ? 'active' : ''}`} onClick={() => { setActiveTab('treasury'); setStep(11); }}>
-        <div className="nav-icon-wrapper"><WalletIcon /></div>
+        <div className="nav-icon-wrapper"><WalletIcon2 /></div>
         <span className="nav-label">Treasury</span>
       </div>
       <div className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); setStep(18); }}>
@@ -3327,63 +3340,119 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
 {/* --- FULL SCREEN STATUS VIEWER MODAL --- */}
 {activeViewStatus && (
-  <div className="status-viewer-modal">
-    {/* Top Progress Bar */}
-    <div className="status-progress-container">
-      <div className="status-progress-bar" style={{ width: `${statusProgress}%` }}></div>
+  <div 
+    className="status-viewer-modal"
+    style={{
+      position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+      backgroundColor: '#000000', zIndex: 999999, display: 'flex',
+      flexDirection: 'column', overflow: 'hidden'
+    }}
+  >
+    {/* Progress Bar */}
+    <div className="status-progress-container" style={{ position: 'absolute', top: '15px', left: '15px', right: '15px', zIndex: 10 }}>
+      <div className="status-progress-bar" style={{ width: `${statusProgress || 100}%`, height: '3px', backgroundColor: '#ffffff', borderRadius: '3px', boxShadow: '0 0 10px rgba(255,255,255,0.5)' }}></div>
     </div>
     
-    <div className="status-viewer-header">
-      <div className="status-viewer-author">
-        <img src={activeViewStatus.avatar_url} alt="author" className="status-viewer-avatar" />
-        <span>{activeViewStatus.author_name}</span>
+    <div className="status-viewer-header" style={{ position: 'absolute', top: '40px', left: '15px', right: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
+      <div className="status-viewer-author" style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ffffff', background: 'rgba(0,0,0,0.3)', padding: '6px 12px 6px 6px', borderRadius: '30px', backdropFilter: 'blur(8px)' }}>
+        <img 
+          src={activeViewStatus.avatar_url || activeViewStatus.avatar} 
+          alt="author" 
+          style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #f3ca58' }} 
+        />
+        <span style={{ fontWeight: '800', fontSize: '14px', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+          {activeViewStatus.author_name || activeViewStatus.authorName}
+        </span>
       </div>
-      <button className="close-status-btn" onClick={() => setActiveViewStatus(null)}>
+      <button 
+        onClick={() => { setActiveViewStatus(null); setShowCommentInput(false); setViewerLiked(false); }} 
+        style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.2)', width: '40px', height: '40px', borderRadius: '50%', color: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}
+      >
         <XIcon />
       </button>
     </div>
 
-    <div className="status-action-bar" style={{ position: 'absolute', right: '15px', bottom: '100px', display: 'flex', flexDirection: 'column', gap: '20px', zIndex: 10 }}>
+    <div className="status-action-bar" style={{ position: 'absolute', right: '16px', bottom: '80px', display: 'flex', flexDirection: 'column', gap: '22px', zIndex: 10 }}>
       
-      <div className="action-icon-group" style={{ textAlign: 'center', color: '#fff' }}>
-        <div className="icon-btn" style={{ background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '50%' }}>
-          <HeartIcon />
+      {/* LIKE BUTTON */}
+      <div className="action-icon-group" onClick={() => setViewerLiked(!viewerLiked)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+        <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: viewerLiked ? '#ef4444' : '#ffffff', transition: 'all 0.2s', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
+          {viewerLiked ? <HeartSolidIcon /> : <HeartIcon />}
         </div>
-        <span style={{ fontSize: '12px' }}>{activeViewStatus.likes || 0}</span>
+        <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+          {viewerLiked ? (activeViewStatus.likes || 0) + 1 : (activeViewStatus.likes || 0)}
+        </span>
       </div>
 
-      <div className="action-icon-group" style={{ textAlign: 'center', color: '#fff' }}>
-        <div className="icon-btn" style={{ background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '50%' }}>
+      {/* COMMENT BUTTON */}
+      <div className="action-icon-group" onClick={() => setShowCommentInput(!showCommentInput)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+        <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
           <MessageIcon />
         </div>
-        <span style={{ fontSize: '12px' }}>Comment</span>
+        <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>Comment</span>
       </div>
 
-      <div className="action-icon-group" onClick={() => handleTapTransaction(activeViewStatus)} style={{ textAlign: 'center', color: '#f3ca58', cursor: 'pointer' }}>
-        <div className="icon-btn" style={{ background: 'rgba(243, 202, 88, 0.2)', border: '1px solid #f3ca58', padding: '10px', borderRadius: '50%' }}>
+      {/* I TAP (WALLET TRANSFER)  */}
+      <div className="action-icon-group" onClick={() => handleTapTransaction(activeViewStatus)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+        <div style={{ background: 'linear-gradient(135deg, rgba(243, 202, 88, 0.3), rgba(243, 202, 88, 0.1))', backdropFilter: 'blur(10px)', border: '1px solid rgba(243, 202, 88, 0.6)', padding: '14px', borderRadius: '50%', color: '#f3ca58', boxShadow: '0 8px 25px rgba(243, 202, 88, 0.4)' }}>
           <HandCoinIcon /> 
         </div>
-        <span style={{ fontSize: '12px', fontWeight: 'bold' }}>I Tap</span>
+        <span style={{ color: '#f3ca58', fontSize: '13px', fontWeight: '900', textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>I Tap</span>
       </div>
 
-      <div className="action-icon-group" style={{ textAlign: 'center', color: '#fff' }}>
-        <div className="icon-btn" style={{ background: 'rgba(0,0,0,0.4)', padding: '10px', borderRadius: '50%' }}>
+      {/* SHARE BUTTON */}
+      <div className="action-icon-group" onClick={() => {
+        navigator.clipboard.writeText(`https://kingdomplus.app/status/${activeViewStatus.id}`);
+        alert("Link copied to clipboard!");
+      }} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+        <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
           <ShareIcon />
         </div>
-        <span style={{ fontSize: '12px' }}>Share</span>
+        <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>Share</span>
       </div>
     </div>
 
+    {/* Comment Input Overlay */}
+    {showCommentInput && (
+      <div style={{ position: 'absolute', bottom: '20px', left: '15px', right: '15px', zIndex: 20, display: 'flex', gap: '10px', animation: 'slideUp 0.2s ease-out' }}>
+        <input 
+          type="text" 
+          placeholder="Write a comment..." 
+          value={viewerComment}
+          onChange={(e) => setViewerComment(e.target.value)}
+          style={{ flexGrow: 1, padding: '14px 20px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.3)', outline: 'none', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(15px)', color: '#fff', fontSize: '14px' }}
+        />
+        <button onClick={() => {
+          if(!viewerComment.trim()) return;
+          alert("Comment posted!");
+          setViewerComment("");
+          setShowCommentInput(false);
+        }} style={{ padding: '0 24px', borderRadius: '24px', background: 'linear-gradient(90deg, #f3ca58, #29beaf)', color: '#101926', border: 'none', fontWeight: '900', fontSize: '14px', cursor: 'pointer' }}>
+          Send
+        </button>
+      </div>
+    )}
+
     {/* Media Content */}
-    <div className="status-media-content" style={{ backgroundColor: activeViewStatus.bg_color }}>
+    <div className="status-media-content" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: activeViewStatus.bg_color || '#000000', width: '100%', height: '100%' }}>
       {activeViewStatus.media_type === 'video' ? (
-        <video src={activeViewStatus.media_url} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        <video 
+          src={activeViewStatus.media_src || activeViewStatus.media_url} 
+          autoPlay playsInline muted
+          onTimeUpdate={handleVideoProgress}
+          onEnded={() => setActiveViewStatus(null)}
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+        />
       ) : activeViewStatus.media_type === 'text' ? (
-        <div style={{ padding: '40px', textAlign: 'center', color: '#fff', fontSize: '24px' }}>
+        <div style={{ padding: '40px', textAlign: 'center', color: '#fff', fontSize: '28px', fontWeight: '900', lineHeight: '1.4' }}>
           {activeViewStatus.text_content}
         </div>
       ) : (
-        <img src={activeViewStatus.media_url} alt="Status" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+        <img 
+          src={activeViewStatus.media_src || activeViewStatus.media_url || activeViewStatus.bgImage} 
+          alt="Status" 
+          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+        />
       )}
     </div>
   </div>
@@ -3501,7 +3570,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
                   <div className="banner-action">Write a dream <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"></polyline></svg></div>
                 </div>
 
-                <div className="feature-banner banner-book" onClick={() => setKingdomTab('Store')}>
+               <div className="feature-banner banner-book" onClick={() => { setKingdomTab('Store'); setActiveTab('kingdom'); setStep(10); }}>
                   <div className="banner-icon-box"><BookOpenIcon /></div>
                   <div className="banner-content">
                     <h4>Book Store</h4><p>Get faith building books & audio.</p>
@@ -3821,7 +3890,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
             {/* ==================== 1. DEVOTIONS (DYNAMIC) ==================== */}
             {kingdomTab === 'Devotions' && (
               <>
-                {/* Render Featured Item First */}
                 {devotionsList.filter(d => d.isFeatured).map(item => (
                   <div key={item.id} style={{ marginBottom: '20px' }}>
                     <h3 className="kingdom-section-title">Today's Pick</h3>
