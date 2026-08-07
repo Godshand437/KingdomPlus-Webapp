@@ -368,11 +368,28 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(true);
   const [isAirdropping, setIsAirdropping] = useState(false);
 
-  // Status/Testimony Viewer State
+// Status/Testimony Viewer State
   const fileInputRef = useRef(null);
   const [activeViewStatus, setActiveViewStatus] = useState(null);
   const [statusProgress, setStatusProgress] = useState(0);
   const [isUploadingStatus, setIsUploadingStatus] = useState(false);
+  
+  const [isStatusPaused, setIsStatusPaused] = useState(false);
+  const statusVideoRef = useRef(null);
+
+  const [viewedStatuses, setViewedStatuses] = useState(() => {
+    const saved = localStorage.getItem('kp_viewed_statuses');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const [showCommentsPanel, setShowCommentsPanel] = useState(false);
+  const [newStatusComment, setNewStatusComment] = useState("");
+  const [statusComments, setStatusComments] = useState({
+    // Pre-loaded dummy comments for the welcome status
+    'welcome-001': [
+      { id: 1, author: '@Godshand', text: 'Well it was a wonderful idea!!! 😂😂😂', time: '1 mo ago', likes: 0, avatar: 'G' }
+    ]
+  });
   
   const welcomeVideoStatus = {
     id: 'welcome-001',
@@ -842,14 +859,48 @@ const uploadNewTestimony = async (e) => {
     setDreamStepModal(1);
     setIsDreamModalOpen(false);
   };
-const [viewedStatuses, setViewedStatuses] = useState([]);
-const handleViewStatus = (group) => {
-  setActiveViewStatus(group.statuses[0]);
-  
-  if (!viewedStatuses.includes(group.userId)) {
-    setViewedStatuses(prev => [...prev, group.userId]);
-  }
-};
+
+// Handle opening a status and saving it to seen history
+  const handleViewStatus = (group) => {
+    setActiveViewStatus(group.statuses[0]);
+    setStatusProgress(0);
+    setIsStatusPaused(false);
+    setShowCommentsPanel(false);
+    
+    if (!viewedStatuses.includes(group.userId)) {
+      const newViewed = [...viewedStatuses, group.userId];
+      setViewedStatuses(newViewed);
+      localStorage.setItem('kp_viewed_statuses', JSON.stringify(newViewed));
+    }
+  };
+
+  useEffect(() => {
+    let timer;
+    if (activeViewStatus && !isStatusPaused && !showCommentsPanel) {
+      if (activeViewStatus.media_type !== 'video') {
+        const duration = 10000;
+        const interval = 50; 
+        
+        timer = setInterval(() => {
+          setStatusProgress(prev => {
+            if (prev >= 100) {
+              clearInterval(timer);
+              setActiveViewStatus(null);
+              return 100;
+            }
+            return prev + (interval / duration) * 100;
+          });
+        }, interval);
+      } else if (statusVideoRef.current) {
+        statusVideoRef.current.play();
+      }
+    } else if (statusVideoRef.current && (isStatusPaused || showCommentsPanel)) {
+      statusVideoRef.current.pause();
+    }
+    
+    return () => clearInterval(timer);
+  }, [activeViewStatus, isStatusPaused, showCommentsPanel]);
+
   const handleHireAndEscrow = async (freelancer) => {
     if (kpcBalance < freelancer.price) {
       alert(`Insufficient funds. This service requires ${freelancer.price} KPC.`);
@@ -3344,16 +3395,17 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     className="status-viewer-modal"
     style={{
       position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-      backgroundColor: '#000000', zIndex: 999999, display: 'flex',
+      backgroundColor: '#0f0f0f', zIndex: 999999, display: 'flex',
       flexDirection: 'column', overflow: 'hidden'
     }}
   >
     {/* Progress Bar */}
     <div className="status-progress-container" style={{ position: 'absolute', top: '15px', left: '15px', right: '15px', zIndex: 10 }}>
-      <div className="status-progress-bar" style={{ width: `${statusProgress || 100}%`, height: '3px', backgroundColor: '#ffffff', borderRadius: '3px', boxShadow: '0 0 10px rgba(255,255,255,0.5)' }}></div>
+      <div className="status-progress-bar" style={{ width: `${statusProgress || 100}%`, height: '3px', backgroundColor: '#ffffff', borderRadius: '3px', boxShadow: '0 0 10px rgba(255,255,255,0.5)', transition: 'width 0.1s linear' }}></div>
     </div>
     
-    <div className="status-viewer-header" style={{ position: 'absolute', top: '40px', left: '15px', right: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10 }}>
+    {/* Header */}
+    <div className="status-viewer-header" style={{ position: 'absolute', top: '40px', left: '15px', right: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10, opacity: showCommentsPanel ? 0 : 1, transition: 'opacity 0.2s' }}>
       <div className="status-viewer-author" style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ffffff', background: 'rgba(0,0,0,0.3)', padding: '6px 12px 6px 6px', borderRadius: '30px', backdropFilter: 'blur(8px)' }}>
         <img 
           src={activeViewStatus.avatar_url || activeViewStatus.avatar} 
@@ -3365,18 +3417,17 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         </span>
       </div>
       <button 
-        onClick={() => { setActiveViewStatus(null); setShowCommentInput(false); setViewerLiked(false); }} 
+        onClick={() => { setActiveViewStatus(null); setShowCommentsPanel(false); setViewerLiked(false); }} 
         style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.2)', width: '40px', height: '40px', borderRadius: '50%', color: '#ffffff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', backdropFilter: 'blur(8px)' }}
       >
         <XIcon />
       </button>
     </div>
 
-    <div className="status-action-bar" style={{ position: 'absolute', right: '16px', bottom: '80px', display: 'flex', flexDirection: 'column', gap: '22px', zIndex: 10 }}>
-      
-      {/* LIKE BUTTON */}
+    {/* Right-Side Action Bar */}
+    <div className="status-action-bar" style={{ position: 'absolute', right: '16px', bottom: '80px', display: 'flex', flexDirection: 'column', gap: '22px', zIndex: 10, opacity: showCommentsPanel ? 0 : 1, transition: 'opacity 0.2s' }}>
       <div className="action-icon-group" onClick={() => setViewerLiked(!viewerLiked)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-        <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: viewerLiked ? '#ef4444' : '#ffffff', transition: 'all 0.2s', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
+        <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: viewerLiked ? '#ef4444' : '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
           {viewerLiked ? <HeartSolidIcon /> : <HeartIcon />}
         </div>
         <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
@@ -3384,64 +3435,121 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         </span>
       </div>
 
-      {/* COMMENT BUTTON */}
-      <div className="action-icon-group" onClick={() => setShowCommentInput(!showCommentInput)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+      <div className="action-icon-group" onClick={() => setShowCommentsPanel(true)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
         <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
           <MessageIcon />
         </div>
-        <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>Comment</span>
+        <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
+          {(statusComments[activeViewStatus.id] || []).length}
+        </span>
       </div>
 
-      {/* I TAP (WALLET TRANSFER)  */}
       <div className="action-icon-group" onClick={() => handleTapTransaction(activeViewStatus)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
         <div style={{ background: 'linear-gradient(135deg, rgba(243, 202, 88, 0.3), rgba(243, 202, 88, 0.1))', backdropFilter: 'blur(10px)', border: '1px solid rgba(243, 202, 88, 0.6)', padding: '14px', borderRadius: '50%', color: '#f3ca58', boxShadow: '0 8px 25px rgba(243, 202, 88, 0.4)' }}>
           <HandCoinIcon /> 
         </div>
         <span style={{ color: '#f3ca58', fontSize: '13px', fontWeight: '900', textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>I Tap</span>
       </div>
-
-      {/* SHARE BUTTON */}
-      <div className="action-icon-group" onClick={() => {
-        navigator.clipboard.writeText(`https://kingdomplus.app/status/${activeViewStatus.id}`);
-        alert("Link copied to clipboard!");
-      }} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-        <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
-          <ShareIcon />
-        </div>
-        <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>Share</span>
-      </div>
     </div>
 
-    {/* Comment Input Overlay */}
-    {showCommentInput && (
-      <div style={{ position: 'absolute', bottom: '20px', left: '15px', right: '15px', zIndex: 20, display: 'flex', gap: '10px', animation: 'slideUp 0.2s ease-out' }}>
-        <input 
-          type="text" 
-          placeholder="Write a comment..." 
-          value={viewerComment}
-          onChange={(e) => setViewerComment(e.target.value)}
-          style={{ flexGrow: 1, padding: '14px 20px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.3)', outline: 'none', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(15px)', color: '#fff', fontSize: '14px' }}
+    {/* YOUTUBE SHORTS STYLE COMMENTS PANEL */}
+    {showCommentsPanel && (
+      <>
+        {/* Invisible backdrop to close panel when clicking outside */}
+        <div 
+          onClick={() => setShowCommentsPanel(false)} 
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '40%', zIndex: 15 }} 
         />
-        <button onClick={() => {
-          if(!viewerComment.trim()) return;
-          alert("Comment posted!");
-          setViewerComment("");
-          setShowCommentInput(false);
-        }} style={{ padding: '0 24px', borderRadius: '24px', background: 'linear-gradient(90deg, #f3ca58, #29beaf)', color: '#101926', border: 'none', fontWeight: '900', fontSize: '14px', cursor: 'pointer' }}>
-          Send
-        </button>
-      </div>
+        
+        <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '60%', backgroundColor: '#212121', borderTopLeftRadius: '16px', borderTopRightRadius: '16px', zIndex: 20, display: 'flex', flexDirection: 'column', animation: 'slideUp 0.3s cubic-bezier(0.1, 0.8, 0.2, 1)' }}>
+          
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderBottom: '1px solid #3d3d3d' }}>
+            <h3 style={{ margin: 0, color: '#fff', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              Comments <span style={{ color: '#aaaaaa', fontSize: '14px', fontWeight: 'normal' }}>{(statusComments[activeViewStatus.id] || []).length}</span>
+            </h3>
+            <div style={{ display: 'flex', gap: '16px', color: '#fff' }}>
+              <span style={{ cursor: 'pointer' }}><SettingsGearIcon /></span>
+              <span style={{ cursor: 'pointer' }} onClick={() => setShowCommentsPanel(false)}><XIcon /></span>
+            </div>
+          </div>
+
+          <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {(statusComments[activeViewStatus.id] || []).map((comment) => (
+              <div key={comment.id} style={{ display: 'flex', gap: '12px' }}>
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#4facfe', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
+                  {comment.avatar}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                    <span style={{ color: '#aaaaaa', fontSize: '12px', fontWeight: 'bold' }}>{comment.author}</span>
+                    <span style={{ color: '#aaaaaa', fontSize: '12px' }}>• {comment.time}</span>
+                  </div>
+                  <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.4', marginBottom: '8px' }}>
+                    {comment.text}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#aaaaaa', fontSize: '12px' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}><HeartOutlineIcon /> {comment.likes || 0}</span>
+                    <span style={{ cursor: 'pointer' }}>Reply</span>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {(statusComments[activeViewStatus.id] || []).length === 0 && (
+              <div style={{ textAlign: 'center', color: '#aaaaaa', marginTop: '20px' }}>Be the first to comment!</div>
+            )}
+          </div>
+
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #3d3d3d', display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#212121' }}>
+             <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#f3ca58', color: '#101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
+                {(currentUser?.formData?.fullName || 'Y').charAt(0)}
+             </div>
+             <input 
+                type="text" 
+                placeholder="Add a comment..." 
+                value={newStatusComment}
+                onChange={(e) => setNewStatusComment(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newStatusComment.trim()) {
+                    const newCommentObj = { id: Date.now(), author: `@${currentUser?.formData?.username || 'believer'}`, text: newStatusComment, time: 'Just now', likes: 0, avatar: (currentUser?.formData?.fullName || 'Y').charAt(0) };
+                    setStatusComments(prev => ({ ...prev, [activeViewStatus.id]: [newCommentObj, ...(prev[activeViewStatus.id] || [])] }));
+                    setNewStatusComment("");
+                  }
+                }}
+                style={{ flex: 1, backgroundColor: 'transparent', border: 'none', color: '#fff', fontSize: '14px', outline: 'none' }}
+             />
+             <button 
+                disabled={!newStatusComment.trim()}
+                onClick={() => {
+                  const newCommentObj = { id: Date.now(), author: `@${currentUser?.formData?.username || 'believer'}`, text: newStatusComment, time: 'Just now', likes: 0, avatar: (currentUser?.formData?.fullName || 'Y').charAt(0) };
+                  setStatusComments(prev => ({ ...prev, [activeViewStatus.id]: [newCommentObj, ...(prev[activeViewStatus.id] || [])] }));
+                  setNewStatusComment("");
+                }}
+                style={{ background: 'none', border: 'none', color: newStatusComment.trim() ? '#29beaf' : '#aaaaaa', cursor: newStatusComment.trim() ? 'pointer' : 'default' }}
+             >
+               <SendIcon />
+             </button>
+          </div>
+        </div>
+      </>
     )}
 
-    {/* Media Content */}
-    <div className="status-media-content" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: activeViewStatus.bg_color || '#000000', width: '100%', height: '100%' }}>
+    {/* Media Content - Added Hold-To-Pause events & changed to objectFit: 'contain' */}
+    <div 
+      className="status-media-content" 
+      onMouseDown={() => setIsStatusPaused(true)}
+      onMouseUp={() => setIsStatusPaused(false)}
+      onTouchStart={() => setIsStatusPaused(true)}
+      onTouchEnd={() => setIsStatusPaused(false)}
+      style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: activeViewStatus.bg_color || '#0f0f0f', width: '100%', height: '100%' }}
+    >
       {activeViewStatus.media_type === 'video' ? (
         <video 
+          ref={statusVideoRef}
           src={activeViewStatus.media_src || activeViewStatus.media_url} 
           autoPlay playsInline muted
           onTimeUpdate={handleVideoProgress}
           onEnded={() => setActiveViewStatus(null)}
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
         />
       ) : activeViewStatus.media_type === 'text' ? (
         <div style={{ padding: '40px', textAlign: 'center', color: '#fff', fontSize: '28px', fontWeight: '900', lineHeight: '1.4' }}>
@@ -3451,7 +3559,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         <img 
           src={activeViewStatus.media_src || activeViewStatus.media_url || activeViewStatus.bgImage} 
           alt="Status" 
-          style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
         />
       )}
     </div>
