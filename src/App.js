@@ -395,8 +395,8 @@ export default function App() {
     id: 'welcome-001',
     user_id: 'Godshand',
     authorName: '@Godshand',
-    avatar: '/assets/logo.png',
-    media_src: '/assets/KingdomPlus-Status-Video.mp4',
+    avatar: 'https://ui-avatars.com/api/?name=Godshand&background=29beaf&color=fff&rounded=true&bold=true',
+    media_src: '/assets/logo.png',
     media_type: 'video',
     views: 0,
     likes: 0,
@@ -408,6 +408,20 @@ const [textStatusContent, setTextStatusContent] = useState("");
 const [textStatusBg, setTextStatusBg] = useState("#4facfe");
 const [activeNewsArticle, setActiveNewsArticle] = useState(null);
 const [showNewsComments, setShowNewsComments] = useState(false);
+const [newCommentText, setNewCommentText] = useState("");
+const handleLikeStatus = async () => {
+  if (!activeViewStatus) return;
+  
+  const updatedStatus = { ...activeViewStatus, likes: (activeViewStatus.likes || 0) + 1 };
+  setActiveViewStatus(updatedStatus);
+
+  const { error } = await supabase
+    .from('testimonies')
+    .update({ likes: updatedStatus.likes })
+    .eq('id', activeViewStatus.id);
+
+  if (error) console.error("Error liking status:", error);
+};
 
 // --- SYNC WELCOME STATUS TO REGISTERED ACCOUNT ---
   useEffect(() => {
@@ -905,6 +919,34 @@ const uploadNewTestimony = async (e) => {
     setIsDreamModalOpen(false);
   };
 
+const handlePostComment = async (commentText) => {
+    if (!commentText.trim()) return;
+
+    const newComment = {
+      article_id: activeNewsArticle.id,
+      user_id: currentUser?.id || `temp-${Date.now()}`,
+      author_name: `@${currentUser?.formData?.username || 'believer'}`,
+      avatar: currentUser?.formData?.avatar || currentUser?.image || 'https://ui-avatars.com/api/?name=User',
+      content: commentText
+    };
+
+    try {
+      const { data, error } = await supabase
+        .from('news_comments')
+        .insert([newComment])
+        .select();
+      
+      if (error) {
+        console.error("Error saving comment:", error);
+      } else {
+        console.log("Comment saved to Supabase:", data);
+        // setRealComments([data[0], ...realComments]);
+      }
+    } catch (err) {
+      console.error("Database connection error:", err);
+    }
+  };
+
 // Handle opening a status and saving it to seen history
   const handleViewStatus = (group) => {
     setActiveViewStatus(group.statuses[0]);
@@ -918,6 +960,15 @@ const uploadNewTestimony = async (e) => {
       localStorage.setItem('kp_viewed_statuses', JSON.stringify(newViewed));
     }
   };
+
+const incrementStatusView = async (statusId, currentViews) => {
+  const { data, error } = await supabase
+    .from('testimonies')
+    .update({ views: currentViews + 1 })
+    .eq('id', statusId);
+    
+  if (error) console.error("Error updating views:", error);
+};
 
   useEffect(() => {
     let timer;
@@ -945,6 +996,23 @@ const uploadNewTestimony = async (e) => {
     
     return () => clearInterval(timer);
   }, [activeViewStatus, isStatusPaused, showCommentsPanel]);
+
+const [realComments, setRealComments] = useState([]);
+
+useEffect(() => {
+  if (activeNewsArticle) {
+    const fetchComments = async () => {
+      const { data, error } = await supabase
+        .from('news_comments')
+        .select('*')
+        .eq('article_id', activeNewsArticle.id)
+        .order('created_at', { ascending: false });
+
+      if (data) setRealComments(data);
+    };
+    fetchComments();
+  }
+}, [activeNewsArticle]);
 
   const handleHireAndEscrow = async (freelancer) => {
     if (kpcBalance < freelancer.price) {
@@ -1427,10 +1495,30 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
   const newsData = [
     {
-      id: 'n1', badge: 'UPDATE', title: 'Global Fasting Challenge Begins',
-      desc: 'Join thousands of believers in our 3-day global fast focusing on breakthrough and clarity.',
-      content: 'Fasting is a powerful spiritual discipline. As we embark on this 3-day journey, we encourage you to spend extra time in the word. Ensure you stay hydrated and replace your normal meal times with prayer sessions in the Kingdom Hub. We are expecting massive testimonies!',
-      reward: 2, img: 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&w=600&q=80'
+      id: 'n1', badge: 'UPDATE', title: 'Most adults in England and Wales not in a traditional marriage',
+      desc: 'The Coalition for Marriage has criticised plans to give the "rewards of marriage" to the unmarried.',
+      content:`'The Coalition for Marriage (C4M) has condemned government plans to give marriages legal rewards to unmarried couples, noting that official figures now show that most adults in the country are not married to a person of the opposite sex.
+
+Last week the Office for National Statistics released data suggesting that 51.1 per cent of adults in England and Wales are married or in a civil partnership. C4M took issue with this claim, however. While the group did not dispute the figure, they pointed out that it included civil partnerships and same-sex marriages.
+
+When these are filtered out, the percentage of adults married to a person of the opposite sex is in fact 49.8 per cent.
+
+C4M said that ONS figures had shown a slow but real decline in the percentage of those in traditional marriages. In the last 10 years the percentage of adults who have never married has risen from 32.6 to 34.9, while the percentage of cohabiting adults has increased from 9.8 to 10.8.
+
+Two age groups in particular have seen a sharp rise in the percentage who have never married: 25 to 34 year olds and 45 to 69 year olds. While the first group could be explained by young people simply not getting married yet, C4M noted that in the case of older people, marriage hasn’t been postponed, it has been skipped.
+
+Given such statistics, C4M questioned the wisdom of the government’s consultation on giving the rights of married couples to those who cohabit.
+
+Under the plans, in the event of a break up with a couple that lives together for three years, or has a child together, the lower earner could expect some form of financial contribution from the higher earner for a certain period – unless both partners opt out. In the event of death without a valid will, a cohabiting partner could receive the same automatic inheritance rights as a husband or wife.
+
+C4M noted that anyone who wanted these rights is already able to gain them, either by actually getting married or by making a will.
+
+Marriage matters not least because children need stability. Across ten years of UK household data, cohabiting parents were 3.4 times more likely to split up in any given year than married parents. And that gap holds true at every income level, said Dr Tony Rucinski, Director of Supporter Strategy at C4M.
+
+Even the poorest married parents hold together slightly better than the richest cohabiting ones. Marriage is not a luxury for the comfortable, its what keeps a child’s home in one piece.
+
+The group urged supporters to respond to the governments consultation on marriage before it closes on 14 August.`,
+     reward: 2, img: 'https://www.christiantoday.com/media/cache/img/9/89/98920sp_385w_217h_361x_221y.webp'
     },
     {
       id: 'n2', badge: 'TESTIMONY', title: 'Healing at the Youth Conference',
@@ -2093,7 +2181,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         // save the returned URL to your user_profiles/church_profiles table.
       }
     };
-    reader.readAsDataURL(file); // Ensure the reader actually processes the file
+    reader.readAsDataURL(file);
   };
 
   // --- 2. TOGGLE LIVE SERVICE BROADCAST ALERT ---
@@ -3067,6 +3155,16 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     });
   };
 
+  useEffect(() => {
+    let timer;
+    if (activeNewsArticle) {
+      timer = setTimeout(() => {
+        alert(`You earned Kingdom Tokens for reading: ${activeNewsArticle.title}!`);
+      }, 10000);
+    }
+    return () => clearTimeout(timer);
+  }, [activeNewsArticle]);
+
 
   
   return (
@@ -3424,14 +3522,11 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
       >
         <div style={{ border: '3px solid #101926', borderRadius: '50%', overflow: 'hidden', width: '100%', height: '100%' }}>
           <img 
-    src={
-      group.statuses[0].media_type === 'text' 
-        ? group.avatar
-        : (group.statuses[0].media_src || group.avatar)
-    } 
-    alt={group.authorName} 
-    style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid #101926' }} 
-  />
+  src={group.avatar || 'https://ui-avatars.com/api/?name=User&background=29beaf&color=fff'} 
+  alt={group.authorName} 
+  onError={(e) => { e.target.onerror = null; e.target.src = 'https://ui-avatars.com/api/?name=User&background=29beaf&color=fff'; }}
+  style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid #101926' }} 
+/>
         </div>
       </div>
       <span className="testimony-name" style={{ whiteSpace: 'nowrap' }}>
@@ -3455,7 +3550,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
 {/* --- FULL SCREEN STATUS VIEWER MODAL --- */}
 {activeViewStatus && (() => {
-  // Check if the currently logged-in user owns this status
   const isMyStatus = currentUser && (activeViewStatus.user_id === currentUser.id || activeViewStatus.id === 'welcome-001');
 
   return (
@@ -3467,7 +3561,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         flexDirection: 'column', overflow: 'hidden'
       }}
     >
-      {/* Progress Bar */}
       <div className="status-progress-container" style={{ position: 'absolute', top: '15px', left: '15px', right: '15px', zIndex: 10 }}>
         <div className="status-progress-bar" style={{ width: `${statusProgress || 100}%`, height: '3px', backgroundColor: '#ffffff', borderRadius: '3px', boxShadow: '0 0 10px rgba(255,255,255,0.5)', transition: 'width 0.1s linear' }}></div>
       </div>
@@ -3496,7 +3589,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
       <div className="status-action-bar" style={{ position: 'absolute', right: '16px', bottom: '80px', display: 'flex', flexDirection: 'column', gap: '22px', zIndex: 10, opacity: showCommentsPanel ? 0 : 1, transition: 'opacity 0.2s' }}>
         
         {/* Like */}
-        <div className="action-icon-group" onClick={() => setViewerLiked(!viewerLiked)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+        <div className="action-icon-group" onClick={handleLikeStatus} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
           <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: viewerLiked ? '#ef4444' : '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
             {viewerLiked ? <HeartSolidIcon /> : <HeartIcon />}
           </div>
@@ -3534,11 +3627,11 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         </div>
       </div>
 
-      {isMyStatus && !showCommentsPanel && (
-        <div style={{ position: 'absolute', bottom: '25px', left: '16px', zIndex: 10, display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.5)', padding: '8px 14px', borderRadius: '20px', backdropFilter: 'blur(8px)', color: '#fff' }}>
-          <EyeIcon /> <span style={{ fontSize: '13px', fontWeight: '800' }}>{activeViewStatus.views || 0} views</span>
-        </div>
-      )}
+    {isMyStatus && !showCommentsPanel && (
+  <div style={{ position: 'absolute', bottom: '25px', left: '16px', zIndex: 10, display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.5)', padding: '8px 14px', borderRadius: '20px', backdropFilter: 'blur(8px)', color: '#fff' }}>
+    <EyeIcon /> <span style={{ fontSize: '13px', fontWeight: '800' }}>{activeViewStatus.views || 0} views</span>
+  </div>
+)}
 
       {showCommentsPanel && (
         <>
@@ -3769,86 +3862,107 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
 {/* --- FULL SCREEN KINGDOM NEWS READER --- */}
 {activeNewsArticle && (
-  <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: '#101926', zIndex: 999999, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#0a0f1a', zIndex: 99999, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
     
-    {/* Top Header (Ref: 1000077973_106efd.jpg) */}
-    <div style={{ position: 'sticky', top: 0, backgroundColor: 'rgba(16, 25, 38, 0.95)', backdropFilter: 'blur(10px)', zIndex: 10, padding: '16px 20px', display: 'flex', alignItems: 'center', gap: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-      <span onClick={() => { setActiveNewsArticle(null); setShowNewsComments(false); }} style={{ color: '#fff', cursor: 'pointer' }}>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
-      </span>
-      <h2 style={{ color: '#fff', fontSize: '18px', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-        {activeNewsArticle.title || "Kingdom News"}
-      </h2>
-    </div>
+    <div style={{
+      position: 'relative',
+      padding: '20px',
+      paddingTop: '40px',
+      background: `url(${activeNewsArticle.image}) center/cover no-repeat`,
+      flexShrink: 0
+    }}>
+      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(to bottom, rgba(10, 15, 26, 0.4), #0a0f1a)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', zIndex: 1 }}></div>
 
-    {/* Author & Engagement Row */}
-    <div style={{ padding: '16px 20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#444' }} />
-        <div>
-          <div style={{ color: '#fff', fontSize: '15px', fontWeight: 'bold' }}>Kingdom Connect</div>
-          <div style={{ color: '#aaaaaa', fontSize: '12px' }}>Nigeria • {new Date().toLocaleDateString()}</div>
+      <div style={{ position: 'relative', zIndex: 2 }}>
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+          <button onClick={() => setActiveNewsArticle(null)} style={{ background: 'none', border: 'none', color: '#fff', fontSize: '28px', cursor: 'pointer', marginRight: '15px' }}>&#8249;</button>
+          <h1 style={{ color: '#fff', fontSize: '18px', margin: 0, fontWeight: '600', lineHeight: '1.3' }}>{activeNewsArticle.title}</h1>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
+          <img src={activeNewsArticle.authorAvatar || 'https://ui-avatars.com/api/?name=Admin&background=f3ca58&color=000'} alt="Author" style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '12px' }} />
+          <div>
+            <div style={{ color: '#fff', fontSize: '15px', fontWeight: 'bold' }}>{activeNewsArticle.author || 'KingdomPlus Media'}</div>
+            <div style={{ color: '#8e9aab', fontSize: '12px' }}>{activeNewsArticle.date || 'Just now'}</div>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+          <span style={{ color: '#8e9aab', fontSize: '14px' }}>👍 {activeNewsArticle.likes || 0}</span>
+          <span style={{ color: '#8e9aab', fontSize: '14px' }}>🔗 {activeNewsArticle.shares || 0}</span>
+          <span style={{ color: '#8e9aab', fontSize: '14px' }}>💬 {activeNewsArticle.comments?.length || 0}</span>
         </div>
       </div>
+    </div>
 
-      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#aaaaaa', fontSize: '14px', borderBottom: '1px solid #2a2a2a', paddingBottom: '16px' }}>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><HeartOutlineIcon /> 320</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><ShareIcon /> 13</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }} onClick={() => setShowNewsComments(true)}><MessageIcon /> 48</span>
+    {/* --- MAIN ARTICLE CONTENT --- */}
+    <div style={{ padding: '0 20px 20px 20px', position: 'relative', zIndex: 2, flexShrink: 0 }}>
+      <img src={activeNewsArticle.image} alt="News" style={{ width: '100%', height: 'auto', borderRadius: '12px', marginBottom: '20px', boxShadow: '0 10px 20px rgba(0,0,0,0.5)' }} />
+      <div style={{ color: '#d1d8e0', fontSize: '16px', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>
+        {activeNewsArticle.content || "Full article content goes here..."}
       </div>
     </div>
 
-    {/* Article Hero Image (Ref: 1000078445_106efd.jpg) */}
-    <img 
-      src={activeNewsArticle.image || "https://images.unsplash.com/photo-1490730141103-6cac27aaab94"} 
-      alt="news-banner" 
-      style={{ width: '100%', height: '250px', objectFit: 'cover' }} 
-    />
-
-    {/* Article Content */}
-    <div style={{ padding: '24px 20px', color: '#e0e0e0', fontSize: '16px', lineHeight: '1.6' }}>
-      <h1 style={{ color: '#fff', fontSize: '24px', fontWeight: '900', marginBottom: '20px', lineHeight: '1.3' }}>
-        {activeNewsArticle.title}
-      </h1>
-      <p>{activeNewsArticle.content || "Fasting is a powerful spiritual discipline. As we embark on this journey, ensure you spend extra time in the word..."}</p>
+    {/* --- BLOG STYLE COMMENTS SECTION --- */}
+    <div style={{ padding: '20px', background: '#101926', flexGrow: 1, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
+      <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '24px', fontWeight: 'bold' }}>All Comments</h3>
       
-      {/* KPC Claim Button */}
-      <div style={{ marginTop: '30px', padding: '20px', backgroundColor: '#1a2436', borderRadius: '12px', textAlign: 'center' }}>
-        <div style={{ color: '#aaaaaa', marginBottom: '10px', fontSize: '14px' }}>Did this bless you?</div>
-        <button style={{ backgroundColor: '#fff', color: '#101926', padding: '12px 30px', borderRadius: '30px', fontWeight: 'bold', border: 'none', display: 'flex', alignItems: 'center', gap: '8px', margin: '0 auto', cursor: 'pointer' }}>
-          <span>$</span> Claim 2 KPC
-        </button>
-      </div>
-    </div>
-
-    {/* Dark Theme Comments Section (Ref: 1000077977_106efd.jpg) */}
-    {showNewsComments && (
-      <div style={{ borderTop: '8px solid #000', backgroundColor: '#111', padding: '20px', paddingBottom: '60px' }}>
-        <h3 style={{ color: '#fff', margin: '0 0 20px 0', fontSize: '16px', fontWeight: 'normal' }}>New Comments (56)</h3>
+      {/* Scrollable Comment List */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '80px' }}>
         
-        {/* Mock Comments matching the screenshot exactly */}
-        {[
-          { name: 'king gold official', date: '2026-06-27 23:26', text: 'hello guys', likes: 0 },
-          { name: 'fawasi', date: '2026-06-22 11:14', text: 'Hi', likes: 0 },
-          { name: 'Black panther', date: '2026-01-09 14:17', text: 'good app ❤️', likes: 1 }
-        ].map((c, i) => (
-          <div key={i} style={{ display: 'flex', gap: '15px', marginBottom: '24px' }}>
-            <div style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: '#333', flexShrink: 0 }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ color: '#aaaaaa', fontSize: '14px', marginBottom: '2px' }}>{c.name}</div>
-              <div style={{ color: '#666666', fontSize: '12px', marginBottom: '8px' }}>{c.date}</div>
-              <div style={{ color: '#fff', fontSize: '15px' }}>{c.text}</div>
-            </div>
-            <div style={{ color: '#aaaaaa', fontSize: '12px', display: 'flex', alignItems: 'flex-start', gap: '4px' }}>
-              {c.likes} <HeartOutlineIcon />
+        {/* Hardcoded Sample Comments for UI preview */}
+        <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+          <img src="https://ui-avatars.com/api/?name=Believer&background=333&color=fff" alt="User" style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '12px', flexShrink: 0 }} />
+          <div style={{ background: '#1a2436', padding: '12px 16px', borderRadius: '0 16px 16px 16px', flexGrow: 1 }}>
+            <div style={{ color: '#8e9aab', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }}>@believer_01 • 2h ago</div>
+            <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.5' }}>This is exactly what we needed! Great initiative by the media team. 🙌</div>
+            <div style={{ display: 'flex', gap: '15px', marginTop: '10px', color: '#8e9aab', fontSize: '12px' }}>
+              <span style={{ cursor: 'pointer' }}>Reply</span>
+              <span style={{ cursor: 'pointer' }}>👍 12</span>
             </div>
           </div>
-        ))}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'flex-start' }}>
+          <img src="https://ui-avatars.com/api/?name=Sarah&background=29beaf&color=fff" alt="User" style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '12px', flexShrink: 0 }} />
+          <div style={{ background: '#1a2436', padding: '12px 16px', borderRadius: '0 16px 16px 16px', flexGrow: 1 }}>
+            <div style={{ color: '#8e9aab', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }}>@sarah_grace • 5h ago</div>
+            <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.5' }}>Congratulations! All hail the newest champions.</div>
+            <div style={{ display: 'flex', gap: '15px', marginTop: '10px', color: '#8e9aab', fontSize: '12px' }}>
+              <span style={{ cursor: 'pointer' }}>Reply</span>
+              <span style={{ cursor: 'pointer' }}>👍 4</span>
+            </div>
+          </div>
+        </div>
       </div>
-    )}
+    </div>
+
+{/* --- STICKY COMMENT INPUT BAR --- */}
+<div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#101926', padding: '15px 20px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', zIndex: 10 }}>
+  <img src={currentUser?.formData?.avatar || currentUser?.image || 'https://ui-avatars.com/api/?name=Me&background=f3ca58&color=000'} alt="Me" style={{ width: '36px', height: '36px', borderRadius: '50%', marginRight: '12px' }} />
+  
+  <div style={{ display: 'flex', flexGrow: 1, alignItems: 'center', background: '#1c2636', padding: '4px 4px 4px 15px', borderRadius: '30px' }}>
+    <input 
+      type="text" 
+      placeholder="Add a comment..." 
+      value={newCommentText}
+      onChange={(e) => setNewCommentText(e.target.value)}
+      style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', fontSize: '14px', outline: 'none' }} 
+    />
+    <button 
+      onClick={() => {
+        handlePostComment(newCommentText); 
+        setNewCommentText(""); 
+      }}
+      style={{ background: 'linear-gradient(90deg, #f3ca58, #29beaf)', color: '#101926', border: 'none', borderRadius: '24px', padding: '8px 16px', fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}
+    >
+      Post
+    </button>
+  </div>
+</div>
+
   </div>
 )}
-
 
                 {/* Community Grid */}
                 <div className="section-header" style={{ marginTop: '10px' }}>
