@@ -402,6 +402,10 @@ export default function App() {
     isPermanent: true
   };
 
+const [showTextStatusModal, setShowTextStatusModal] = useState(false);
+const [textStatusContent, setTextStatusContent] = useState("");
+const [textStatusBg, setTextStatusBg] = useState("#4facfe");
+
 // --- SYNC WELCOME STATUS TO REGISTERED ACCOUNT ---
   useEffect(() => {
     if (currentUser) {
@@ -3411,7 +3415,15 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         }}
       >
         <div style={{ border: '3px solid #101926', borderRadius: '50%', overflow: 'hidden', width: '100%', height: '100%' }}>
-          <img src={group.avatar} alt={group.authorName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <img 
+    src={
+      group.statuses[0].media_type === 'text' 
+        ? group.avatar
+        : (group.statuses[0].media_src || group.avatar)
+    } 
+    alt={group.authorName} 
+    style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid #101926' }} 
+  />
         </div>
       </div>
       <span className="testimony-name" style={{ whiteSpace: 'nowrap' }}>
@@ -3492,7 +3504,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
           <span style={{ color: '#f3ca58', fontSize: '13px', fontWeight: '900', textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>I Tap</span>
         </div>
 
-        {/* Share Button Restored */}
         <div className="action-icon-group" onClick={() => {
           navigator.clipboard.writeText(`https://kingdomplus.app/status/${activeViewStatus.id}`);
           alert("Link copied to clipboard!");
@@ -3504,14 +3515,12 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
         </div>
       </div>
 
-      {/* UPLOADER ONLY: View Count Bottom Left */}
       {isMyStatus && !showCommentsPanel && (
         <div style={{ position: 'absolute', bottom: '25px', left: '16px', zIndex: 10, display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.5)', padding: '8px 14px', borderRadius: '20px', backdropFilter: 'blur(8px)', color: '#fff' }}>
           <EyeIcon /> <span style={{ fontSize: '13px', fontWeight: '800' }}>{activeViewStatus.views || 0} views</span>
         </div>
       )}
 
-      {/* YOUTUBE SHORTS STYLE COMMENTS PANEL */}
       {showCommentsPanel && (
         <>
           <div 
@@ -3532,74 +3541,82 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
             </div>
 
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              {(statusComments[activeViewStatus.id] || []).map((comment) => (
-                <div key={comment.id} style={{ display: 'flex', gap: '12px' }}>
-                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#4facfe', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
-                    {comment.avatar}
+            {(statusComments[activeViewStatus.id] || []).map((comment) => (
+              <div key={comment.id} style={{ display: 'flex', gap: '12px' }}>
+                {/* Dynamically render Image or Letter Avatar */}
+                {comment.avatar && (comment.avatar.includes('http') || comment.avatar.includes('/')) ? (
+                   <img src={comment.avatar} alt="avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                ) : (
+                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#4facfe', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
+                     {comment.avatar || 'U'}
+                   </div>
+                )}
+                
+                <div style={{ flex: 1 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
+                    <span style={{ color: '#aaaaaa', fontSize: '12px', fontWeight: 'bold' }}>{comment.author}</span>
+                    <span style={{ color: '#aaaaaa', fontSize: '12px' }}>• {comment.time}</span>
                   </div>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
-                      <span style={{ color: '#aaaaaa', fontSize: '12px', fontWeight: 'bold' }}>{comment.author}</span>
-                      <span style={{ color: '#aaaaaa', fontSize: '12px' }}>• {comment.time}</span>
-                    </div>
-                    <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.4', marginBottom: '8px' }}>
-                      {comment.text}
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#aaaaaa', fontSize: '12px' }}>
-                      
-                      {/* Fully Functional Comment Like Button */}
-                      <span 
-                        onClick={() => toggleCommentLike(comment.id)} 
-                        style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: comment.isLiked ? '#ef4444' : '#aaaaaa', transition: 'color 0.2s' }}
-                      >
-                        {comment.isLiked ? <HeartSolidIcon /> : <HeartOutlineIcon />} {comment.likes || 0}
-                      </span>
-                      
-                      <span style={{ cursor: 'pointer' }}>Reply</span>
-                    </div>
+                  <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.4', marginBottom: '8px' }}>
+                    {comment.text}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#aaaaaa', fontSize: '12px' }}>
+                    <span onClick={() => toggleCommentLike(comment.id)} style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', color: comment.isLiked ? '#ef4444' : '#aaaaaa', transition: 'color 0.2s' }}>
+                      {comment.isLiked ? <HeartSolidIcon /> : <HeartOutlineIcon />} {comment.likes || 0}
+                    </span>
+                    <span style={{ cursor: 'pointer' }}>Reply</span>
                   </div>
                 </div>
-              ))}
-              {(statusComments[activeViewStatus.id] || []).length === 0 && (
-                <div style={{ textAlign: 'center', color: '#aaaaaa', marginTop: '20px' }}>Be the first to comment!</div>
-              )}
-            </div>
+              </div>
+            ))}
+          </div>
 
-            <div style={{ padding: '12px 16px', borderTop: '1px solid #3d3d3d', display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#212121' }}>
-               <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#f3ca58', color: '#101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
-                  {(currentUser?.formData?.fullName || 'Y').charAt(0)}
-               </div>
-               <input 
-                  type="text" 
-                  placeholder="Add a comment..." 
-                  value={newStatusComment}
-                  onChange={(e) => setNewStatusComment(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && newStatusComment.trim()) {
-                      const newCommentObj = { id: Date.now(), author: `@${currentUser?.formData?.username || currentUser?.username || 'believer'}`, text: newStatusComment, time: 'Just now', likes: 0, isLiked: false, avatar: (currentUser?.formData?.fullName || 'Y').charAt(0) };
-                      setStatusComments(prev => ({ ...prev, [activeViewStatus.id]: [newCommentObj, ...(prev[activeViewStatus.id] || [])] }));
-                      setNewStatusComment("");
-                    }
-                  }}
-                  style={{ flex: 1, backgroundColor: 'transparent', border: 'none', color: '#fff', fontSize: '14px', outline: 'none' }}
-               />
-               <button 
-                  disabled={!newStatusComment.trim()}
-                  onClick={() => {
-                    const newCommentObj = { id: Date.now(), author: `@${currentUser?.formData?.username || 'believer'}`, text: newStatusComment, time: 'Just now', likes: 0, isLiked: false, avatar: (currentUser?.formData?.fullName || 'Y').charAt(0) };
+          <div style={{ padding: '12px 16px', borderTop: '1px solid #3d3d3d', display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#212121' }}>
+             {/* Current User Avatar Display */}
+             {currentUser?.formData?.avatar || currentUser?.image ? (
+                <img src={currentUser?.formData?.avatar || currentUser?.image} alt="my-avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+             ) : (
+                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#f3ca58', color: '#101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
+                  {(currentUser?.formData?.username || currentUser?.username || 'B').charAt(0).toUpperCase()}
+                </div>
+             )}
+             
+             <input 
+                type="text" 
+                placeholder="Add a comment..." 
+                value={newStatusComment}
+                onChange={(e) => setNewStatusComment(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && newStatusComment.trim()) {
+                    const actualUsername = currentUser?.formData?.username || currentUser?.username || 'believer';
+                    const actualAvatar = currentUser?.formData?.avatar || currentUser?.image || actualUsername.charAt(0).toUpperCase();
+                    
+                    const newCommentObj = { id: Date.now(), author: `@${actualUsername}`, text: newStatusComment, time: 'Just now', likes: 0, isLiked: false, avatar: actualAvatar };
                     setStatusComments(prev => ({ ...prev, [activeViewStatus.id]: [newCommentObj, ...(prev[activeViewStatus.id] || [])] }));
                     setNewStatusComment("");
-                  }}
-                  style={{ background: 'none', border: 'none', color: newStatusComment.trim() ? '#29beaf' : '#aaaaaa', cursor: newStatusComment.trim() ? 'pointer' : 'default' }}
-               >
-                 <SendIcon />
-               </button>
-            </div>
+                  }
+                }}
+                style={{ flex: 1, backgroundColor: 'transparent', border: 'none', color: '#fff', fontSize: '14px', outline: 'none' }}
+             />
+             <button 
+                disabled={!newStatusComment.trim()}
+                onClick={() => {
+                  const actualUsername = currentUser?.formData?.username || currentUser?.username || 'believer';
+                  const actualAvatar = currentUser?.formData?.avatar || currentUser?.image || actualUsername.charAt(0).toUpperCase();
+                  
+                  const newCommentObj = { id: Date.now(), author: `@${actualUsername}`, text: newStatusComment, time: 'Just now', likes: 0, isLiked: false, avatar: actualAvatar };
+                  setStatusComments(prev => ({ ...prev, [activeViewStatus.id]: [newCommentObj, ...(prev[activeViewStatus.id] || [])] }));
+                  setNewStatusComment("");
+                }}
+                style={{ background: 'none', border: 'none', color: newStatusComment.trim() ? '#29beaf' : '#aaaaaa', cursor: newStatusComment.trim() ? 'pointer' : 'default' }}
+             >
+               <SendIcon />
+             </button>
+          </div>
           </div>
         </>
       )}
 
-      {/* Media Content - Muted Removed & ObjectFit Contain */}
       <div 
         className="status-media-content" 
         onMouseDown={() => setIsStatusPaused(true)}
@@ -3614,7 +3631,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
             src={activeViewStatus.media_src || activeViewStatus.media_url} 
             autoPlay 
             playsInline 
-            /* muted is removed! Ensure you have interacted with the page first or browser might block autoplay */
             onTimeUpdate={handleVideoProgress}
             onEnded={() => setActiveViewStatus(null)}
             style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
@@ -3634,6 +3650,54 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     </div>
   );
 })()}
+
+{/* --- TEXT STATUS UPLOAD MODAL --- */}
+{showTextStatusModal && (
+  <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: textStatusBg, zIndex: 999999, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <span onClick={() => setShowTextStatusModal(false)} style={{ color: '#fff', cursor: 'pointer', padding: '10px' }}><XIcon /></span>
+      <button 
+        onClick={() => {
+          if (!textStatusContent.trim()) return;
+          const newStatus = {
+            id: `text-${Date.now()}`,
+            user_id: currentUser?.id,
+            authorName: `@${currentUser?.formData?.username || currentUser?.username || 'believer'}`,
+            avatar: currentUser?.formData?.avatar || currentUser?.image,
+            media_type: 'text',
+            text_content: textStatusContent,
+            bg_color: textStatusBg,
+            views: 0, likes: 0,
+          };
+          setTestimonies([{ ...newStatus, statuses: [newStatus] }, ...testimonies]); // Add to feed
+          setShowTextStatusModal(false);
+          setTextStatusContent("");
+        }}
+        style={{ background: '#fff', color: '#101926', border: 'none', padding: '8px 20px', borderRadius: '20px', fontWeight: 'bold' }}
+      >
+        Post
+      </button>
+    </div>
+    
+    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+      <textarea 
+        autoFocus
+        placeholder="Type your testimony..."
+        value={textStatusContent}
+        onChange={(e) => setTextStatusContent(e.target.value)}
+        style={{ width: '100%', background: 'transparent', border: 'none', color: '#fff', fontSize: '32px', fontWeight: 'bold', textAlign: 'center', outline: 'none', resize: 'none' }}
+        rows={5}
+      />
+    </div>
+
+    {/* Color Picker Picker Row */}
+    <div style={{ padding: '20px', display: 'flex', gap: '15px', justifyContent: 'center', overflowX: 'auto' }}>
+      {['#4facfe', '#ff0844', '#f83600', '#00c6ff', '#16a085', '#8e44ad'].map(color => (
+        <div key={color} onClick={() => setTextStatusBg(color)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: color, border: textStatusBg === color ? '3px solid #fff' : '2px solid transparent', cursor: 'pointer' }} />
+      ))}
+    </div>
+  </div>
+)}
 
                 {/* Interactive Worship Section */}
                 <div className="section-header" style={{ marginTop: '10px' }}>
