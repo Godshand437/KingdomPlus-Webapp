@@ -407,6 +407,32 @@ export default function App() {
     isPermanent: true
   };
 
+const handleMarkAllRead = () => {
+  setNotifications(notifications.map(n => ({ ...n, isRead: false })));
+};
+
+// Notification State
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState(() => {
+  const saved = localStorage.getItem(`kp_notifs_${currentUser?.id || 'guest'}`);
+  return saved ? JSON.parse(saved) : [
+    { id: 1, type: 'SYSTEM', title: 'Welcome to KingdomPlus', message: 'Your Kingdom Vault is ready. Start exploring!', time: '1d ago', isRead: false }
+  ];
+});
+
+
+  const getNotifIcon = (type) => {
+    switch(type) {
+      case 'EARN': return <div style={{ color: '#2ecc71' }}><HandCoinIcon /></div>;
+      case 'TRANSFER': return <div style={{ color: '#f3ca58' }}><WalletIcon /></div>;
+      case 'SOCIAL': return <div style={{ color: '#29beaf' }}><MessageIcon /></div>;
+      case 'SYSTEM': return <div style={{ color: '#4facfe' }}><InfoIcon /></div>;
+      default: return <div style={{ color: '#8e9aab' }}><BellIcon /></div>;
+    }
+  };
+
+const unreadCount = notifications.filter(notif => !notif.isRead).length;
+
 const [showTextStatusModal, setShowTextStatusModal] = useState(false);
 const [textStatusContent, setTextStatusContent] = useState("");
 const [textStatusBg, setTextStatusBg] = useState("#4facfe");
@@ -3335,32 +3361,6 @@ useEffect(() => {
     localStorage.setItem(`kp_notifs_${currentUser.id}`, JSON.stringify(notifications));
   }
 }, [notifications, currentUser]);
-
-const handleMarkAllRead = () => {
-  setNotifications(notifications.map(n => ({ ...n, isRead: false })));
-};
-
-// Notification State
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState(() => {
-  const saved = localStorage.getItem(`kp_notifs_${currentUser?.id || 'guest'}`);
-  return saved ? JSON.parse(saved) : [
-    { id: 1, type: 'SYSTEM', title: 'Welcome to KingdomPlus', message: 'Your Kingdom Vault is ready. Start exploring!', time: '1d ago', isRead: false }
-  ];
-});
-
-
-  const getNotifIcon = (type) => {
-    switch(type) {
-      case 'EARN': return <div style={{ color: '#2ecc71' }}><HandCoinIcon /></div>;
-      case 'TRANSFER': return <div style={{ color: '#f3ca58' }}><WalletIcon /></div>;
-      case 'SOCIAL': return <div style={{ color: '#29beaf' }}><MessageIcon /></div>;
-      case 'SYSTEM': return <div style={{ color: '#4facfe' }}><InfoIcon /></div>;
-      default: return <div style={{ color: '#8e9aab' }}><BellIcon /></div>;
-    }
-  };
-
-const unreadCount = notifications.filter(notif => !notif.isRead).length;
 
   
   return (
