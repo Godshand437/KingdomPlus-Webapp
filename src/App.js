@@ -372,7 +372,6 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(true);
   const [isAirdropping, setIsAirdropping] = useState(false);
 
-  const unreadCount = notifications.filter(notif => !notif.isRead).length;
 
 // Status/Testimony Viewer State
   const fileInputRef = useRef(null);
@@ -691,34 +690,6 @@ const uploadNewTestimony = async (e) => {
     setStatusProgress(percent);
   };
 
-// Notification State
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState(() => {
-  const saved = localStorage.getItem(`kp_notifs_${currentUser?.id || 'guest'}`);
-  return saved ? JSON.parse(saved) : [
-    { id: 1, type: 'SYSTEM', title: 'Welcome to KingdomPlus', message: 'Your Kingdom Vault is ready. Start exploring!', time: '1d ago', isRead: false }
-  ];
-});
-
-useEffect(() => {
-  if (currentUser) {
-    localStorage.setItem(`kp_notifs_${currentUser.id}`, JSON.stringify(notifications));
-  }
-}, [notifications, currentUser]);
-
-const handleMarkAllRead = () => {
-  setNotifications(notifications.map(n => ({ ...n, isRead: false })));
-};
-
-  const getNotifIcon = (type) => {
-    switch(type) {
-      case 'EARN': return <div style={{ color: '#2ecc71' }}><HandCoinIcon /></div>;
-      case 'TRANSFER': return <div style={{ color: '#f3ca58' }}><WalletIcon /></div>;
-      case 'SOCIAL': return <div style={{ color: '#29beaf' }}><MessageIcon /></div>;
-      case 'SYSTEM': return <div style={{ color: '#4facfe' }}><InfoIcon /></div>;
-      default: return <div style={{ color: '#8e9aab' }}><BellIcon /></div>;
-    }
-  };
 
   // Send / Swap State
   const [sendSwapTab, setSendSwapTab] = useState('Send');
@@ -853,7 +824,7 @@ const handleMarkAllRead = () => {
     }
   };
 
-const [newsArticles, setNewsArticles] = useState(newsData);
+
 
   const handleCreatePost = () => {
     if (!newPostText.trim()) return;
@@ -3357,6 +3328,39 @@ The Vatican has become increasingly focused on professional management of its re
     return () => clearTimeout(timer);
   }, [activeNewsArticle]);
 
+const [newsArticles, setNewsArticles] = useState(newsData);
+
+useEffect(() => {
+  if (currentUser) {
+    localStorage.setItem(`kp_notifs_${currentUser.id}`, JSON.stringify(notifications));
+  }
+}, [notifications, currentUser]);
+
+const handleMarkAllRead = () => {
+  setNotifications(notifications.map(n => ({ ...n, isRead: false })));
+};
+
+// Notification State
+  const [isNotifOpen, setIsNotifOpen] = useState(false);
+  const [notifications, setNotifications] = useState(() => {
+  const saved = localStorage.getItem(`kp_notifs_${currentUser?.id || 'guest'}`);
+  return saved ? JSON.parse(saved) : [
+    { id: 1, type: 'SYSTEM', title: 'Welcome to KingdomPlus', message: 'Your Kingdom Vault is ready. Start exploring!', time: '1d ago', isRead: false }
+  ];
+});
+
+
+  const getNotifIcon = (type) => {
+    switch(type) {
+      case 'EARN': return <div style={{ color: '#2ecc71' }}><HandCoinIcon /></div>;
+      case 'TRANSFER': return <div style={{ color: '#f3ca58' }}><WalletIcon /></div>;
+      case 'SOCIAL': return <div style={{ color: '#29beaf' }}><MessageIcon /></div>;
+      case 'SYSTEM': return <div style={{ color: '#4facfe' }}><InfoIcon /></div>;
+      default: return <div style={{ color: '#8e9aab' }}><BellIcon /></div>;
+    }
+  };
+
+const unreadCount = notifications.filter(notif => !notif.isRead).length;
 
   
   return (
