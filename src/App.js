@@ -372,6 +372,8 @@ export default function App() {
   const [isGenerating, setIsGenerating] = useState(true);
   const [isAirdropping, setIsAirdropping] = useState(false);
 
+  const unreadCount = notifications.filter(notif => !notif.isRead).length;
+
 // Status/Testimony Viewer State
   const fileInputRef = useRef(null);
   const [activeViewStatus, setActiveViewStatus] = useState(null);
@@ -448,6 +450,25 @@ const handleLikeComment = async (commentId) => {
   if (error) {
     console.error("Error liking comment:", error);
   }
+};
+
+const handleLikeNews = async () => {
+  if (!activeNewsArticle) return;
+  
+  const updatedArticle = { ...activeNewsArticle, likes: (activeNewsArticle.likes || 0) + 1 };
+  setActiveNewsArticle(updatedArticle);
+  setNewsArticles(prev => prev.map(n => n.id === updatedArticle.id ? updatedArticle : n));
+
+  await supabase
+    .from('news_articles')
+    .update({ likes: updatedArticle.likes })
+    .eq('id', updatedArticle.id);
+};
+
+const handleShareNews = () => {
+  if (!activeNewsArticle) return;
+  navigator.clipboard.writeText(`https://kingdomplus.app/news/${activeNewsArticle.id}`);
+  alert("Article link copied to clipboard!");
 };
 
 // --- SYNC WELCOME STATUS TO REGISTERED ACCOUNT ---
@@ -672,15 +693,22 @@ const uploadNewTestimony = async (e) => {
 
 // Notification State
   const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState([
-    { id: 1, type: 'SYSTEM', title: 'Welcome to KingdomPlus', message: 'Your Kingdom Vault is ready. Start exploring!', time: '1d ago', isRead: true }
-  ]);
+  const [notifications, setNotifications] = useState(() => {
+  const saved = localStorage.getItem(`kp_notifs_${currentUser?.id || 'guest'}`);
+  return saved ? JSON.parse(saved) : [
+    { id: 1, type: 'SYSTEM', title: 'Welcome to KingdomPlus', message: 'Your Kingdom Vault is ready. Start exploring!', time: '1d ago', isRead: false }
+  ];
+});
 
-  const unreadCount = notifications.filter(n => !n.isRead).length;
+useEffect(() => {
+  if (currentUser) {
+    localStorage.setItem(`kp_notifs_${currentUser.id}`, JSON.stringify(notifications));
+  }
+}, [notifications, currentUser]);
 
-  const handleMarkAllRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, isRead: true })));
-  };
+const handleMarkAllRead = () => {
+  setNotifications(notifications.map(n => ({ ...n, isRead: false })));
+};
 
   const getNotifIcon = (type) => {
     switch(type) {
@@ -825,6 +853,8 @@ const uploadNewTestimony = async (e) => {
     }
   };
 
+const [newsArticles, setNewsArticles] = useState(newsData);
+
   const handleCreatePost = () => {
     if (!newPostText.trim()) return;
     const newPost = { id: Date.now(), authorName: formData.fullName || 'You', authorHandle: `@${formData.username || 'user'}`, time: 'Just now', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80', content: newPostText, image: null, likes: 0, comments: 0, isVerified: false };
@@ -932,19 +962,39 @@ const uploadNewTestimony = async (e) => {
       setIsSubmittingDream(false);
     }
 
-    setDreams([{
-      id: Date.now(),
-      date: 'TODAY',
-      title: newDream.title || 'Untitled Dream',
-      desc: newDream.desc,
-      status: newDream.requestInterpretation ? 'PENDING' : null,
-      mood: newDream.mood || 'Mystery'
-    }, ...dreams]);
-
-    setNewDream({ title: '', desc: '', mood: '', requestInterpretation: false });
-    setDreamStepModal(1);
-    setIsDreamModalOpen(false);
+   const newDreamObj = {
+    id: Date.now(),
+    user_id: currentUser.id,
+    date: 'TODAY',
+    title: newDream.title || 'Untitled Dream',
+    desc: newDream.desc,
+    status: newDream.requestInterpretation ? 'PENDING' : null,
+    mood: newDream.mood || 'Mystery'
   };
+
+  setDreams([newDreamObj, ...dreams]);
+  setNewDream({ title: '', desc: '', mood: '', requestInterpretation: false });
+  setDreamStepModal(1);
+  setIsDreamModalOpen(false);
+
+  await supabase.from('dreams').insert([newDreamObj]);
+};
+
+useEffect(() => {
+  if (step === 14 && currentUser) {
+    const fetchMyDreams = async () => {
+      const { data, error } = await supabase
+        .from('dreams')
+        .select('*')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false });
+
+      if (data) setDreams(data);
+    };
+    fetchMyDreams();
+  }
+}, [step, currentUser]);
+
 
 const handlePostComment = async (commentText) => {
     if (!commentText.trim()) return;
@@ -1441,13 +1491,24 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
   ]);
 
   // Reset social state when a new media file is opened
-  useEffect(() => {
-    if (activeMedia) {
-      setIsLiked(false);
-      setIsCommentsOpen(false);
-      setLikesCount(Math.floor(Math.random() * 500) + 120);
-    }
-  }, [activeMedia]);
+useEffect(() => {
+  if (activeMedia) {
+    setIsLiked(false);
+    setIsCommentsOpen(false);
+    
+    // Fetch real comments for this specific media file
+    const fetchMediaComments = async () => {
+      const { data, error } = await supabase
+        .from('media_comments')
+        .select('*')
+        .eq('media_id', activeMedia.id)
+        .order('created_at', { ascending: false });
+
+      if (data) setComments(data);
+    };
+    fetchMediaComments();
+  }
+}, [activeMedia]);
 
   const REWARD_THRESHOLD_SECONDS = 15;
 
@@ -1761,20 +1822,22 @@ The Vatican has become increasingly focused on professional management of its re
       setIsTipping(false);
     };
 
-    const handleAddComment = () => {
-      if (!newComment.trim()) return;
-      setComments([
-        {
-          id: Date.now(),
-          author: formData?.fullName || 'You',
-          text: newComment,
-          avatar: (formData?.fullName || 'Y').charAt(0).toUpperCase(),
-          time: 'Just now'
-        },
-        ...comments
-      ]);
-      setNewComment("");
-    };
+    const handleAddComment = async () => {
+  if (!newComment.trim()) return;
+  
+  const commentObj = {
+    media_id: activeMedia.id,
+    author: currentUser?.formData?.username || 'You',
+    text: newComment,
+    avatar: currentUser?.formData?.avatar || 'K',
+    time: 'Just now'
+  };
+  
+  setComments([commentObj, ...comments]);
+  setNewComment("");
+
+  await supabase.from('media_comments').insert([commentObj]);
+};
 
     const togglePlayPauseEvent = (e) => {
       if (e) e.stopPropagation();
@@ -1806,12 +1869,16 @@ The Vatican has become increasingly focused on professional management of its re
           </div>
         ) : (
           <audio
-            ref={mediaRef} src={activeMedia.src} autoPlay
-            onTimeUpdate={handleTimeUpdate}
-            onLoadedMetadata={(e) => setDuration(e.target.duration)}
-            onEnded={() => setIsPlaying(false)}
-            style={{ display: 'none' }}
-          />
+  ref={mediaRef} 
+  src={activeMedia.src} 
+  autoPlay
+  preload="auto"
+  crossOrigin="anonymous"
+  onTimeUpdate={handleTimeUpdate}
+  onLoadedMetadata={(e) => setDuration(e.target.duration)}
+  onEnded={() => setIsPlaying(false)}
+  style={{ display: 'none' }}
+/>
         )}
 
         {/* --- 1. UNIVERSAL MINI PLAYER --- */}
@@ -4012,14 +4079,16 @@ The Vatican has become increasingly focused on professional management of its re
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-          <span style={{ color: '#8e9aab', fontSize: '14px' }}> <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
-</svg> {activeNewsArticle.likes || 0}</span>
-          <span style={{ color: '#8e9aab', fontSize: '14px' }}>🔗 {activeNewsArticle.shares || 0}</span>
-          <span style={{ color: '#8e9aab', fontSize: '14px' }}> <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
-</svg> {activeNewsArticle.comments?.length || 0}</span>
-        </div>
+  <span onClick={handleLikeNews} style={{ color: '#8e9aab', fontSize: '14px', cursor: 'pointer' }}> 
+    <HeartIcon /> {activeNewsArticle.likes || 0}
+  </span>
+  <span onClick={handleShareNews} style={{ color: '#8e9aab', fontSize: '14px', cursor: 'pointer' }}>
+    🔗 {activeNewsArticle.shares || 0} Share
+  </span>
+  <span style={{ color: '#8e9aab', fontSize: '14px' }}> 
+    <MessageIcon /> {realComments.length || 0}
+  </span>
+</div>
       </div>
     </div>
 
