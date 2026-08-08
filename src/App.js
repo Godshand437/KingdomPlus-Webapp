@@ -330,7 +330,10 @@ const VerifiedChurchIcon = () => (
 
 
 export default function App() {
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => {
+  const saved = localStorage.getItem('kp_current_user');
+  return saved ? 6 : 0;
+  });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [activeTab, setActiveTab] = useState('sanctuary');
@@ -387,7 +390,7 @@ export default function App() {
   const [newStatusComment, setNewStatusComment] = useState("");
   const [statusComments, setStatusComments] = useState({
     'welcome-001': [
-      { id: 1, author: '@Godshand', text: 'Well it was a wonderful idea!!! 😂😂😂', time: '1 mo ago', likes: 0, avatar: 'G' }
+      { id: 1, author: '@Godshand', text: 'Well it was a wonderful idea!!! 😂😂😂', time: '10 min ago', likes: 0, avatar: 'G' }
     ]
   });
   
@@ -395,8 +398,8 @@ export default function App() {
     id: 'welcome-001',
     user_id: 'Godshand',
     authorName: '@Godshand',
-    avatar: 'https://ui-avatars.com/api/?name=Godshand&background=29beaf&color=fff&rounded=true&bold=true',
-    media_src: '/assets/logo.png',
+    avatar: '/assets/logo.png',
+    media_src: '/media/Welcome-Video.mp4',
     media_type: 'video',
     views: 0,
     likes: 0,
@@ -415,12 +418,36 @@ const handleLikeStatus = async () => {
   const updatedStatus = { ...activeViewStatus, likes: (activeViewStatus.likes || 0) + 1 };
   setActiveViewStatus(updatedStatus);
 
+  setTestimonies(prev => prev.map(t => t.id === activeViewStatus.id ? { ...t, likes: updatedStatus.likes } : t));
+
   const { error } = await supabase
     .from('testimonies')
     .update({ likes: updatedStatus.likes })
     .eq('id', activeViewStatus.id);
 
   if (error) console.error("Error liking status:", error);
+};
+
+const handleLikeComment = async (commentId) => {
+  setRealComments(prevComments => 
+    prevComments.map(comment => 
+      comment.id === commentId 
+        ? { ...comment, likes: (comment.likes || 0) + 1 } 
+        : comment
+    )
+  );
+
+  const commentToUpdate = realComments.find(c => c.id === commentId);
+  if (!commentToUpdate) return;
+
+  const { error } = await supabase
+    .from('news_comments')
+    .update({ likes: (commentToUpdate.likes || 0) + 1 })
+    .eq('id', commentId);
+
+  if (error) {
+    console.error("Error liking comment:", error);
+  }
 };
 
 // --- SYNC WELCOME STATUS TO REGISTERED ACCOUNT ---
@@ -922,11 +949,13 @@ const uploadNewTestimony = async (e) => {
 const handlePostComment = async (commentText) => {
     if (!commentText.trim()) return;
 
+    const userName = currentUser?.formData?.username || 'User';
+
     const newComment = {
       article_id: activeNewsArticle.id,
       user_id: currentUser?.id || `temp-${Date.now()}`,
-      author_name: `@${currentUser?.formData?.username || 'believer'}`,
-      avatar: currentUser?.formData?.avatar || currentUser?.image || 'https://ui-avatars.com/api/?name=User',
+      author_name: `@${userName}`,
+      avatar: currentUser?.formData?.avatar || currentUser?.image || `https://ui-avatars.com/api/?name=${userName}&background=f3ca58&color=000`,
       content: commentText
     };
 
@@ -940,12 +969,13 @@ const handlePostComment = async (commentText) => {
         console.error("Error saving comment:", error);
       } else {
         console.log("Comment saved to Supabase:", data);
-        // setRealComments([data[0], ...realComments]);
+        // UNCOMMENT THIS LINE:
+        setRealComments([data[0], ...realComments]);
       }
     } catch (err) {
       console.error("Database connection error:", err);
     }
-  };
+};
 
 // Handle opening a status and saving it to seen history
   const handleViewStatus = (group) => {
@@ -1521,11 +1551,106 @@ The group urged supporters to respond to the governments consultation on marriag
      reward: 2, img: 'https://www.christiantoday.com/media/cache/img/9/89/98920sp_385w_217h_361x_221y.webp'
     },
     {
-      id: 'n2', badge: 'TESTIMONY', title: 'Healing at the Youth Conference',
-      desc: 'Read the amazing testimonies from last nights session.',
-      content: 'Last night, the atmosphere was thick with the presence of God. Over 40 students came forward for prayer, and we saw immediate manifestations of healing. The youth choir led a powerful rendition of "Way Maker" that lasted for nearly an hour.',
-      reward: 2, img: 'https://images.unsplash.com/photo-1522869635100-9f4c5e86faa4?auto=format&fit=crop&w=600&q=80'
+      id: 'n2', badge: 'WORLD NEWS', title: 'Practising Christians embracing AI faster than pastors, research finds',
+      desc: 'Practising Christians in the US are using artificial intelligence more frequently than the general population',
+      content: `Practising Christians in the US are using artificial intelligence more frequently than the general population and considerably more than pastors, according to new research from Barna.
+
+The study found 44 per cent of practising Christians use AI "very often" or "often" in their personal lives, compared with 31 per cent of US adults overall and 29 per cent of non-practising Christians.
+
+A similar gap emerged in the workplace, where 39 per cent of practising Christians reported using AI often or very often, compared with 26 per cent of adults nationally.
+
+Pastors appear to be adopting the technology more slowly. In a separate Barna survey, 16 per cent said they use AI "often" in their personal lives, while a third use it "sometimes" and 45 per cent said they use it "not very much" or "not at all".
+
+For work, 24 per cent of pastors reported using AI often or very often, compared with 39 per cent of practising Christians.
+
+“Ask people yes-or-no whether they use AI, and the average pastor and the average American look about the same,” said Daniel Copeland, Barna’s vice president of research. “It’s frequency of use where the difference actually shows up.”
+
+He warned that church leaders risk underestimating how embedded the technology has already become in the lives of their congregations.
+
+“Pastors understand that AI is out there, but they’re not immersed in it the way their engaged congregants may be,” Copeland said. “The danger for pastors is underestimating just how normal AI is for the people around them. For most practicing Christians, AI isn’t for occasional use. It’s already woven into how they work, learn and make decisions.”
+
+The research suggests Christians are primarily turning to AI for everyday purposes, including finding information, learning how to complete tasks, seeking advice, following the news and improving their writing.
+
+Religious uses were less common, with around a third of practising Christians saying they had used AI for spiritual guidance or Bible-related questions during the previous month.
+
+However, Barna found nearly half of practising Christians would trust AI with something relating to their spiritual growth.
+
+The findings also highlight a potential challenge for churches. One in three practising Christians said they would like guidance from their pastor on navigating AI, but just 12 per cent of pastors said they felt prepared to provide it.
+
+Copeland said ministers did not necessarily need to become experts in artificial intelligence to respond.
+
+“The better move is for pastors to double down on what they already do well: teaching people how to engage scripture, building real relationships, making space for analog discipleship. That’s what people can lean on when AI gives them an answer that’s incomplete, misleading or just wrong.”
+
+The research forms part of Barna's Faith & AI project, produced in partnership with Gloo as part of its multi-year State of the Church initiative.`,
+      reward: 2, img: 'https://premierchristian.news/image_cache/d/e/7/c/5/de7c5541cd49b93ad03762f1e79aeb62a698b604.webp'
+    },
+    {
+      id: 'n3', badge: 'UK NEWS', title: 'Churches urged to take up free Home Office security training',
+      desc: 'Churches across England and Wales are being encouraged to sign up for a free Home Office security training programme',
+      content: `Churches across England and Wales are being encouraged to sign up for a free Home Office security training programme designed to help places of worship prepare for security threats and hate crime.
+
+The scheme, launched by the Home Office earlier this year and provided by CDS Support, gives guidance on recognising threats and improving preparedness when responding to incidents.
+
+The programme has been in development since the 2019 Christchurch terror attacks in New Zealand, after the then Home Secretary committed to providing security training for places of worship. Following a pilot last year, the scheme officially launched in February.
+
+Security Minister Dan Jarvis told Premier Christian News: “Everyone should feel safe and secure at their place of worship.
+
+“This free training is helping faith organisations better understand security threats and prepare for incidents. It teaches them practical steps to protect their congregants and property.
+
+“We’ve provided record funding this year to strengthen protective security at faith sites.
+
+“The Government is proud to work closely with churches and all faith groups to keep their communities safe.”
+
+The Home Office says it is providing a record £77 million this financial year to improve protective security at faith sites, including £5 million specifically for churches and other non-Jewish and non-Muslim places of worship.
+
+Training is available in both multi-faith and faith-specific formats, with dedicated modules for Christian, Hindu, Jewish, Muslim and Sikh communities. Sessions are delivered in person at places of worship and community venues, through live online classes, and via an e-learning platform.
+
+Ella Rees, Marketing Manager at CDS Support, said the programme had already seen strong engagement from churches.
+
+"We've seen a really good uptake across all faith communities, including across all Christian denominations, with hundreds of people trained so far," she told Premier.
+
+She said the training helps churches prepare for a range of risks, from theft and antisocial behaviour to hate crime and serious terrorist incidents, while allowing each place of worship to tailor security measures to its own circumstances.
+
+Rees also said the programme has brought churches and other faith communities together to share experiences and practical ways of addressing common security challenges.
+
+For church leaders unsure whether the training is necessary, she said many participants have adopted the same approach: "We hope it never happens, but we want to be prepared if it does."
+
+Training is free and available both in person and online. Churches can register through the Faith Security Training website or by contacting CDS Support directly.`,
+      reward: 2, img: 'https://premierchristian.news/image_cache/9/5/7/d/8/957d86eaf907444d666004b25987fc7f5a42795c.webp'
+    },
+    {
+      id: 'n4', badge: 'WORLD NEWS', title: 'Vatican wealth rises to €2.7bn as gold and property values surge',
+      desc: `The Vatican's asset management arm said on Friday its operating surplus fell more than 60% in 2025`,
+      content: `The Vatican's asset management arm said on Friday its operating surplus fell more than 60% in 2025, but its overall wealth rose thanks to gains in gold, real estate and investments.
+
+In a year marked by the transition from Pope Francis to Pope Leo, the Vatican's operating result totalled €22.8 million ($26.2 million), down from €62.2 million in 2024, while net assets rose by €89 million to €2.686 billion.
+
+The Administration of the Patrimony of the Holy See, which manages the Vatican's financial investments and real-estate portfolio, said in a statement it had transferred €22.7 million to help finance the Holy See's operations.
+
+The figures offer fresh insight into the Vatican's finances as Leo, elected in May after the death of Francis, faces the challenge of overcoming years of budget shortfalls.
+
+'RETURN TO ORDINARY OPERATING CONDITIONS'
+
+The Vatican had reported a 35.5% year-on-year increase in profits from holdings in 2024, but said accounts then had been boosted by a one-off restructuring of its investment portfolio.
+
+"By contrast, 2025 represents a return to ordinary operating conditions," said Archbishop Giordano Piccinotti, the president of APSA, adding that the priority was not to maximise profit but to preserve and strengthen the Church's patrimony.
+
+It said the Vatican shunned high levels of risk, with some 17% of its investments tied up in equity markets in 2025, 32% in bonds and 29% in physical gold. It also has a sizeable real estate portfolio, managing almost 5,500 properties worldwide.
+
+The investment portfolio showed an accounting loss of €3.7 million last year under new Vatican accounting rules, but stronger real-estate earnings ensured a positive overall operating result.
+
+REVALUATION OF GOLD
+
+The strongest asset gains came from a revaluation of the gold holdings, which added €40.8 million to the Vatican's net wealth. A rise in real-estate values contributed a further €39.2 million, while securities valuations added €16.3 million.
+
+Real estate remained APSA's main source of ordinary income, generating €44.5 million in 2025, up €9.4 million from a year earlier, which the agency attributed to more efficient management, higher rental income and lower maintenance costs.
+
+The agency said it had launched a three-year programme running from 2025 to 2027 aimed at selling non-strategic properties.
+
+The Vatican has become increasingly focused on professional management of its real estate after a series of scandals, including a failed London investment that led to a major fraud trial.`,
+      reward: 2, img: 'https://premierchristian.news/image_cache/e/6/d/4/4/e6d442a4e5ef8cf0738d4e8cab7220e1c0beae13.webp'
     }
+
   ];
 
   const handleClaimArticleReward = async () => {
@@ -3853,7 +3978,6 @@ The group urged supporters to respond to the governments consultation on marriag
                             <div className="news-icons"><HeartIcon /> <MessageIcon /></div>
                             <div className="kpc-badge"><img src="/assets/logo.png" alt="kpc" style={{ width: '10px', height: '10px' }} /> KPC</div>
                           </div>
-                          <span className="news-reward">+{news.reward} KPC Per Read</span>
                         </div>
                       </div>
                     </div>
@@ -3868,7 +3992,7 @@ The group urged supporters to respond to the governments consultation on marriag
       position: 'relative',
       padding: '20px',
       paddingTop: '40px',
-      background: `url(${activeNewsArticle.image}) center/cover no-repeat`,
+      background: `url(${activeNewsArticle.img}) center/cover no-repeat`,
       flexShrink: 0
     }}>
       <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'linear-gradient(to bottom, rgba(10, 15, 26, 0.4), #0a0f1a)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', zIndex: 1 }}></div>
@@ -3880,7 +4004,7 @@ The group urged supporters to respond to the governments consultation on marriag
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
-          <img src={activeNewsArticle.authorAvatar || 'https://ui-avatars.com/api/?name=Admin&background=f3ca58&color=000'} alt="Author" style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '12px' }} />
+          <img src={activeNewsArticle.authorAvatar || '/media/Media-img.jpeg'} alt="Author" style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '12px' }} />
           <div>
             <div style={{ color: '#fff', fontSize: '15px', fontWeight: 'bold' }}>{activeNewsArticle.author || 'KingdomPlus Media'}</div>
             <div style={{ color: '#8e9aab', fontSize: '12px' }}>{activeNewsArticle.date || 'Just now'}</div>
@@ -3888,16 +4012,20 @@ The group urged supporters to respond to the governments consultation on marriag
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '15px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
-          <span style={{ color: '#8e9aab', fontSize: '14px' }}>👍 {activeNewsArticle.likes || 0}</span>
+          <span style={{ color: '#8e9aab', fontSize: '14px' }}> <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+</svg> {activeNewsArticle.likes || 0}</span>
           <span style={{ color: '#8e9aab', fontSize: '14px' }}>🔗 {activeNewsArticle.shares || 0}</span>
-          <span style={{ color: '#8e9aab', fontSize: '14px' }}>💬 {activeNewsArticle.comments?.length || 0}</span>
+          <span style={{ color: '#8e9aab', fontSize: '14px' }}> <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+</svg> {activeNewsArticle.comments?.length || 0}</span>
         </div>
       </div>
     </div>
 
     {/* --- MAIN ARTICLE CONTENT --- */}
     <div style={{ padding: '0 20px 20px 20px', position: 'relative', zIndex: 2, flexShrink: 0 }}>
-      <img src={activeNewsArticle.image} alt="News" style={{ width: '100%', height: 'auto', borderRadius: '12px', marginBottom: '20px', boxShadow: '0 10px 20px rgba(0,0,0,0.5)' }} />
+      <img src={activeNewsArticle.img} alt="News" style={{ width: '100%', height: 'auto', borderRadius: '12px', marginBottom: '20px', boxShadow: '0 10px 20px rgba(0,0,0,0.5)' }} />
       <div style={{ color: '#d1d8e0', fontSize: '16px', lineHeight: '1.7', whiteSpace: 'pre-wrap' }}>
         {activeNewsArticle.content || "Full article content goes here..."}
       </div>
@@ -3907,35 +4035,38 @@ The group urged supporters to respond to the governments consultation on marriag
     <div style={{ padding: '20px', background: '#101926', flexGrow: 1, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
       <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '24px', fontWeight: 'bold' }}>All Comments</h3>
       
-      {/* Scrollable Comment List */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '80px' }}>
+     {/* Scrollable Comment List */}
+<div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '80px' }}>
+  {realComments.map(comment => (
+    <div key={comment.id} style={{ display: 'flex', alignItems: 'flex-start' }}>
+      <img src={comment.avatar} alt="User" style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '12px', flexShrink: 0 }} />
+      <div style={{ background: '#1a2436', padding: '12px 16px', borderRadius: '0 16px 16px 16px', flexGrow: 1 }}>
+        <div style={{ color: '#8e9aab', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }}>{comment.author_name}</div>
+        <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.5' }}>{comment.content}</div>
         
-        {/* Hardcoded Sample Comments for UI preview */}
-        <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-          <img src="https://ui-avatars.com/api/?name=Believer&background=333&color=fff" alt="User" style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '12px', flexShrink: 0 }} />
-          <div style={{ background: '#1a2436', padding: '12px 16px', borderRadius: '0 16px 16px 16px', flexGrow: 1 }}>
-            <div style={{ color: '#8e9aab', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }}>@believer_01 • 2h ago</div>
-            <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.5' }}>This is exactly what we needed! Great initiative by the media team. 🙌</div>
-            <div style={{ display: 'flex', gap: '15px', marginTop: '10px', color: '#8e9aab', fontSize: '12px' }}>
-              <span style={{ cursor: 'pointer' }}>Reply</span>
-              <span style={{ cursor: 'pointer' }}>👍 12</span>
-            </div>
-          </div>
+        {/* New Action Bar for Likes */}
+        <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
+          <button 
+            onClick={() => handleLikeComment(comment.id)}
+            style={{ 
+              background: 'none', border: 'none', color: '#8e9aab', 
+              display: 'flex', alignItems: 'center', gap: '6px', 
+              cursor: 'pointer', fontSize: '12px', padding: 0 
+            }}
+          >
+            {/* Heart SVG */}
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+            </svg>
+            {comment.likes || 0}
+          </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'flex-start' }}>
-          <img src="https://ui-avatars.com/api/?name=Sarah&background=29beaf&color=fff" alt="User" style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '12px', flexShrink: 0 }} />
-          <div style={{ background: '#1a2436', padding: '12px 16px', borderRadius: '0 16px 16px 16px', flexGrow: 1 }}>
-            <div style={{ color: '#8e9aab', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }}>@sarah_grace • 5h ago</div>
-            <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.5' }}>Congratulations! All hail the newest champions.</div>
-            <div style={{ display: 'flex', gap: '15px', marginTop: '10px', color: '#8e9aab', fontSize: '12px' }}>
-              <span style={{ cursor: 'pointer' }}>Reply</span>
-              <span style={{ cursor: 'pointer' }}>👍 4</span>
-            </div>
-          </div>
-        </div>
       </div>
     </div>
+  ))}
+</div>
+</div>
 
 {/* --- STICKY COMMENT INPUT BAR --- */}
 <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#101926', padding: '15px 20px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', zIndex: 10 }}>
@@ -6210,10 +6341,10 @@ The group urged supporters to respond to the governments consultation on marriag
                         onClick={() => setPeopleSubTab(sub)}
                         style={{ padding: '10px 14px', borderRadius: '12px', border: peopleSubTab === sub ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', background: peopleSubTab === sub ? 'rgba(41, 190, 175, 0.1)' : 'transparent', color: peopleSubTab === sub ? '#29beaf' : '#8e9aab', fontSize: '10px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
                       >
-                        {sub === 'MY CHURCH' && <span>⛪</span>}
-                        {sub === 'DENOMINATION' && <span>👥</span>}
+                        {sub === 'MY CHURCH' && <span><ChurchIcon /></span>}
+                        {sub === 'DENOMINATION' && <span><RosterUsersIcon /></span>}
                         {sub === 'NEARBY' && <span>📍</span>}
-                        {sub === 'GLOBAL' && <span>🌍</span>}
+                        {sub === 'GLOBAL' && <span><GlobeIcon /></span>}
                         {sub}
                       </button>
                     ))}
