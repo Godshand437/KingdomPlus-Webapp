@@ -327,6 +327,16 @@ const VerifiedChurchIcon = () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="#f3ca58" stroke="#09101a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
   );
 
+const IconMapPin = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>;
+const IconChurch = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1h-18l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>;
+const IconFlame = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>;
+const IconHeadphones = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>;
+const IconBook = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>;
+const IconMail = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>;
+const IconPhone = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>;
+const IconCalendar = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
+const IconGlobe = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>;
+
 
 
 export default function App() {
@@ -2283,7 +2293,6 @@ The Vatican has become increasingly focused on professional management of its re
   const [ministerSearchInput, setMinisterSearchInput] = useState('');
   const [verifiedMinistersList, setVerifiedMinistersList] = useState([]);
 
-  // Search DB for a user and upgrade them to a Verified Minister
   const handleVerifyMinister = async (e) => {
     e.preventDefault();
     const cleanSearch = ministerSearchInput.trim().toLowerCase().replace('@', '');
@@ -2292,7 +2301,6 @@ The Vatican has become increasingly focused on professional management of its re
     let targetEmail = null;
     let targetUser = null;
 
-    // Locate believer in database via Supabase
     const { data: foundUser, error: searchError } = await supabase
       .from('user_profiles')
       .select('*')
@@ -2304,13 +2312,11 @@ The Vatican has become increasingly focused on professional management of its re
       return;
     }
 
-    // Check if they are already a minister
     if (foundUser.account_type === 'Minister') {
       alert(`@${foundUser.username || cleanSearch} is already a verified minister!`);
       return;
     }
 
-    // Upgrade target user record in Supabase
     const { error: updateError } = await supabase
       .from('user_profiles')
       .update({ 
@@ -2324,7 +2330,6 @@ The Vatican has become increasingly focused on professional management of its re
       return;
     }
 
-    // Update local UI state for the Church Dashboard
     setVerifiedMinistersList(prev => [
       { 
         name: foundUser.full_name || 'Minister', 
@@ -2362,14 +2367,9 @@ The Vatican has become increasingly focused on professional management of its re
 
       setFormData(updatedForm);
       if (currentUser?.email) {
-        // Update the current active session locally
         const updatedUser = { ...currentUser, formData: updatedForm };
         setCurrentUser(updatedUser);
         localStorage.setItem('kp_current_user', JSON.stringify(updatedUser));
-        
-        // NOTE: If you want to save this permanently to Supabase later, 
-        // you would use supabase.storage to upload the file and then 
-        // save the returned URL to your user_profiles/church_profiles table.
       }
     };
     reader.readAsDataURL(file);
@@ -3390,6 +3390,163 @@ useEffect(() => {
     
     setInterpretationText("");
   };
+
+const [profileTab, setProfileTab] = useState('All');
+// ==========================================
+  // LIVE SUPABASE PROFILE FETCH
+  // ==========================================
+  
+  const [userProfile, setUserProfile] = useState(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        setIsLoadingProfile(true);
+        const { data: { user }, error: authError } = await supabase.auth.getUser();
+        
+        if (authError) throw authError;
+
+        if (user) {
+          const { data: profileData, error: profileError } = await supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', user.id)
+            .single();
+
+          if (profileError) throw profileError;
+
+          setUserProfile(profileData);
+        }
+      } catch (error) {
+        console.error("Error fetching real profile data:", error.message);
+      } finally {
+        setIsLoadingProfile(false);
+      }
+    };
+
+    // Trigger the fetch
+    fetchUserProfile();
+  }, []);
+
+  const followedMinistries = [
+    { id: 1, name: "Grace Sanctuary", isMain: true, img: "⛪" },
+    { id: 2, name: "Elevation", isMain: false, img: "🔥" },
+    { id: 3, name: "Hillsong", isMain: false, img: "🕊️" }
+  ];
+
+// ==========================================
+  // PROFILE EDIT & UPLOAD STATES
+  // ==========================================
+  const wallpaperInputRef = useRef(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editForm, setEditForm] = useState({});
+
+  const openEditModal = () => {
+    setEditForm(userProfile);
+    setIsEditingProfile(true);
+  };
+
+  const handleEditChange = (e) => {
+    setEditForm({ ...editForm, [e.target.name]: e.target.value });
+  };
+
+  const saveProfileUpdates = async () => {
+    try {
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const { error } = await supabase
+        .from('user_profiles')
+        .update(editForm)
+        .eq('id', user.id);
+      if (error) throw error;      
+
+      setUserProfile(editForm);
+      setIsEditingProfile(false);
+      alert("Profile updated successfully!");
+    } catch (error) {
+      console.error("Update failed:", error);
+      alert("Failed to update profile.");
+    }
+  };
+
+  const handleImageSelect = async (event, type) => {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    alert(`Selected ${file.name} for ${type}. Connect to Supabase Storage bucket to upload and retrieve public URL.`);
+    
+     };
+
+// ==========================================
+  // SERVICES & MARKETPLACE STATES
+  // ==========================================
+  const [userServices, setUserServices] = useState([]);
+  const [isAddServiceModalOpen, setIsAddServiceModalOpen] = useState(false);
+  const [newServiceForm, setNewServiceForm] = useState({ title: '', desc: '', price: '' });
+
+  const handleOpenAddService = () => {
+    const isStandard = userProfile?.account_type?.toLowerCase() === 'standard' || !userProfile?.account_type;
+    
+    if (isStandard && userServices.length >= 1) {
+      alert("Standard accounts can only list 1 service. Upgrade your account to list unlimited services!");
+      return;
+    }
+    setIsAddServiceModalOpen(true);
+  };
+
+  const handleSaveService = async () => {
+    if (!newServiceForm.title || !newServiceForm.price) {
+      alert("Title and Price are required.");
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        alert("You must be logged in to add a service.");
+        return;
+      }
+
+      const { error } = await supabase.from('services').insert([{ 
+        provider_id: user.id, 
+        title: newServiceForm.title, 
+        description: newServiceForm.desc, 
+        price_kpc: Number(newServiceForm.price) 
+      }]);
+      
+      if (error) throw error;
+
+      const newService = {
+        id: Date.now().toString(),
+        title: newServiceForm.title,
+        desc: newServiceForm.desc,
+        price: Number(newServiceForm.price)
+      };
+      
+      setUserServices([...userServices, newService]);
+      setIsAddServiceModalOpen(false);
+      setNewServiceForm({ title: '', desc: '', price: '' });
+      alert("Service added successfully!");
+
+    } catch (error) {
+      console.error("Error adding service:", error);
+      alert("Failed to add service.");
+    }
+  };
+
+const handlePurchaseService = async (service) => {
+    const confirmPurchase = window.confirm(`Are you sure you want to pay ${service.price} KPC to request: ${service.title}?`);
+    if (!confirmPurchase) return;
+
+    console.log(`Initiating KPC transaction for ${service.price}...`);
+    
+    setTimeout(() => {
+      alert(`Successfully paid ${service.price} KPC! The provider has been notified of your request.`);
+    }, 1500);
+  };
+
 
   
   return (
@@ -5947,177 +6104,290 @@ useEffect(() => {
         </div>
       )}
 
-      {/* =========================================
-          STEP 18: PROFILE PAGE
+   {/* =========================================
+          STEP 18: PROFESSIONAL PROFILE (LIVE DATA)
           ========================================= */}
-      {step === 18 && (
-        <div className="feed-screen-container">
+     {step === 18 && (
+        <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
+          
+          {/* Hidden File Inputs for Uploading */}
+          <input type="file" hidden ref={wallpaperInputRef} accept="image/*" onChange={(e) => handleImageSelect(e, 'wallpaper_url')} />
+          <input type="file" hidden ref={avatarInputRef} accept="image/*" onChange={(e) => handleImageSelect(e, 'avatar_url')} />
 
-          <div className="profile-header">
-            <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
+          {/* Fixed Header (Sits above the scroll area) */}
+          <div className="feed-header-top" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
+            <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
               <BackArrowIcon />
             </button>
-            <h2 className="brand-gradient-text" style={{ fontSize: '18px', fontWeight: '800', margin: '0' }}>Profile</h2>
-            <button className="edit-profile-btn"><EditIcon /> Edit Profile</button>
           </div>
 
-          <div className="feed-scroll-area" style={{ paddingBottom: '100px' }}>
+          {/* MAIN SCROLL AREA - Cover photo and profile now scroll together naturally */}
+          <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px', overflowY: 'auto', paddingTop: '0' }}>
+            
+            {/* Wallpaper Area - Now INSIDE the scroll area */}
+            <div 
+              className="profile-cover-photo" 
+              onClick={() => wallpaperInputRef.current.click()}
+              style={{ 
+                backgroundImage: userProfile?.wallpaper_url ? `url(${userProfile.wallpaper_url})` : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                cursor: 'pointer',
+                height: '150px',
+                width: '100%',
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+              }}
+            >
+            </div>
 
-            {/* --- Hero Card --- */}
-            <div className="profile-hero-card">
-              <div className="profile-avatar-box">
-                <div className="profile-avatar-circle">
-                  {formData.fullName ? formData.fullName.substring(0, 2).toUpperCase() : 'TO'}
-                </div>
-                <div className="profile-verified-badge">
-                  <VerifiedIcon />
-                </div>
-              </div>
-              <h3 className="profile-name">{formData.fullName || 'Tobi oba'}</h3>
-              <p className="profile-handle">@{formData.username || 'gospel'}</p>
+            {isLoadingProfile ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#8e9aab' }}>Fetching profile data...</div>
+            ) : !userProfile ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#ff6b6b' }}>Profile not found. Please complete your registration.</div>
+            ) : (
+              <>
+                <div className="profile-identity-section">
+                  {/* Avatar Area - Overlaps the cover photo perfectly now */}
+                  <div className="profile-avatar-overlap" onClick={() => avatarInputRef.current.click()} style={{ cursor: 'pointer', zIndex: 10 }}>
+                    {userProfile.avatar_url ? (
+                      <img src={userProfile.avatar_url} alt="Profile" className="profile-avatar-circle" style={{ objectFit: 'cover' }} />
+                    ) : (
+                      <div className="profile-avatar-circle">
+                        {userProfile.full_name ? userProfile.full_name.substring(0, 2).toUpperCase() : 'U'}
+                      </div>
+                    )}
+                    
+                    {(userProfile.account_type === 'Premium' || userProfile.account_type === 'Apostle') && (
+                      <div className="profile-verified-badge" title="Premium Account">
+                        <CheckIcon />
+                      </div>
+                    )}
+                  </div>
+                  
+                  <h2 className="profile-name-main">{userProfile.full_name || 'Kingdom Citizen'}</h2>
+                  
+                  <div className="profile-status-badge">
+                    {userProfile.account_type || 'Standard'} Account
+                  </div>
 
-              <div className="profile-inner-card">
-                <div className="inner-card-left">
-                  <div className="inner-card-icon gold"><SparklesIcon /></div>
-                  <div>
-                    <div className="inner-card-label">KPC BALANCE</div>
-                    <div className="inner-card-value gold">{kpcBalance.toLocaleString()} KPC</div>
+                  <p className="profile-bio-text">{userProfile.bio || 'Add a bio to tell the community about yourself.'}</p>
+
+                  <div className="profile-location-church">
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <IconMapPin /> {userProfile.address || 'Unknown City'}, {userProfile.country || 'Unknown Country'}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <IconChurch /> {userProfile.local_church || 'No church listed'} ({userProfile.denomination || 'N/A'})
+                    </span>
+                  </div>
+                  
+                  <div className="profile-action-row">
+                    <button className="profile-btn-primary" onClick={openEditModal}>Edit Profile</button>
+                    <button className="profile-btn-secondary">Share</button>
+                    <button className="profile-btn-icon"><LinkIcon /></button>
                   </div>
                 </div>
-                <div className="inner-card-right">
-                  <div className="inner-card-label">USD</div>
-                  <div className="inner-card-value">${(kpcBalance * 0.25).toFixed(2)}</div>
-                </div>
-              </div>
 
-              <div className="profile-inner-card">
-                <div className="inner-card-left">
-                  <div className="inner-card-icon"><WalletIcon /></div>
-                  <div>
-                    <div className="inner-card-label">VAULT ADDRESS • SOLANA</div>
-                    <div className="inner-card-value" style={{ fontFamily: 'monospace', fontWeight: 'normal' }}>
-                      {generatedAddress ? truncateAddress(generatedAddress) : 'vWViw1...kejy'}
+                <div className="profile-fb-tabs">
+                  {['All', 'Services', 'Posts'].map(tab => (
+                    <div key={tab} className={`profile-fb-tab ${profileTab === tab ? 'active' : ''}`} onClick={() => setProfileTab(tab)}>
+                      {tab}
+                    </div>
+                  ))}
+                </div>
+
+                {profileTab === 'All' && (
+                  <div className="profile-tab-content">
+                    
+                    <h3 className="profile-section-heading">Faith Activity</h3>
+                    <div className="faith-activity-grid">
+                      <div className="faith-activity-card">
+                        <div className="activity-icon-container"><IconFlame /></div>
+                        <div className="activity-num">{userProfile.login_streak || 0}</div>
+                        <div className="activity-label">Day Streak</div>
+                      </div>
+                      <div className="faith-activity-card">
+                        <div className="activity-icon-container"><IconHeadphones /></div>
+                        <div className="activity-num">{userProfile.stream_time_hours || 0}h</div>
+                        <div className="activity-label">Streamed</div>
+                      </div>
+                      <div className="faith-activity-card">
+                        <div className="activity-icon-container"><IconBook /></div>
+                        <div className="activity-num">{userProfile.devotions_read || 0}</div>
+                        <div className="activity-label">Devotions</div>
+                      </div>
+                    </div>
+
+                    <h3 className="profile-section-heading" style={{ marginTop: '25px' }}>Ministries Followed</h3>
+                    <div className="ministries-row">
+                      {followedMinistries.map(ministry => (
+                         <div key={ministry.id} className="ministry-avatar-wrapper">
+                          <div className={`ministry-avatar ${ministry.isMain ? 'main-church' : ''}`}>
+                            <IconChurch />
+                          </div>
+                          <span className="ministry-name">{ministry.name}</span>
+                          {ministry.isMain && <span className="ministry-main-badge">Home</span>}
+                        </div>
+                      ))}
+                    </div>
+
+                    <h3 className="profile-section-heading" style={{ marginTop: '30px' }}>Personal details</h3>
+                    <div className="profile-detail-card">
+                      <div className="detail-row">
+                        <div className="detail-icon"><IconMail /></div>
+                        <div className="detail-text">
+                          <span className="detail-label">Email</span>
+                          <span className="detail-value">{userProfile.email || 'Not provided'}</span>
+                        </div>
+                      </div>
+                      <div className="detail-row">
+                        <div className="detail-icon"><IconPhone /></div>
+                        <div className="detail-text">
+                          <span className="detail-label">Phone</span>
+                          <span className="detail-value">{userProfile.phone_number || 'Not provided'}</span>
+                        </div>
+                      </div>
+                      <div className="detail-row">
+                        <div className="detail-icon"><IconCalendar /></div>
+                        <div className="detail-text">
+                          <span className="detail-label">Date of Birth</span>
+                          <span className="detail-value">{userProfile.date_of_birth || 'Not provided'}</span>
+                        </div>
+                      </div>
+                      <div className="detail-row">
+                        <div className="detail-icon"><IconGlobe /></div>
+                        <div className="detail-text">
+                          <span className="detail-label">Country</span>
+                          <span className="detail-value">{userProfile.country || 'Not provided'}</span>
+                        </div>
+                      </div>
+                      <div className="detail-row">
+                        <div className="detail-icon"><IconChurch /></div>
+                        <div className="detail-text">
+                          <span className="detail-label">Denomination</span>
+                          <span className="detail-value">{userProfile.denomination || 'Not provided'}</span>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                </div>
-                <CopyIcon />
-              </div>
-            </div>
+                )}
+                
+                {/* TAB CONTENT: SERVICES */}
+                {profileTab === 'Services' && (
+                  <div className="profile-tab-content">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                      <h3 className="profile-section-heading" style={{ margin: 0 }}>Offered Services</h3>
+                      <span onClick={handleOpenAddService} style={{ color: '#f3ca58', fontSize: '12px', fontWeight: '700', cursor: 'pointer' }}>+ Add New</span>
+                    </div>
 
-            {/* --- Faith Activity --- */}
-            <div className="profile-section-header">
-              <div className="profile-section-title">FAITH ACTIVITY</div>
-            </div>
-            <div className="faith-activity-grid">
-              <div className="faith-activity-card">
-                <div className="activity-icon"><FlameIcon /></div>
-                <div className="activity-num">12</div>
-                <div className="activity-sub">days</div>
-                <div className="activity-label">Bible streak</div>
-              </div>
-              <div className="faith-activity-card">
-                <div className="activity-icon"><HeadphonesIcon /></div>
-                <div className="activity-num">34</div>
-                <div className="activity-sub">hours</div>
-                <div className="activity-label">Media</div>
-              </div>
-              <div className="faith-activity-card">
-                <div className="activity-icon"><MessageIcon /></div>
-                <div className="activity-num">0</div>
-                <div className="activity-sub">shared</div>
-                <div className="activity-label">Posts</div>
-              </div>
-            </div>
+                    {userServices.length === 0 ? (
+                      <div className="empty-dream-state" style={{ marginTop: '0' }}>
+                        <div className="empty-dream-icon">💼</div>
+                        <h3>No services listed</h3>
+                        <p>Monetize your Kingdom skills by adding a service.</p>
+                      </div>
+                    ) : (
+                      userServices.map(service => (
+                        <div key={service.id} className="profile-service-card">
+                          <div className="service-header">
+                            <h4 className="service-title">{service.title}</h4>
+                            <div className="service-price">{service.price} KPC</div>
+                          </div>
+                          <p className="service-desc">{service.desc}</p>
+                          <button className="service-action-btn" onClick={() => handlePurchaseService(service)}>Request Service</button>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
 
-            {/* --- Personal Info --- */}
-            <div className="profile-section-header">
-              <div className="profile-section-title">PERSONAL INFO</div>
-              <div className="profile-section-edit">Edit</div>
-            </div>
-            <div className="profile-list-container">
-              <div className="profile-list-item">
-                <div className="profile-list-icon"><MailIcon style={{ stroke: '#f3ca58' }} /></div>
-                <div>
-                  <div className="profile-list-label">EMAIL</div>
-                  <div className="profile-list-val">{formData.email || 'ecowavedigital@gmail.com'}</div>
-                </div>
-              </div>
-              <div className="profile-list-item">
-                <div className="profile-list-icon"><PhoneIcon /></div>
-                <div>
-                  <div className="profile-list-label">PHONE</div>
-                  <div className="profile-list-val">{formData.phone || '+2348109203729'}</div>
-                </div>
-              </div>
-              <div className="profile-list-item">
-                <div className="profile-list-icon"><GlobeIcon style={{ stroke: '#f3ca58' }} /></div>
-                <div>
-                  <div className="profile-list-label">COUNTRY</div>
-                  <div className="profile-list-val">{formData.country || 'Nigeria'}</div>
-                </div>
-              </div>
-              <div className="profile-list-item">
-                <div className="profile-list-icon"><CakeIcon /></div>
-                <div>
-                  <div className="profile-list-label">DATE OF BIRTH</div>
-                  <div className="profile-list-val">{formData.dob || '10 Jun 1992'}</div>
-                </div>
-              </div>
-              <div className="profile-list-item">
-                <div className="profile-list-icon"><CalendarIcon style={{ stroke: '#f3ca58' }} /></div>
-                <div>
-                  <div className="profile-list-label">JOINED</div>
-                  <div className="profile-list-val">12 Jun 2026</div>
-                </div>
-              </div>
-            </div>
-
-            {/* --- Church & Denomination --- */}
-            <div className="profile-section-header">
-              <div className="profile-section-title">CHURCH & DENOMINATION</div>
-              <div className="profile-section-edit">Update</div>
-            </div>
-            <div className="profile-list-container">
-              <div className="profile-list-item">
-                <div className="profile-list-icon"><ChurchIcon style={{ stroke: '#f3ca58' }} /></div>
-                <div>
-                  <div className="profile-list-label">LOCAL CHURCH</div>
-                  <div className="profile-list-val">{formData.churchName || 'Grace'}</div>
-                </div>
-              </div>
-              <div className="profile-list-item">
-                <div className="profile-list-icon"><BookOpenIcon style={{ stroke: '#f3ca58' }} /></div>
-                <div>
-                  <div className="profile-list-label">DENOMINATION</div>
-                  <div className="profile-list-val">{formData.denomination || 'Non-denominational'}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* --- More Settings --- */}
-            <div className="profile-section-header">
-              <div className="profile-section-title">MORE</div>
-            </div>
-            <div className="profile-list-container">
-              <div className="profile-list-item" style={{ cursor: 'pointer' }}>
-                <div className="profile-list-icon"><ShieldIcon style={{ stroke: '#f3ca58' }} /></div>
-                <div className="profile-list-val">Admin Pulpit</div>
-              </div>
-              <div className="profile-list-item" style={{ cursor: 'pointer' }}>
-                <div className="profile-list-icon"><SettingsIcon /></div>
-                <div className="profile-list-val">Settings & Privacy</div>
-              </div>
-              <div className="profile-list-item" style={{ cursor: 'pointer' }} onClick={() => setStep(0)}>
-                <div className="profile-list-icon logout-icon"><LogOutIcon /></div>
-                <div className="profile-list-val logout-text">Sign out</div>
-              </div>
-            </div>
-
+                {profileTab === 'Posts' && (
+                  <div className="profile-tab-content">
+                     <div className="empty-dream-state" style={{ marginTop: '0' }}>
+                      <div className="empty-dream-icon"><IconBook /></div>
+                      <h3>No posts yet</h3>
+                      <p>When {userProfile.username} shares thoughts or media, they will appear here.</p>
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
           </div>
-
           <AppBottomNav />
+
+          {/* =========================================
+              EDIT PROFILE MODAL
+              ========================================= */}
+          {isEditingProfile && (
+            <div className="constrained-overlay">
+              <div className="create-modal-content" style={{ height: '90%' }}>
+                <div className="dream-modal-header">
+                  <div className="dream-modal-title">
+                    <h2>Edit Profile</h2>
+                  </div>
+                  <button className="dream-modal-close" onClick={() => setIsEditingProfile(false)}><XIcon /></button>
+                </div>
+                
+                <div style={{ flexGrow: 1, overflowY: 'auto', paddingRight: '10px' }}>
+                  <label className="dream-input-label">FULL NAME</label>
+                  <input type="text" className="dream-input" name="full_name" value={editForm.full_name || ''} onChange={handleEditChange} />
+
+                  <label className="dream-input-label">BIO</label>
+                  <textarea className="dream-textarea" name="bio" value={editForm.bio || ''} onChange={handleEditChange} style={{ height: '80px' }}></textarea>
+
+                  <label className="dream-input-label">COUNTRY</label>
+                  <input type="text" className="dream-input" name="country" value={editForm.country || ''} onChange={handleEditChange} />
+
+                  <label className="dream-input-label">CITY / ADDRESS</label>
+                  <input type="text" className="dream-input" name="address" value={editForm.address || ''} onChange={handleEditChange} />
+                  
+                  <label className="dream-input-label">LOCAL CHURCH</label>
+                  <input type="text" className="dream-input" name="local_church" value={editForm.local_church || ''} onChange={handleEditChange} />
+
+                  <label className="dream-input-label">DENOMINATION</label>
+                  <input type="text" className="dream-input" name="denomination" value={editForm.denomination || ''} onChange={handleEditChange} />
+                </div>
+
+                <div className="modal-actions" style={{ marginTop: '20px' }}>
+                  <button className="modal-btn-secondary" onClick={() => setIsEditingProfile(false)}>Cancel</button>
+                  <button className="modal-btn-primary" onClick={saveProfileUpdates}>Save Changes</button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
+
+{/* =========================================
+              ADD SERVICE MODAL
+              ========================================= */}
+          {isAddServiceModalOpen && (
+            <div className="constrained-overlay">
+              <div className="create-modal-content" style={{ height: 'auto', paddingBottom: '40px' }}>
+                <div className="dream-modal-header">
+                  <div className="dream-modal-title">
+                    <h2>Add New Service</h2>
+                  </div>
+                  <button className="dream-modal-close" onClick={() => setIsAddServiceModalOpen(false)}><XIcon /></button>
+                </div>
+                
+                <div style={{ flexGrow: 1 }}>
+                  <label className="dream-input-label">SERVICE TITLE</label>
+                  <input type="text" className="dream-input" placeholder="e.g. Graphic Design Layouts" value={newServiceForm.title} onChange={e => setNewServiceForm({...newServiceForm, title: e.target.value})} />
+
+                  <label className="dream-input-label">DESCRIPTION</label>
+                  <textarea className="dream-textarea" placeholder="Describe what you offer..." value={newServiceForm.desc} onChange={e => setNewServiceForm({...newServiceForm, desc: e.target.value})} style={{ height: '80px' }}></textarea>
+
+                  <label className="dream-input-label">PRICE (KPC)</label>
+                  <input type="number" className="dream-input" placeholder="e.g. 100" value={newServiceForm.price} onChange={e => setNewServiceForm({...newServiceForm, price: e.target.value})} />
+                </div>
+
+                <div className="modal-actions" style={{ marginTop: '20px' }}>
+                  <button className="modal-btn-secondary" onClick={() => setIsAddServiceModalOpen(false)}>Cancel</button>
+                  <button className="modal-btn-primary" onClick={handleSaveService}>Save Service</button>
+                </div>
+              </div>
+            </div>
+          )}
 
       
 {/* =========================================
