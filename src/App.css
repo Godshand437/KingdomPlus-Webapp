@@ -1789,7 +1789,7 @@ footer {
   display: flex;
   flex-direction: column;
 
-  height: 100%;
+  height: 10vh;
   max-width: 100vw;
   overflow-x: hidden;
 }
@@ -6239,4 +6239,239 @@ to {
   line-height: 1.4;
 
   color: #cbd5e1;
+}
+
+/* =========================================
+   DREAM DIARY MODAL STYLES
+   ========================================= */
+
+.dream-modal-header { 
+  display: flex; 
+  justify-content: space-between; 
+  align-items: flex-start; 
+  margin-bottom: 20px; 
+}
+.dream-modal-title h2 { 
+  font-size: 22px; 
+  font-weight: 800; 
+  color: #fff; 
+  margin-bottom: 4px; 
+}
+.dream-modal-title span { 
+  font-size: 11px; 
+  color: #8e9aab; 
+  text-transform: uppercase; 
+  letter-spacing: 1px; 
+  font-weight: 600; 
+}
+.dream-modal-close { 
+  background: rgba(255,255,255,0.1); 
+  border: none; 
+  color: #fff; 
+  padding: 6px 12px; 
+  border-radius: 20px; 
+  font-size: 11px; 
+  cursor: pointer; 
+  transition: background 0.2s;
+}
+.dream-modal-close:hover {
+  background: rgba(255,255,255,0.2); 
+}
+
+.dream-progress-bar { 
+  display: flex; 
+  gap: 8px; 
+  margin-bottom: 25px; 
+}
+.dream-progress-segment { 
+  flex: 1; 
+  height: 4px; 
+  background: rgba(255,255,255,0.1); 
+  border-radius: 2px; 
+  transition: background 0.3s ease;
+}
+.dream-progress-segment.active { 
+  background: #29beaf; 
+}
+
+.dream-input-label { 
+  display: block; 
+  font-size: 10px; 
+  font-weight: 700; 
+  color: #8e9aab; 
+  margin-bottom: 8px; 
+  letter-spacing: 1px; 
+}
+.dream-input, .dream-textarea { 
+  width: 100%; 
+  background: rgba(0,0,0,0.3); 
+  border: 1px solid rgba(255,255,255,0.1); 
+  border-radius: 12px; 
+  color: #fff; 
+  padding: 14px; 
+  font-size: 14px; 
+  margin-bottom: 20px; 
+  transition: border-color 0.2s; 
+  outline: none; 
+}
+.dream-input:focus, .dream-textarea:focus { 
+  border-color: #f3ca58; 
+}
+.dream-textarea { 
+  height: 120px; 
+  resize: none; 
+}
+
+.mood-grid { 
+  display: grid; 
+  grid-template-columns: repeat(2, 1fr); 
+  gap: 12px; 
+  margin-bottom: 20px; 
+}
+.mood-btn { 
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+  padding: 14px; 
+  background: rgba(255,255,255,0.05); 
+  border: 1px solid rgba(255,255,255,0.05); 
+  border-radius: 16px; 
+  color: #fff; 
+  cursor: pointer; 
+  transition: all 0.2s; 
+  font-size: 13px; 
+  font-weight: 600; 
+}
+.mood-btn.selected { 
+  background: rgba(243, 202, 88, 0.1); 
+  border-color: #f3ca58; 
+  color: #f3ca58; 
+}
+
+.interpret-checkbox-card { 
+  display: flex; 
+  gap: 12px; 
+  background: rgba(0,0,0,0.3); 
+  border: 1px solid rgba(243, 202, 88, 0.3); 
+  border-radius: 16px; 
+  padding: 16px; 
+  margin-bottom: 25px; 
+  cursor: pointer; 
+  transition: background 0.2s;
+}
+.interpret-checkbox-card:hover {
+  background: rgba(0,0,0,0.4);
+}
+.checkbox-square { 
+  width: 20px; 
+  height: 20px; 
+  border: 2px solid rgba(255,255,255,0.3); 
+  border-radius: 6px; 
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  color: #000; 
+  flex-shrink: 0; 
+  transition: all 0.2s;
+}
+.checkbox-square.checked { 
+  background: #f3ca58; 
+  border-color: #f3ca58; 
+}
+
+.dream-review-card { 
+  background: rgba(255,255,255,0.05); 
+  padding: 16px; 
+  border-radius: 16px; 
+  border: 1px solid rgba(255,255,255,0.05); 
+}
+.dream-review-title { 
+  font-size: 16px; 
+  font-weight: 700; 
+  color: #fff; 
+  margin-bottom: 8px; 
+}
+.dream-review-desc { 
+  font-size: 13px; 
+  color: #8e9aab; 
+  margin-bottom: 12px; 
+  line-height: 1.5; 
+}
+
+.modal-actions { 
+  display: flex; 
+  gap: 12px; 
+  padding-top: 10px; 
+}
+.modal-btn-secondary { 
+  flex: 1; 
+  background: rgba(255,255,255,0.1); 
+  color: #fff; 
+  border: none; 
+  padding: 14px; 
+  border-radius: 20px; 
+  font-weight: 700; 
+  cursor: pointer; 
+  transition: background 0.2s;
+}
+.modal-btn-secondary:hover {
+  background: rgba(255,255,255,0.15); 
+}
+.modal-btn-primary { 
+  flex: 2; 
+  background: linear-gradient(135deg, #f3ca58, #29beaf); 
+  color: #101926; 
+  border: none; 
+  padding: 14px; 
+  border-radius: 20px; 
+  font-weight: 800; 
+  cursor: pointer; 
+  box-shadow: 0 4px 15px rgba(41, 190, 175, 0.3);
+  transition: transform 0.2s;
+}
+.modal-btn-primary:active {
+  transform: scale(0.98);
+}
+.modal-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* =========================================
+   EMPTY DREAM STATE
+   ========================================= */
+
+.empty-dream-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 20px;
+  margin-top: 10px;
+}
+
+.empty-dream-icon {
+  font-size: 40px;
+  margin-bottom: 15px;
+  opacity: 0.8;
+  filter: drop-shadow(0 0 10px rgba(243, 202, 88, 0.3));
+}
+
+.empty-dream-state h3 {
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.empty-dream-state p {
+  color: #8e9aab;
+  font-size: 13px;
+  line-height: 1.5;
+  max-width: 250px;
 }

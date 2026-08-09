@@ -345,6 +345,7 @@ export default function App() {
     const saved = localStorage.getItem('kp_current_user');
     return saved ? JSON.parse(saved) : null;
   });
+ const [adminTab, setAdminTab] = useState('Dreams');
  const [viewerLiked, setViewerLiked] = useState(false); 
  const [showCommentInput, setShowCommentInput] = useState(false);
  const [viewerComment, setViewerComment] = useState("");
@@ -453,6 +454,7 @@ const handleLikeStatus = async () => {
     .eq('id', activeViewStatus.id);
 
   if (error) console.error("Error liking status:", error);
+localStorage.setItem('kp_posts', JSON.stringify(updatedStatus));
 };
 
 const handleLikeComment = async (commentId) => {
@@ -3362,6 +3364,33 @@ useEffect(() => {
   }
 }, [notifications, currentUser]);
 
+// ==========================================
+      //ADMIN DESK STATES & FUNCTIONS
+  // ==========================================
+
+  const [isAdmin, setIsAdmin] = useState(true); 
+  const [pendingDreams, setPendingDreams] = useState([
+    {
+      id: 'dummy-1',
+      title: 'A river of gold...',
+      desc: 'I saw a river flowing with bright yellow light, and people were gathering around it to drink...',
+      user: '@user_wallet'
+    }
+  ]);
+  
+  const [interpretationText, setInterpretationText] = useState("");
+  const submitInterpretation = (dreamId, text) => {
+    if (!text.trim()) {
+      alert("Please enter an interpretation before submitting.");
+      return;
+    }
+    
+    console.log("Updating Dream ID:", dreamId, "with interpretation:", text);
+    alert("Interpretation submitted successfully!");
+    
+    setInterpretationText("");
+  };
+
   
   return (
      <>
@@ -5238,12 +5267,13 @@ useEffect(() => {
         </div>
       )}
 
-      {/* =========================================
+     {/* =========================================
           STEP 14: DREAM DIARY
           ========================================= */}
       {step === 14 && (
-        <div className="feed-screen-container" style={{ position: 'relative' }}>
+        <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
 
+          {/* Header */}
           <div className="feed-header-top" style={{ paddingBottom: '10px' }}>
             <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
               <BackArrowIcon />
@@ -5254,12 +5284,13 @@ useEffect(() => {
             <div style={{ width: '36px' }}></div>
           </div>
 
-          <div className="feed-scroll-area" style={{ paddingBottom: '120px' }}>
+          {/* Scrollable Content Area */}
+          <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px' }}>
 
             <div className="dream-hero-card">
               <div className="dream-hero-tag"><SparklesIcon /> Night Chronicles</div>
               <h1 className="dream-hero-title">What did God whisper in the night?</h1>
-              <p className="dream-hero-desc">Journal every dream. Request interpretation from prophets for KPC.</p>
+              <p className="dream-hero-desc">Journal every dream. Request interpretation from KingdomPlus Team  with KPC.</p>
 
               <div className="dream-hero-stats">
                 <div className="dream-stat-group">
@@ -5283,58 +5314,66 @@ useEffect(() => {
                 <div key={tab} className={`feed-tab ${dreamTab === tab ? 'active' : ''}`} onClick={() => setDreamTab(tab)}>
                   {tab === 'Last night' && <MoonIcon />}
                   {tab === 'Morning vision' && <span style={{ fontSize: '12px' }}>☀️</span>}
-                  {tab === 'Recurring' && <span style={{ fontSize: '12px' }}>✨</span>}
+                  {tab === 'Recurring' && <span style={{ fontSize: '12px' }}>🔄</span>}
                   {tab === 'Prophetic' && <span style={{ fontSize: '12px' }}>🕊️</span>}
                   <span style={{ marginLeft: '4px' }}>{tab}</span>
                 </div>
               ))}
             </div>
 
+            {/* List or Empty State */}
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {dreams.map(dream => {
-                const moodConfig = getMoodConfig(dream.mood);
+              {dreams.length === 0 ? (
+                <div className="empty-dream-state">
+                  <div className="empty-dream-icon">✨</div>
+                  <h3>Your diary is empty</h3>
+                  <p>Record your dreams in the night and seek interpretation from prophets.</p>
+                  <button className="dream-new-btn" style={{ marginTop: '15px' }} onClick={() => setIsDreamModalOpen(true)}>
+                    Record a Dream
+                  </button>
+                </div>
+              ) : (
+                dreams.map(dream => {
+                  const moodConfig = getMoodConfig(dream.mood);
 
-                return (
-                  <div key={dream.id} className={`dream-list-card ${moodConfig.bgClass}`}>
-                    {dream.status === 'PENDING' && (
-                      <div className="dream-badge-pending"><SparklesIcon /> PENDING</div>
-                    )}
-                    <span className="dream-card-date">{dream.date}</span>
-                    <h3 className="dream-card-title">{dream.title}</h3>
-                    <p className="dream-card-desc">{dream.desc}</p>
-
-                    {dream.desc.length > 100 && (
-                      <span className="read-more-link" onClick={() => setSelectedDreamToView(dream)}>Read more ➔</span>
-                    )}
-
-                    <div className="dream-card-actions">
-                      <button className="dream-action-btn" onClick={() => setSelectedDreamToView(dream)}>
-                        <EyeIcon /> View
-                      </button>
-                      <button className="dream-action-btn">
-                        <CopyIcon /> Copy
-                      </button>
-                      {!dream.status && (
-                        <button className="dream-action-btn submit-btn" onClick={() => alert('Sending to prophets...')}>
-                          <LinkIcon /> Submit
-                        </button>
+                  return (
+                    <div key={dream.id} className={`dream-list-card ${moodConfig.bgClass}`}>
+                      {dream.status === 'PENDING' && (
+                        <div className="dream-badge-pending"><SparklesIcon /> PENDING</div>
                       )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                      <span className="dream-card-date">{dream.date}</span>
+                      <h3 className="dream-card-title">{dream.title}</h3>
+                      <p className="dream-card-desc">{dream.desc}</p>
 
-            {/* Floating Action Button inside container */}
-            <div className="dream-fab" onClick={() => setIsDreamModalOpen(true)}>
-              <PlusIcon />
+                      {dream.desc.length > 100 && (
+                        <span className="read-more-link" onClick={() => setSelectedDreamToView(dream)}>Read more ➔</span>
+                      )}
+
+                      <div className="dream-card-actions">
+                        <button className="dream-action-btn" onClick={() => setSelectedDreamToView(dream)}>
+                          <EyeIcon /> View
+                        </button>
+                        <button className="dream-action-btn">
+                          <CopyIcon /> Copy
+                        </button>
+                        {!dream.status && (
+                          <button className="dream-action-btn submit-btn" onClick={() => alert('Sending to prophets...')}>
+                            <LinkIcon /> Submit
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
+
           <AppBottomNav />
 
-          {/* =========================================================
-              DETAILED VIEW MODAL (Overlay perfectly constrained)
+{/* =========================================================
+              DETAILED VIEW MODAL
               ========================================================= */}
           {selectedDreamToView && (
             <div className="constrained-overlay">
@@ -5354,10 +5393,23 @@ useEffect(() => {
                 <h2 className="view-title">{selectedDreamToView.title}</h2>
                 <div className="view-body">{selectedDreamToView.desc}</div>
 
+                {/* --- PENDING STATE --- */}
                 {selectedDreamToView.status === 'PENDING' && (
                   <div className="pending-banner">
                     <div className="pending-banner-title"><SparklesIcon /> Interpretation pending</div>
-                    <div className="pending-banner-desc">25 KPC held from your Treasury.</div>
+                    <div className="pending-banner-desc">Our prophets are seeking insight for your dream.</div>
+                  </div>
+                )}
+
+                {/* --- INTERPRETED STATE --- */}
+                {selectedDreamToView.status === 'INTERPRETED' && (
+                  <div className="interpretation-banner" style={{ marginTop: '15px', padding: '16px', background: 'rgba(41, 190, 175, 0.1)', border: '1px solid #29beaf', borderRadius: '16px' }}>
+                    <div className="interpretation-title" style={{ color: '#29beaf', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <SparklesIcon /> Prophetic Insight
+                    </div>
+                    <div className="interpretation-text" style={{ fontSize: '14px', color: '#e2e8f0', lineHeight: '1.6' }}>
+                      {selectedDreamToView.interpretation_text}
+                    </div>
                   </div>
                 )}
 
@@ -5377,7 +5429,7 @@ useEffect(() => {
           )}
 
           {/* =========================================================
-              NEW DREAM CREATION MODAL (Overlay perfectly constrained)
+              NEW DREAM CREATION MODAL
               ========================================================= */}
           {isDreamModalOpen && (
             <div className="constrained-overlay">
@@ -5457,7 +5509,6 @@ useEffect(() => {
                   )}
                 </div>
 
-                {/* Fixed Bottom Action Buttons inside Modal */}
                 <div className="modal-actions" style={{ marginTop: '20px' }}>
                   {dreamStepModal > 1 && (
                     <button className="modal-btn-secondary" onClick={() => setDreamStepModal(prev => prev - 1)}>Back</button>
@@ -6751,6 +6802,92 @@ useEffect(() => {
           )}
 
          {!activeChat && <AppBottomNav />}
+        </div>
+      )}
+
+{/* =========================================
+          STEP 24: ADMIN DESK
+          ========================================= */}
+      {step === 24 && (
+        <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
+          
+          <div className="feed-header-top" style={{ paddingBottom: '10px' }}>
+            <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
+              <BackArrowIcon />
+            </button>
+            <h2 style={{ fontSize: '18px', fontWeight: '800', margin: '0' }}>
+              <span style={{ color: '#f3ca58' }}>KingdomPlus</span> <span style={{ color: '#29beaf' }}>Admin</span>
+            </h2>
+            <div style={{ width: '36px' }}></div>
+          </div>
+
+          {/* Admin Navigation Tabs */}
+          <div className="feed-tabs-container" style={{ marginBottom: '15px', padding: '0 20px' }}>
+            {['Dreams', 'Music', 'Movies', 'News'].map((tab) => (
+              <div key={tab} className={`feed-tab ${adminTab === tab ? 'active' : ''}`} onClick={() => setAdminTab(tab)}>
+                <span style={{ marginLeft: '4px' }}>{tab}</span>
+              </div>
+            ))}
+          </div>
+
+          <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px' }}>
+            
+            {/* --- DREAMS / PROPHET DESK --- */}
+            {adminTab === 'Dreams' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '700', padding: '0 20px' }}>Pending Interpretations</h3>
+                
+                {/* Example of a Pending Dream Card */}
+                <div className="admin-dream-card" style={{ margin: '0 20px', padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(243, 202, 88, 0.3)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ color: '#f3ca58', fontSize: '11px', fontWeight: '800' }}>PENDING REVIEW</span>
+                    <span style={{ color: '#8e9aab', fontSize: '11px' }}>@user_wallet</span>
+                  </div>
+                  <h4 style={{ color: '#fff', fontSize: '16px', marginBottom: '8px' }}>A river of gold...</h4>
+                  <p style={{ color: '#e2e8f0', fontSize: '13px', marginBottom: '15px', lineHeight: '1.5' }}>
+                    I saw a river flowing with bright yellow light, and people were gathering around it to drink...
+                  </p>
+                  
+                  <textarea 
+                    className="dream-textarea" 
+                    placeholder="Type your prophetic interpretation here..." 
+                    style={{ height: '100px', marginBottom: '10px' }}
+                  ></textarea>
+                  <button className="modal-btn-primary" style={{ width: '100%' }}>Send Interpretation</button>
+                </div>
+              </div>
+            )}
+
+            {/* --- MEDIA & CONTENT UPLOAD (Music, Movies, News) --- */}
+            {['Music', 'Movies', 'News'].includes(adminTab) && (
+              <div style={{ margin: '0 20px', padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '700', marginBottom: '20px' }}>Upload New {adminTab}</h3>
+                
+                <label className="dream-input-label">TITLE</label>
+                <input type="text" className="dream-input" placeholder={`Enter ${adminTab.toLowerCase()} title...`} />
+
+                {adminTab !== 'News' && (
+                  <>
+                    <label className="dream-input-label">ARTIST / CREATOR</label>
+                    <input type="text" className="dream-input" placeholder="Name of creator..." />
+                  </>
+                )}
+
+                <label className="dream-input-label">COVER IMAGE</label>
+                <div style={{ border: '2px dashed rgba(41, 190, 175, 0.3)', padding: '25px', borderRadius: '12px', textAlign: 'center', marginBottom: '20px', color: '#29beaf', cursor: 'pointer', background: 'rgba(41, 190, 175, 0.05)' }}>
+                   + Click to upload artwork
+                </div>
+
+                <label className="dream-input-label">SOURCE MEDIA URL</label>
+                <input type="text" className="dream-input" placeholder="Paste link to media file..." />
+
+                <button className="modal-btn-primary" style={{ width: '100%', marginTop: '10px' }}>Publish {adminTab}</button>
+              </div>
+            )}
+            
+          </div>
+          
+          <AppBottomNav />
         </div>
       )}
 
