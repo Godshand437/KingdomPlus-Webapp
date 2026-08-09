@@ -1789,7 +1789,7 @@ footer {
   display: flex;
   flex-direction: column;
 
-  height: 10vh;
+  height: 100vh;
   max-width: 100vw;
   overflow-x: hidden;
 }
