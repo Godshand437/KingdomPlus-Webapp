@@ -3544,21 +3544,17 @@ const [profileTab, setProfileTab] = useState('All');
     }
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (!user) {
-        alert("You must be logged in to add a service.");
-        return;
-      }
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) throw new Error("Must be logged in.");
 
-      const { error } = await supabase.from('services').insert([{ 
+      const { error: insertError } = await supabase.from('services').insert([{ 
         provider_id: user.id, 
         title: newServiceForm.title, 
         description: newServiceForm.desc, 
         price_kpc: Number(newServiceForm.price) 
       }]);
       
-      if (error) throw error;
+      if (insertError) throw insertError;
 
       const newService = {
         id: Date.now().toString(),
@@ -3570,11 +3566,11 @@ const [profileTab, setProfileTab] = useState('All');
       setUserServices([...userServices, newService]);
       setIsAddServiceModalOpen(false);
       setNewServiceForm({ title: '', desc: '', price: '' });
-      alert("Service added successfully!");
+      alert("Service published to the Kingdom!");
 
     } catch (error) {
-      console.error("Error adding service:", error);
-      alert("Failed to add service.");
+      console.error("Error adding service:", error.message);
+      alert("Failed to add service. Check your connection.");
     }
   };
 
@@ -3588,6 +3584,36 @@ const handlePurchaseService = async (service) => {
       alert(`Successfully paid ${service.price} KPC! The provider has been notified of your request.`);
     }, 1500);
   };
+
+// ==========================================
+  // FEED & POST STATES
+  // ==========================================
+  const [globalPosts, setGlobalPosts] = useState([]);
+  const [isFetchingPosts, setIsFetchingPosts] = useState(true);
+
+  const fetchPosts = async () => {
+    setIsFetchingPosts(true);
+    try {
+      const { data, error } = await supabase
+        .from('posts')
+        .select(`
+          *,
+          user_profile:author_id (full_name, avatar_url, account_type, local_church)
+        `)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setGlobalPosts(data || []);
+    } catch (error) {
+      console.error("Error fetching posts:", error);
+    } finally {
+      setIsFetchingPosts(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPosts();
+  }, []);
 
 
   
@@ -4403,23 +4429,32 @@ const handlePurchaseService = async (service) => {
                 </div>
 
                 <div className="community-grid">
-                  <div className="community-card feed-card">
-                    <div className="card-top">
-                      <span className="card-title">FEED</span>
-                      <div className="card-icon">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
-                      </div>
-                    </div>
-                    <p className="feed-empty-text">Connect with believers.</p>
-                    <div className="card-action-link" onClick={() => setStep(7)}>
-                      Open feed
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-                    </div>
-                  </div>
+                  <div className="community-card feed-card" onClick={() => setStep(12)}>
+  <div className="card-top">
+    <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#f3ca58', letterSpacing: '1px' }}>FEED</h3>
+    <div className="card-icon" style={{ color: '#8e9aab' }}><ChatIcon /></div>
+  </div>
+  
+  {/* NEW DYNAMIC ACTIVITY INDICATOR */}
+  <div style={{ marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+    <div style={{ display: 'flex' }}>
+      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#29beaf', border: '2px solid #101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', zIndex: 3 }}>⛪</div>
+      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#f3ca58', border: '2px solid #101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', marginLeft: '-10px', zIndex: 2 }}>🕊️</div>
+      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#1e293b', border: '2px solid #101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#fff', marginLeft: '-10px', zIndex: 1 }}>+3</div>
+    </div>
+    <div style={{ fontSize: '12px', color: '#8e9aab', lineHeight: '1.4' }}>
+      New posts from <strong>{userProfile?.local_church || 'your church'}</strong> and friends.
+    </div>
+  </div>
+  
+  <div className="card-action" style={{ marginTop: '30px' }}>
+    <span style={{ color: '#f3ca58', fontSize: '13px', fontWeight: '700' }}>Open feed {'>'}</span>
+  </div>
+</div>
 
-                  <div className="community-card prayer-card">
+                  <div className="community-card prayer-card" onClick={() => setStep(8)}>
                     <div className="card-top">
-                      <span className="card-title" style={{ color: '#ff6b6b' }}>PRAYER</span>
+                      <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#ff6b6b', letterSpacing: '1px' }}>PRAYER</h3>
                       <div className="card-icon" style={{ color: '#ff6b6b' }}><HeartIcon /></div>
                     </div>
                     <ul className="prayer-list">
@@ -4440,9 +4475,8 @@ const handlePurchaseService = async (service) => {
                         <span>{prayerRooms.find(r => r.id === 'Nations').reqs}</span>
                       </li>
                     </ul>
-                    <div className="card-action-link" style={{ color: '#ff6b6b' }} onClick={() => setStep(8)}>
-                      Join a room
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    <div className="card-action" style={{ marginTop: '10px' }}>
+                    <span style={{ color: '#ff6b6b', fontSize: '13px', fontWeight: '700' }}>Join a room {'>'}</span>
                     </div>
                   </div>
                 </div>
@@ -6147,7 +6181,7 @@ const handlePurchaseService = async (service) => {
       )}
 
    {/* =========================================
-          STEP 18: PROFESSIONAL PROFILE (LIVE DATA)
+          STEP 18: PROFILE PAGE
           ========================================= */}
      {step === 18 && (
         <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
