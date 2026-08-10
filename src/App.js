@@ -4,6 +4,7 @@ import { getOrCreateAssociatedTokenAccount, transfer } from '@solana/spl-token';
 import './App.css';
 import { supabase } from './supabaseClient';
 import { Buffer } from 'buffer';
+import { QrReader } from 'react-qr-reader';
 
 if (typeof window !== 'undefined') {
   window.Buffer = window.Buffer || Buffer;
@@ -740,7 +741,6 @@ const uploadNewTestimony = async (e) => {
   const [videoSubTab, setVideoSubTab] = useState('All');
 
   // Social Feed Posts
-  const [newPostText, setNewPostText] = useState('');
   const [posts, setPosts] = useState([
     { id: 1, authorName: 'Sarah_f', authorHandle: '@sarah', time: '2h ago', avatar: 'https://images.unsplash.com/photo-1506804886640-ed09fb0317e0?auto=format&fit=crop&w=100&h=100', content: 'Feeling incredibly blessed today! Just finished reading Psalm 23 and it really spoke to my current situation. God is truly our shepherd. 🙏✨', image: null, likes: 0, comments: 0, isVerified: false },
     { id: 2, authorName: 'Pastor David', authorHandle: '@pdavid', time: '5h ago', avatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1bf98c?auto=format&fit=crop&w=100&h=100', content: 'Such a powerful time of worship at Grace Sanctuary this morning. The presence of God was so heavy in the room. Who else was blessed?', image: 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?auto=format&fit=crop&w=400&q=80', likes: 0, comments: 0, isVerified: true }
@@ -860,15 +860,6 @@ const uploadNewTestimony = async (e) => {
       };
       setTestimonies([newStatus, ...testimonies]);
     }
-  };
-
-
-
-  const handleCreatePost = () => {
-    if (!newPostText.trim()) return;
-    const newPost = { id: Date.now(), authorName: formData.fullName || 'You', authorHandle: `@${formData.username || 'user'}`, time: 'Just now', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80', content: newPostText, image: null, likes: 0, comments: 0, isVerified: false };
-    setPosts([newPost, ...posts]);
-    setNewPostText('');
   };
 
   const handleCreateRoomPrayer = () => {
@@ -3332,21 +3323,7 @@ The Vatican has become increasingly focused on professional management of its re
 // --- KINGDOMPLUS PROFILE MODAL STATE ---
   const [selectedProfile, setSelectedProfile] = useState(null);
 
-  const handleViewProfile = (e, entity) => {
-    e.stopPropagation();
-    
-    const isDBUser = !!entity.email && !entity.id?.startsWith('c');
-    setSelectedProfile({
-      id: entity.id || entity.email,
-      name: isDBUser ? (entity.formData?.fullName || 'Believer') : entity.name,
-      handle: isDBUser ? `@${entity.formData?.username || entity.email?.split('@')[0]}` : entity.handle,
-      avatar: isDBUser ? entity.formData?.avatar : entity.avatar,
-      isMinistry: entity.type === 'Ministry Groups' || entity.intent === 'COUNSELING' || entity.accountType === 'Minister',
-      originalData: entity
-    });
-  };
-
-  useEffect(() => {
+    useEffect(() => {
     let timer;
     if (activeNewsArticle) {
       timer = setTimeout(() => {
@@ -3614,6 +3591,233 @@ const handlePurchaseService = async (service) => {
   useEffect(() => {
     fetchPosts();
   }, []);
+
+// ==========================================
+  // FEED POST CREATION STATES
+  // ==========================================
+  const postMediaInputRef = useRef(null);
+  const [newPostText, setNewPostText] = useState("");
+  const [postMediaFile, setPostMediaFile] = useState(null);
+  const [postMediaPreview, setPostMediaPreview] = useState(null);
+
+  const handlePostMediaSelect = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setPostMediaFile(file);
+    setPostMediaPreview(URL.createObjectURL(file));
+  };
+
+  const removePostMedia = () => {
+    setPostMediaFile(null);
+    setPostMediaPreview(null);
+    if (postMediaInputRef.current) postMediaInputRef.current.value = "";
+  };
+
+  const handleCreatePost = async () => {
+    if (!newPostText.trim() && !postMediaFile) return;
+
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        alert("You must be logged in to post.");
+        return;
+      }
+
+      let mediaUrl = null;
+
+      if (postMediaFile) {
+        const fileExt = postMediaFile.name.split('.').pop();
+        const fileName = `post-${user.id}-${Date.now()}.${fileExt}`;
+        
+        const { error: uploadError } = await supabase.storage.from('image').upload(fileName, postMediaFile);
+        if (uploadError) throw uploadError;
+        
+        const { data } = supabase.storage.from('image').getPublicUrl(fileName);
+        mediaUrl = data.publicUrl;
+      }
+
+      const { error: insertError } = await supabase.from('posts').insert([{
+        author_id: user.id,
+        content: newPostText,
+        image_url: mediaUrl
+      }]);
+
+      if (insertError) throw insertError;
+
+      setNewPostText("");
+      removePostMedia();
+      fetchPosts();
+      
+    } catch (error) {
+      console.error("Error creating post:", error);
+      alert("Failed to publish post.");
+    }
+  };
+
+// ==========================================
+  // PUBLIC PROFILE VIEW LOGIC
+  // ==========================================
+  const [viewedProfile, setViewedProfile] = useState(null);
+  const [viewedUserServices, setViewedUserServices] = useState([]);
+
+  const handleViewProfile = async (eOrAuthorId, entity) => {
+    if (entity) {
+      if (eOrAuthorId && typeof eOrAuthorId.stopPropagation === 'function') {
+        eOrAuthorId.stopPropagation(); // Stops click from bubbling up
+      }
+      
+      const isDBUser = !!entity.email && !entity.id?.startsWith('c');
+      setSelectedProfile({
+        id: entity.id || entity.email,
+        name: isDBUser ? (entity.formData?.fullName || 'Believer') : entity.name,
+        handle: isDBUser ? `@${entity.formData?.username || entity.email?.split('@')[0]}` : entity.handle,
+        avatar: isDBUser ? entity.formData?.avatar : entity.avatar,
+        isMinistry: entity.type === 'Ministry Groups' || entity.intent === 'COUNSELING' || entity.accountType === 'Minister',
+        originalData: entity
+      });
+      return;
+    }
+
+    const authorId = eOrAuthorId; 
+    
+    try {
+      const currentUserResponse = await supabase.auth.getUser();
+      const currentUser = currentUserResponse.data?.user;
+      
+      if (currentUser && authorId === currentUser.id) {
+        setStep(18);
+        return;
+      }
+
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profile')
+        .select('*')
+        .eq('id', authorId)
+        .single();
+
+      if (profileError) throw profileError;
+      setViewedProfile(profileData);
+
+      const { data: servicesData, error: servicesError } = await supabase
+        .from('services')
+        .select('*')
+        .eq('provider_id', authorId);
+
+      if (!servicesError) {
+        setViewedUserServices(servicesData || []);
+      }
+
+      setProfileTab('All'); 
+      setStep(19);
+
+    } catch (error) {
+      console.error("Error loading public profile:", error);
+      alert("Could not load this user's profile.");
+    }
+  };
+
+  
+  const videoRef = useRef(null);
+
+  const fetchWalletData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase.from('user_profiles').select('wallet_balance').eq('id', user.id).single();
+      if (profile) setKpcBalance(profile.wallet_balance || 0);
+
+      const { data: txs } = await supabase
+        .from('transactions')
+        .select('*')
+        .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+        .order('created_at', { ascending: false });
+
+      if (txs) {
+        const formattedTxs = txs.map(tx => {
+          const isEarned = tx.receiver_id === user.id;
+          return {
+            id: tx.id,
+            amount: tx.amount,
+            type: tx.tx_type,
+            title: tx.title,
+            date: new Date(tx.created_at).toLocaleDateString(),
+            isPositive: isEarned
+          };
+        });
+        setTxHistory(formattedTxs);
+      }
+    } catch (error) {
+      console.error("Error loading wallet:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (step === 11) fetchWalletData();
+  }, [step]);
+
+  const handleLiveTransfer = async (e) => {
+    e.preventDefault();
+    setIsTransferring(true);
+    
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const amount = Number(transferAmount);
+
+      if (amount <= 0 || amount > kpcBalance) {
+        alert("Invalid transfer amount.");
+        setIsTransferring(false);
+        return;
+      }
+
+      const { data, error } = await supabase.rpc('transfer_kpc', {
+        sender_uuid: user.id,
+        receiver_handle: transferUsername.replace('@', ''),
+        transfer_amount: amount,
+        tx_title: `Sent to ${transferUsername}`,
+        transaction_type: 'TRANSFER'
+      });
+
+      if (error) throw error;
+
+      alert(`Successfully sent ${amount} KPC to ${transferUsername}!`);
+      setTransferUsername('');
+      setTransferAmount('');
+      setActiveModal(null);
+      fetchWalletData();
+
+    } catch (error) {
+      console.error("Transfer failed:", error);
+      alert(error.message || "Transfer failed. Please check the username.");
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeModal === 'scan' && videoRef.current) {
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+        .then(stream => { videoRef.current.srcObject = stream; })
+        .catch(err => console.error("Camera error:", err));
+    }
+
+    return () => {
+      if (videoRef.current && videoRef.current.srcObject) {
+        videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [activeModal]);
+
+  const downloadQR = async () => {
+    const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=1000x1000&data=${userProfile?.full_name || 'Church'}&color=101926`;
+    const response = await fetch(qrUrl);
+    const blob = await response.blob();
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'Church_Kingdom_QR.png';
+    link.click();
+  };
+
 
 
   
@@ -4429,7 +4633,7 @@ const handlePurchaseService = async (service) => {
                 </div>
 
                 <div className="community-grid">
-                  <div className="community-card feed-card" onClick={() => setStep(12)}>
+                  <div className="community-card feed-card" onClick={() => setStep(7)}>
   <div className="card-top">
     <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#f3ca58', letterSpacing: '1px' }}>FEED</h3>
     <div className="card-icon" style={{ color: '#8e9aab' }}><ChatIcon /></div>
@@ -4642,62 +4846,124 @@ const handlePurchaseService = async (service) => {
         </div>
       )}
 
+{/* =========================================
+          STEP 7: KINGDOM FEED
+          ========================================= */}
       {step === 7 && (
-        <div className="feed-screen-container">
+        <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
 
-          <div className="feed-header-top">
+          <div className="feed-header-top" style={{ paddingBottom: '10px' }}>
             <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}><BackArrowIcon /></button>
-            <h2>Kingdom Feed</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: '800', margin: '0' }}>Kingdom Feed</h2>
             <div className="feed-header-actions"><SearchIcon /><BellIcon /></div>
           </div>
 
-          <div className="feed-tabs-container">
+          <div className="feed-tabs-container" style={{ marginBottom: '15px', padding: '0 20px' }}>
             {['For You', 'Following', 'Church', 'Global'].map((tab) => (
               <div key={tab} className={`feed-tab ${feedTab === tab ? 'active' : ''}`} onClick={() => setFeedTab(tab)}>
-                {tab === 'For You' && <span style={{ fontSize: '12px' }}></span>} {tab}
+                {tab}
               </div>
             ))}
           </div>
 
-          <div className="feed-scroll-area">
+          <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px' }}>
+            
+            {/* --- CREATE POST BOX --- */}
             <div className="create-post-card">
-              <div className="create-post-top">
-                <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" alt="You" className="create-avatar" />
-                <input type="text" placeholder="Share a verse, testimony, or thought..." className="create-input" value={newPostText} onChange={(e) => setNewPostText(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleCreatePost()} />
+              <div className="create-post-top" style={{ alignItems: 'flex-start' }}>
+                {userProfile?.avatar_url ? (
+                  <img src={userProfile.avatar_url} alt="Profile" className="post-avatar" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
+                ) : (
+                  <div className="post-avatar" style={{ background: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: 'bold', flexShrink: 0, width: '40px', height: '40px', borderRadius: '50%' }}>
+                    {userProfile?.username ? userProfile.username.substring(0, 2).toUpperCase() : 'U'}
+                  </div>
+                )}
+                
+                <div style={{ width: '100%' }}>
+                  <textarea 
+                    placeholder="Share a verse, testimony, or thought..." 
+                    className="create-input" 
+                    value={newPostText} 
+                    onChange={(e) => setNewPostText(e.target.value)}
+                    style={{ resize: 'none', height: '60px', width: '100%', background: 'transparent', border: 'none', color: '#fff', outline: 'none' }}
+                  />
+                  
+                  {postMediaPreview && (
+                    <div style={{ position: 'relative', marginTop: '10px', borderRadius: '12px', overflow: 'hidden' }}>
+                      <button onClick={removePostMedia} style={{ position: 'absolute', top: '10px', right: '10px', background: 'rgba(0,0,0,0.6)', border: 'none', color: '#fff', borderRadius: '50%', width: '30px', height: '30px', cursor: 'pointer', zIndex: 10 }}>✕</button>
+                      {postMediaFile?.type.startsWith('video/') ? (
+                        <video src={postMediaPreview} controls style={{ width: '100%', maxHeight: '300px', objectFit: 'cover' }} />
+                      ) : (
+                        <img src={postMediaPreview} alt="Preview" style={{ width: '100%', maxHeight: '300px', objectFit: 'cover' }} />
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
+
               <div className="create-post-bottom">
-                <button className="post-media-btn"><ImageIcon /> Photo</button>
-                <button className="post-media-btn" style={{ color: '#29beaf' }} onClick={handleCreatePost}><ShareIcon /> Post</button>
+                <input type="file" hidden ref={postMediaInputRef} accept="image/*,video/*" onChange={handlePostMediaSelect} />
+                <button className="post-media-btn" onClick={() => postMediaInputRef.current.click()}>
+                  <ImageIcon /> Photo/Video
+                </button>
+                <button className="post-media-btn" style={{ color: '#101926', background: '#29beaf', padding: '6px 16px', borderRadius: '20px', fontWeight: '800' }} onClick={handleCreatePost}>
+                  <ShareIcon /> Post
+                </button>
               </div>
             </div>
 
-            {posts.map((post) => (
-              <div key={post.id} className="feed-post-card">
-                <div className="post-header">
-                  <div className="post-user-info">
-                    <img src={post.avatar} alt={post.authorName} className="post-avatar" />
-                    <div className="post-meta">
-                      <span className="post-name">{post.authorName} {post.isVerified && <span style={{ color: '#29beaf', fontSize: '12px' }}>✓</span>}</span>
-                      <span className="post-time">{post.authorHandle} • {post.time}</span>
+            {/* --- LIVE FEED POSTS --- */}
+            {isFetchingPosts ? (
+              <div style={{ textAlign: 'center', padding: '40px', color: '#8e9aab' }}>Loading Kingdom Feed...</div>
+            ) : (
+              globalPosts.map((post) => {
+                const isVideo = post.image_url?.match(/\.(mp4|webm|ogg|mov)$/i);
+                
+                return (
+                  <div key={post.id} className="feed-post-card">
+                    <div className="post-header">
+                      <div className="post-user-info" onClick={() => handleViewProfile(post.author_id)} style={{ cursor: 'pointer' }}>
+                        {post.user_profile?.avatar_url ? (
+                          <img src={post.user_profile.avatar_url} alt="" className="post-avatar" style={{ objectFit: 'cover' }} />
+                        ) : (
+                          <div className="post-avatar" style={{ background: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: 'bold' }}>
+                            {post.user_profile?.username?.substring(0, 2).toUpperCase() || 'U'}
+                          </div>
+                        )}
+                        <div className="post-meta">
+                          <strong style={{ color: '#fff', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            {post.user_profile?.full_name || 'Kingdom User'} 
+                            {(post.user_profile?.account_type === 'Premium' || post.user_profile?.account_type === 'Apostle') && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
+                          </strong>
+                          <span style={{ color: '#8e9aab', fontSize: '12px' }}>{new Date(post.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      <div className="post-options"><DotsIcon /></div>
+                    </div>
+
+                    <div className="post-content">
+                      <p style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '1.5', marginBottom: '12px' }}>{post.content}</p>
+                      
+                      {post.image_url && (
+                        isVideo ? (
+                           <video src={post.image_url} controls style={{ width: '100%', borderRadius: '12px', marginBottom: '12px', maxHeight: '400px', backgroundColor: '#000' }} />
+                        ) : (
+                           <img src={post.image_url} alt="Post attachment" style={{ width: '100%', borderRadius: '12px', marginBottom: '12px' }} />
+                        )
+                      )}
+                    </div>
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                      <div className="engage-btn" style={{ color: '#8e9aab', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}><HeartIcon /> {post.likes_count}</div>
+                      <div className="engage-btn" style={{ color: '#8e9aab', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}><MessageIcon /> {post.comments_count}</div>
+                      <div className="engage-btn" style={{ color: '#8e9aab', display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer' }}><ShareIcon /> Share</div>
                     </div>
                   </div>
-                  <div className="post-options"><DotsIcon /></div>
-                </div>
-                <div className="post-content">
-                  <p className="post-text">{post.content}</p>
-                  {post.image && <img src={post.image} alt="Attachment" className="post-image-attachment" />}
-                </div>
-                <div className="post-actions">
-                  <div className="engage-btn"><HeartIcon /> {post.likes}</div>
-                  <div className="engage-btn"><MessageIcon /> {post.comments}</div>
-                  <div className="engage-btn"><ShareIcon /> Share</div>
-                </div>
-              </div>
-            ))}
+                );
+              })
+            )}
           </div>
-
           <AppBottomNav />
-
         </div>
       )}
 
@@ -4976,8 +5242,8 @@ const handlePurchaseService = async (service) => {
       )}
 
     {/* =========================================
-          STEP 11: TREASURY (CLEAN & UPGRADED)
-          ========================================= */}
+          STEP 11: TREASURY
+          ======================================== */}
       {step === 11 && (
         <div className="feed-screen-container">
 
@@ -5012,23 +5278,41 @@ const handlePurchaseService = async (service) => {
               </div>
 
               <div 
+
                 onClick={() => {
+
                   if (!generatedAddress) return;
+
                   navigator.clipboard.writeText(generatedAddress); 
+
                   alert("Solana Wallet Address copied to clipboard!"); 
+
                 }}
+
                 style={{ width: '100%', maxWidth: '340px', background: 'rgba(0, 0, 0, 0.4)', padding: '12px 16px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid rgba(255, 255, 255, 0.08)', cursor: 'pointer' }}
+
               >
+
                 <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+
                   <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2ecc71', flexShrink: 0, boxShadow: '0 0 10px #2ecc71' }}></div>
+
                   <span style={{ color: '#cbd5e1', fontSize: '13px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+
                     {generatedAddress ? generatedAddress : 'No Wallet Connected'}
+
                   </span>
+
                 </div>
+
                 <div style={{ color: '#f3ca58', display: 'flex', alignItems: 'center', marginLeft: '10px' }}>
+
                   <CopyIcon />
+
                 </div>
+
               </div>
+
             </div>
 
             {/* Quick Action Buttons */}
@@ -5038,7 +5322,8 @@ const handlePurchaseService = async (service) => {
                 <span className="treasury-action-label">Give /<br />Send</span>
               </div>
               
-              {currentUser?.accountType === 'Church' ? (
+              {/* If Premium/Church show Church QR, otherwise Scan QR */}
+              {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') ? (
                 <div className="treasury-action-item" onClick={() => setActiveModal('qr')}>
                   <div className="treasury-action-circle" style={{ color: '#29beaf', background: 'rgba(41, 190, 175, 0.1)' }}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><rect x="7" y="7" width="3" height="3"></rect><rect x="14" y="7" width="3" height="3"></rect><rect x="7" y="14" width="3" height="3"></rect><rect x="14" y="14" width="3" height="3"></rect></svg>
@@ -5063,12 +5348,13 @@ const handlePurchaseService = async (service) => {
                 <div className="treasury-action-circle" style={{ color: '#e5c158', background: 'rgba(229, 193, 88, 0.1)' }}><CrownIcon /></div>
                 <span className="treasury-action-label">Upgrade<br />(Premium)</span>
               </div>
-<div className="treasury-action-item" onClick={() => setActiveModal('swap')}>
-  <div className="treasury-action-circle" style={{ color: '#e67e22', background: 'rgba(230, 126, 34, 0.1)' }}>
-    <SwapIcon />
-  </div>
-  <span className="treasury-action-label">Swap<br />Tokens</span>
-</div>
+              
+              <div className="treasury-action-item" onClick={() => setActiveModal('swap')}>
+                <div className="treasury-action-circle" style={{ color: '#e67e22', background: 'rgba(230, 126, 34, 0.1)' }}>
+                  <SwapIcon />
+                </div>
+                <span className="treasury-action-label">Swap<br />Tokens</span>
+              </div>
             </div>
 
             {/* Dynamic Activity Ledger Section */}
@@ -5093,19 +5379,18 @@ const handlePurchaseService = async (service) => {
                     No transactions yet. Start streaming or receiving KPC!
                   </div>
                 ) : (
-                  txHistory.filter(tx => txFilter === 'ALL' || tx.type === txFilter || (txFilter === 'EARN' && tx.type === 'AIRDROP')).map((tx, idx) => {
-                    const isPositive = tx.amount > 0;
+                  txHistory.filter(tx => txFilter === 'ALL' || (txFilter === 'EARN' && tx.isPositive) || (txFilter === 'SPEND' && !tx.isPositive)).map((tx, idx) => {
                     return (
                       <div key={tx.id || idx} className="activity-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                        <div className="activity-icon-wrap" style={{ color: isPositive ? '#2ecc71' : '#e74c3c' }}>
-                          {tx.type === 'AIRDROP' ? <HandCoinIcon /> : isPositive ? <LightningIcon /> : <ChurchIcon />}
+                        <div className="activity-icon-wrap" style={{ color: tx.isPositive ? '#2ecc71' : '#e74c3c' }}>
+                          {tx.type === 'AIRDROP' ? <HandCoinIcon /> : tx.isPositive ? <LightningIcon /> : <ChurchIcon />}
                         </div>
                         <div className="activity-details" style={{ flex: 1, padding: '0 12px', overflow: 'hidden' }}>
-                          <span className={`activity-amount ${isPositive ? 'amount-plus' : 'amount-minus'}`}>{isPositive ? `+${tx.amount}` : tx.amount} KPC</span>
+                          <span className={`activity-amount ${tx.isPositive ? 'amount-plus' : 'amount-minus'}`}>{tx.isPositive ? `+${tx.amount}` : `-${tx.amount}`} KPC</span>
                           <span className="activity-desc" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'block' }}>{tx.title}</span>
-                          <span className="activity-time">{tx.date} • <span style={{ fontFamily: 'monospace', fontSize: '10px' }}>{tx.signature ? tx.signature.substring(0, 8) + '...' : 'Confirmed'}</span></span>
+                          <span className="activity-time">{tx.date} • <span style={{ fontFamily: 'monospace', fontSize: '10px' }}>Confirmed</span></span>
                         </div>
-                        <div className={`activity-badge ${isPositive ? 'badge-earned' : 'badge-spent'}`}>{isPositive ? 'Earned' : 'Spent'}</div>
+                        <div className={`activity-badge ${tx.isPositive ? 'badge-earned' : 'badge-spent'}`}>{tx.isPositive ? 'Earned' : 'Spent'}</div>
                       </div>
                     );
                   })
@@ -5119,7 +5404,7 @@ const handlePurchaseService = async (service) => {
               UNIFIED OVERLAY MODALS ARCHITECTURE
               ========================================= */}
           
-          {/* 1. GIVE / SEND MODAL */}
+          {/* 1. GIVE / SEND MODAL (Now Wired to DB) */}
           {activeModal === 'send' && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10, 15, 26, 0.9)', backdropFilter: 'blur(15px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' }}>
               <div style={{ width: '100%', maxWidth: '500px', background: '#1e293b', borderTopLeftRadius: '30px', borderTopRightRadius: '30px', padding: '30px', borderTop: '1px solid rgba(255,255,255,0.1)', animation: 'slideUp 0.3s ease-out' }}>
@@ -5128,14 +5413,14 @@ const handlePurchaseService = async (service) => {
                   <button onClick={() => setActiveModal(null)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}><XIcon /></button>
                 </div>
 
-                <form onSubmit={handleSendByUsername} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                <form onSubmit={handleLiveTransfer} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                   <div>
-                    <label style={{ color: '#cbd5e1', fontSize: '12px', fontWeight: '700', marginBottom: '8px', display: 'block' }}>RECIPIENT (@USERNAME OR WALLET ADDRESS)</label>
+                    <label style={{ color: '#cbd5e1', fontSize: '12px', fontWeight: '700', marginBottom: '8px', display: 'block' }}>RECIPIENT (@USERNAME OR FULL NAME)</label>
                     <div style={{ display: 'flex', alignItems: 'center', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', padding: '0 15px' }}>
                       <span style={{ color: '#29beaf', fontWeight: '800' }}>@</span>
                       <input 
                         type="text" value={transferUsername} onChange={(e) => setTransferUsername(e.target.value)} 
-                        placeholder="gracesanctuary OR 5K2p..." required 
+                        placeholder="gracesanctuary OR Pastor David" required 
                         style={{ width: '100%', padding: '15px 10px', background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '15px' }} 
                       />
                     </div>
@@ -5159,154 +5444,67 @@ const handlePurchaseService = async (service) => {
             </div>
           )}
 
-          {/* 2A. CHURCH QR PROJECTION MODAL */}
+          {/* 2A. CHURCH QR PROJECTION & DOWNLOAD MODAL */}
           {activeModal === 'qr' && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10, 15, 26, 0.95)', backdropFilter: 'blur(20px)', zIndex: 1000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
+            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#101926', zIndex: 1000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
               <button onClick={() => setActiveModal(null)} style={{ position: 'absolute', top: '30px', right: '30px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><XIcon /></button>
-              <h2 className="metallic-gold-text" style={{ fontSize: '28px', marginBottom: '5px', textAlign: 'center' }}>{formData.churchName || 'Your Ministry'}</h2>
-              <p style={{ color: '#29beaf', fontSize: '18px', fontWeight: '800', marginBottom: '40px', textAlign: 'center' }}>@{formData.username || 'church_treasury'}</p>
+              
+              <h2 className="metallic-gold-text" style={{ fontSize: '32px', marginBottom: '5px', textAlign: 'center' }}>{userProfile?.full_name || 'Your Ministry'}</h2>
+              <p style={{ color: '#29beaf', fontSize: '20px', fontWeight: '800', marginBottom: '40px', textAlign: 'center' }}>Scan to Give / Tithe</p>
+              
               <div style={{ background: '#fff', padding: '20px', borderRadius: '24px', boxShadow: '0 0 50px rgba(243, 202, 88, 0.2)' }}>
-                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${generatedAddress}&color=101926`} alt="Church QR Code" style={{ width: '250px', height: '250px', borderRadius: '8px' }} />
+                <img src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${userProfile?.full_name || 'treasury'}&color=101926`} alt="Church QR Code" style={{ width: '300px', height: '300px', borderRadius: '8px' }} />
               </div>
-              <p style={{ color: '#8e9aab', marginTop: '30px', textAlign: 'center', maxWidth: '300px', lineHeight: '1.5' }}>Project this on your screens. Believers scan to tithe KPC directly into the church Web3 treasury.</p>
+              
+              <div style={{ display: 'flex', gap: '15px', marginTop: '40px' }}>
+                <button onClick={downloadQR} style={{ padding: '12px 24px', background: 'transparent', border: '2px solid #29beaf', color: '#29beaf', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>
+                  Download for Offline
+                </button>
+                <button onClick={() => document.documentElement.requestFullscreen()} style={{ padding: '12px 24px', background: '#f3ca58', border: 'none', color: '#101926', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>
+                  Project Live
+                </button>
+              </div>
             </div>
           )}
 
-          {/* 2B. SCAN QR VIEWFINDER MODAL */}
+          {/* 2B. LIVE SCAN QR VIEWFINDER MODAL */}
+          {/* 2B. LIVE SCAN QR VIEWFINDER MODAL */}
           {activeModal === 'scan' && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10, 15, 26, 0.95)', backdropFilter: 'blur(20px)', zIndex: 1000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
-              <button onClick={() => setActiveModal(null)} style={{ position: 'absolute', top: '30px', right: '30px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><XIcon /></button>
+              <button onClick={() => setActiveModal(null)} style={{ position: 'absolute', top: '30px', right: '30px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}><XIcon /></button>
+              
               <h3 style={{ color: '#fff', fontSize: '20px', fontWeight: '900', marginBottom: '10px' }}>Scan to Give / Tithe</h3>
               <p style={{ color: '#8e9aab', fontSize: '13px', marginBottom: '30px', textAlign: 'center' }}>Point your camera at the church screen QR code</p>
               
-              {/* FIXED: justifyContent is properly camelCased here! */}
-              <div style={{ width: '260px', height: '260px', border: '2px dashed #29beaf', borderRadius: '24px', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative', background: 'rgba(41, 190, 175, 0.05)' }}>
-                <div style={{ width: '100%', height: '2px', background: '#f3ca58', position: 'absolute', top: '50%', boxShadow: '0 0 15px #f3ca58' }}></div>
-                <span style={{ color: '#cbd5e1', fontSize: '12px', fontWeight: '700' }}>Searching for Web3 QR...</span>
+              {/* LIVE QR SCANNER COMPONENT */}
+              <div style={{ width: '280px', height: '280px', borderRadius: '24px', overflow: 'hidden', position: 'relative', border: '2px dashed #29beaf', background: '#000' }}>
+                <QrReader
+                  onResult={(result, error) => {
+                    if (!!result) {
+                      const scannedUsername = result?.text;
+                      alert(`Connected to ${scannedUsername}'s Treasury!`);
+                      setTransferUsername(scannedUsername);
+                      setActiveModal('send');
+                    }
+                  }}
+                  constraints={{ facingMode: 'environment' }}
+                  style={{ width: '100%', height: '100%' }}
+                />
               </div>
 
               <button 
                 onClick={() => {
-                  alert("Simulated QR Read: Connected to @gracesanctuary treasury!");
+                  alert("Simulated QR Read: Connected to Grace Sanctuary treasury!");
+                  setTransferUsername('Grace Sanctuary');
                   setActiveModal('send');
-                  setTransferUsername('@gracesanctuary');
                 }}
-                style={{ marginTop: '40px', padding: '15px 30px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer' }}
+                style={{ marginTop: '30px', padding: '12px 24px', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '12px', color: '#8e9aab', fontSize: '12px', cursor: 'pointer' }}
               >
-                Simulate QR Scan Match
+                Test Manual Override
               </button>
             </div>
           )}
 
-          {/* 3. HIRE SERVICES MODAL */}
-          {activeModal === 'hire' && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10, 15, 26, 0.9)', backdropFilter: 'blur(15px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' }}>
-              <div style={{ width: '100%', maxWidth: '500px', background: '#1e293b', borderTopLeftRadius: '30px', borderTopRightRadius: '30px', padding: '30px', borderTop: '1px solid rgba(255,255,255,0.1)', animation: 'slideUp 0.3s ease-out', maxHeight: '85vh', overflowY: 'auto' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <h3 style={{ margin: 0, color: '#fff', fontSize: '20px', fontWeight: '900' }}>Hire Verified Ministers</h3>
-                  <button onClick={() => setActiveModal(null)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}><XIcon /></button>
-                </div>
-                <p style={{ color: '#8e9aab', fontSize: '13px', marginBottom: '20px' }}>Select a verified spiritual service. KPC tokens are held in smart contract escrow until service completion.</p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '25px' }}>
-                  {[
-                    { id: 1, title: '1-on-1 Marriage Counseling (45m)', minister: 'Pastor David O.', price: 250, desc: 'Biblical relationship guidance & prayer.' },
-                    { id: 2, title: 'Guest Worship Leading (Sunday)', minister: 'Min. Grace D.', price: 1000, desc: 'Anointed worship ministration for your event.' },
-                    { id: 3, title: 'Prophetic Prayer & Deliverance', minister: 'Apostle John K.', price: 150, desc: 'Dedicated intercessory session.' }
-                  ].map(srv => (
-                    <div 
-                      key={srv.id} onClick={() => setSelectedService(srv)}
-                      style={{ padding: '15px', borderRadius: '16px', border: '1px solid', borderColor: selectedService?.id === srv.id ? '#29beaf' : 'rgba(255,255,255,0.08)', background: selectedService?.id === srv.id ? 'rgba(41, 190, 175, 0.1)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', transition: 'all 0.2s' }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
-                        <span style={{ color: '#fff', fontWeight: '800', fontSize: '15px' }}>{srv.title}</span>
-                        <span style={{ color: '#f3ca58', fontWeight: '900', fontSize: '16px' }}>{srv.price} KPC</span>
-                      </div>
-                      <div style={{ color: '#29beaf', fontSize: '12px', fontWeight: '700', marginBottom: '4px' }}>{srv.minister} ✓</div>
-                      <div style={{ color: '#8e9aab', fontSize: '12px' }}>{srv.desc}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <button onClick={handleHireSubmit} style={{ width: '100%', padding: '18px', background: 'linear-gradient(135deg, #9b59b6, #29beaf)', border: 'none', borderRadius: '14px', color: '#fff', fontSize: '16px', fontWeight: '900', cursor: 'pointer' }}>
-                  {selectedService ? `BOOK SERVICE FOR ${selectedService.price} KPC` : 'SELECT A SERVICE ABOVE'}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 4. UPGRADE PREMIUM TIER MODAL */}
-          {activeModal === 'upgrade' && (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10, 15, 26, 0.9)', backdropFilter: 'blur(15px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' }}>
-              <div style={{ width: '100%', maxWidth: '500px', background: '#1e293b', borderTopLeftRadius: '30px', borderTopRightRadius: '30px', padding: '30px', borderTop: '1px solid rgba(255,255,255,0.1)', animation: 'slideUp 0.3s ease-out' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                  <h3 style={{ margin: 0, color: '#fff', fontSize: '20px', fontWeight: '900' }}>Upgrade Vault Rank</h3>
-                  <button onClick={() => setActiveModal(null)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}><XIcon /></button>
-                </div>
-                <p style={{ color: '#8e9aab', fontSize: '13px', marginBottom: '25px' }}>Unlock higher staking rewards, verified minister badges, and zero-fee devnet transfers.</p>
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '14px', marginBottom: '25px' }}>
-                  {[
-                    { tier: 'Disciple', price: 100, benefits: '• 2x Watch-to-Earn Multiplier\n• Staking Vault Access\n• Custom Denomination Badge' },
-                    { tier: 'Apostle', price: 500, benefits: '• 5x Watch-to-Earn Multiplier\n• Verified Minister Profile (✓)\n• Zero Gas Fee Transfers & Governance' }
-                  ].map(t => (
-                    <div 
-                      key={t.tier} onClick={() => setSelectedTier(t.tier)}
-                      style={{ padding: '18px', borderRadius: '18px', border: '1px solid', borderColor: selectedTier === t.tier ? '#f3ca58' : 'rgba(255,255,255,0.08)', background: selectedTier === t.tier ? 'rgba(243, 202, 88, 0.1)' : 'rgba(0,0,0,0.3)', cursor: 'pointer', transition: 'all 0.2s' }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                        <span style={{ color: '#fff', fontWeight: '900', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '6px' }}>{t.tier} Rank</span>
-                        <span style={{ color: '#f3ca58', fontWeight: '900', fontSize: '18px' }}>{t.price} KPC</span>
-                      </div>
-                      <div style={{ color: '#cbd5e1', fontSize: '12px', whiteSpace: 'pre-line', lineHeight: '1.6' }}>{t.benefits}</div>
-                    </div>
-                  ))}
-                </div>
-
-                <button onClick={handleTierUpgradeSubmit} style={{ width: '100%', padding: '18px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontSize: '16px', fontWeight: '900', cursor: 'pointer' }}>
-                  UPGRADE TO {selectedTier.toUpperCase()} RANK
-                </button>
-              </div>
-            </div>
-          )}
-{/* 5. SWAP MODAL */}
-{activeModal === 'swap' && (
-  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10, 15, 26, 0.9)', backdropFilter: 'blur(15px)', zIndex: 1000, display: 'flex', justifyContent: 'center', alignItems: 'flex-end' }}>
-    <div style={{ width: '100%', maxWidth: '500px', background: '#1e293b', borderTopLeftRadius: '30px', borderTopRightRadius: '30px', padding: '30px', borderTop: '1px solid rgba(255,255,255,0.1)', animation: 'slideUp 0.3s ease-out' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '25px' }}>
-        <h3 style={{ margin: 0, color: '#fff', fontSize: '20px', fontWeight: '900' }}>Swap Tokens (DEX)</h3>
-        <button onClick={() => setActiveModal(null)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}><XIcon /></button>
-      </div>
-
-      <div style={{ background: 'rgba(0,0,0,0.3)', padding: '20px', borderRadius: '16px', marginBottom: '10px' }}>
-        <label style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800' }}>YOU PAY</label>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-          <input type="number" placeholder="0" style={{ background: 'transparent', border: 'none', color: '#fff', fontSize: '24px', fontWeight: '900', outline: 'none', width: '60%' }} />
-          <div style={{ background: '#29beaf', color: '#101926', padding: '8px 12px', borderRadius: '20px', fontWeight: '800', fontSize: '14px' }}>SOL</div>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', justifyContent: 'center', margin: '-15px 0', position: 'relative', zIndex: 2 }}>
-        <div style={{ background: '#1e293b', padding: '8px', borderRadius: '50%', border: '4px solid #0a0f1a', color: '#f3ca58' }}>
-          <SwapIcon />
-        </div>
-      </div>
-
-      <div style={{ background: 'rgba(243,202,88,0.1)', padding: '20px', borderRadius: '16px', border: '1px solid rgba(243,202,88,0.2)', marginBottom: '20px' }}>
-        <label style={{ color: '#f3ca58', fontSize: '11px', fontWeight: '800' }}>YOU RECEIVE (ESTIMATED)</label>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '10px' }}>
-          <span style={{ color: '#fff', fontSize: '24px', fontWeight: '900' }}>0.00</span>
-          <div style={{ background: '#f3ca58', color: '#101926', padding: '8px 12px', borderRadius: '20px', fontWeight: '800', fontSize: '14px' }}>KPC</div>
-        </div>
-      </div>
-
-      <button style={{ width: '100%', padding: '18px', background: 'linear-gradient(135deg, #e67e22, #f3ca58)', border: 'none', borderRadius: '14px', color: '#101926', fontSize: '16px', fontWeight: '900', cursor: 'pointer' }}>
-        REVIEW SWAP
-      </button>
-    </div>
-  </div>
-)}
-          
           <AppBottomNav />
         </div>
       )}
@@ -6180,10 +6378,10 @@ const handlePurchaseService = async (service) => {
         </div>
       )}
 
-   {/* =========================================
+{/* =========================================
           STEP 18: PROFILE PAGE
           ========================================= */}
-     {step === 18 && (
+      {step === 18 && (
         <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
           
           {/* Hidden File Inputs for Uploading */}
@@ -6379,18 +6577,64 @@ const handlePurchaseService = async (service) => {
                   </div>
                 )}
 
+                {/* TAB CONTENT: POSTS */}
                 {profileTab === 'Posts' && (
                   <div className="profile-tab-content">
-                     <div className="empty-dream-state" style={{ marginTop: '0' }}>
-                      <div className="empty-dream-icon"><IconBook /></div>
-                      <h3>No posts yet</h3>
-                      <p>When {userProfile.username} shares thoughts or media, they will appear here.</p>
-                    </div>
+                    {globalPosts.filter(post => post.user_profile?.username === userProfile?.username).length === 0 ? (
+                      <div className="empty-dream-state" style={{ marginTop: '0' }}>
+                        <div className="empty-dream-icon"><IconBook /></div>
+                        <h3>No posts yet</h3>
+                        <p>When {userProfile?.username || 'you'} shares thoughts or media, they will appear here.</p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                        {globalPosts.filter(post => post.user_profile?.username === userProfile?.username).map(post => {
+                          const isVideo = post.image_url?.match(/\.(mp4|webm|ogg|mov)$/i);
+                          return (
+                            <div key={post.id} className="feed-post-card">
+                              <div className="post-header">
+                                <div className="post-user-info">
+                                  {post.user_profile?.avatar_url ? (
+                                    <img src={post.user_profile.avatar_url} alt="" className="post-avatar" />
+                                  ) : (
+                                    <div className="post-avatar" style={{ background: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: 'bold' }}>
+                                      {post.user_profile?.full_name?.substring(0, 2).toUpperCase() || 'U'}
+                                    </div>
+                                  )}
+                                  <div className="post-meta">
+                                    <strong style={{ color: '#fff', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                      {post.user_profile?.full_name} 
+                                      {(post.user_profile?.account_type === 'Premium' || post.user_profile?.account_type === 'Apostle') && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
+                                    </strong>
+                                    <span style={{ color: '#8e9aab', fontSize: '11px' }}>{new Date(post.created_at).toLocaleDateString()}</span>
+                                  </div>
+                                </div>
+                              </div>
+                              <p style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '1.5', marginBottom: '12px' }}>{post.content}</p>
+                              
+                              {post.image_url && (
+                                isVideo ? (
+                                  <video src={post.image_url} controls style={{ width: '100%', borderRadius: '12px', marginBottom: '12px', maxHeight: '400px', backgroundColor: '#000' }} />
+                                ) : (
+                                  <img src={post.image_url} alt="Post media" style={{ width: '100%', borderRadius: '12px', marginBottom: '12px' }} />
+                                )
+                              )}
+                              
+                              <div style={{ display: 'flex', gap: '15px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                                <span style={{ color: '#8e9aab', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}><HeartIcon /> {post.likes_count}</span>
+                                <span style={{ color: '#8e9aab', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}><MessageIcon /> {post.comments_count}</span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 )}
               </>
             )}
           </div>
+          
           <AppBottomNav />
 
           {/* =========================================
@@ -6833,7 +7077,6 @@ const handlePurchaseService = async (service) => {
                           <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                               
-                              {/* UPDATED: Avatar Wrapper with handleViewProfile for DB Users */}
                               <div onClick={(e) => handleViewProfile(e, dbUser)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: dbUser.formData?.avatar || 'rgba(41, 190, 175, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#29beaf', fontWeight: '900', cursor: 'pointer' }}>
                                 {!dbUser.formData?.avatar && (dbUser.formData?.fullName?.charAt(0) || dbUser.email.charAt(0).toUpperCase())}
                               </div>
@@ -6896,7 +7139,6 @@ const handlePurchaseService = async (service) => {
                         {friendsList.map(friend => (
                           <div key={friend.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
                             
-                            {/* UPDATED: Avatar Wrapper with handleViewProfile for Friends */}
                             <div onClick={(e) => handleViewProfile(e, friend)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: friend.avatar ? `url(${friend.avatar}) center/cover no-repeat` : 'linear-gradient(135deg, #101926, #1f3752)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontWeight: '900', border: '1px solid rgba(243, 202, 88, 0.3)', cursor: 'pointer' }}>
                               {!friend.avatar && friend.name.charAt(0)}
                             </div>
@@ -7239,6 +7481,199 @@ const handlePurchaseService = async (service) => {
           <AppBottomNav />
         </div>
       )}
+{/* =========================================
+          STEP 25: PUBLIC PROFILE VIEW
+          ========================================= */}
+      {step === 25 && viewedProfile && (
+        <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
+          
+          <div className="feed-header-top" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
+            {/* Navigates back to the feed */}
+            <button className="back-button" onClick={() => setStep(7)} style={{ width: '36px', height: '36px', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+              <BackArrowIcon />
+            </button>
+          </div>
+
+          <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px', overflowY: 'auto', paddingTop: '0' }}>
+            
+            {/* Wallpaper */}
+            <div 
+              className="profile-cover-photo" 
+              style={{ 
+                backgroundImage: viewedProfile.wallpaper_url ? `url(${viewedProfile.wallpaper_url})` : 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)',
+                height: '150px', width: 'calc(100% + 40px)', marginLeft: '-20px', marginRight: '-20px', 
+                backgroundSize: 'cover', backgroundPosition: 'center', flexShrink: 0
+              }}
+            ></div>
+
+            <>
+              <div className="profile-identity-section">
+                <div className="profile-avatar-overlap" style={{ zIndex: 10 }}>
+                  {viewedProfile.avatar_url ? (
+                    <img src={viewedProfile.avatar_url} alt="Profile" className="profile-avatar-circle" style={{ objectFit: 'cover' }} />
+                  ) : (
+                    <div className="profile-avatar-circle">
+                      {viewedProfile.full_name ? viewedProfile.full_name.substring(0, 2).toUpperCase() : 'U'}
+                    </div>
+                  )}
+                  
+                  {(viewedProfile.account_type === 'Premium' || viewedProfile.account_type === 'Apostle') && (
+                    <div className="profile-verified-badge" title="Premium Account"><CheckIcon /></div>
+                  )}
+                </div>
+                
+                <h2 className="profile-name-main">{viewedProfile.full_name || 'Kingdom Citizen'}</h2>
+                <div className="profile-status-badge">{viewedProfile.account_type || 'Standard'} Account</div>
+                <p className="profile-bio-text">{viewedProfile.bio || 'This user has not added a bio yet.'}</p>
+
+                <div className="profile-location-church">
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><IconMapPin /> {viewedProfile.address || 'Unknown'}, {viewedProfile.country || 'Unknown'}</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}><IconChurch /> {viewedProfile.local_church || 'No church listed'}</span>
+                </div>
+                
+                {/* Public Actions (Add Friend, Message) instead of Edit Profile */}
+                <div className="profile-action-row">
+                  <button className="profile-btn-primary" onClick={() => alert(`Friend request sent to ${viewedProfile.full_name}!`)}>+ Add Friend</button>
+                  <button className="profile-btn-secondary" onClick={() => alert("Direct messaging coming soon!")}>Message</button>
+                  <button className="profile-btn-icon"><ShareIcon /></button>
+                </div>
+              </div>
+
+              <div className="profile-fb-tabs">
+                {['All', 'Services', 'Posts'].map(tab => (
+                  <div key={tab} className={`profile-fb-tab ${profileTab === tab ? 'active' : ''}`} onClick={() => setProfileTab(tab)}>
+                    {tab}
+                  </div>
+                ))}
+              </div>
+
+              {profileTab === 'All' && (
+                <div className="profile-tab-content">
+                  <h3 className="profile-section-heading">Faith Activity</h3>
+                  <div className="faith-activity-grid">
+                    {/* Replaced Day Streak with Friends count for Public View */}
+                    <div className="faith-activity-card">
+                      <div className="activity-icon-container"><span style={{fontSize: '16px'}}>👥</span></div>
+                      <div className="activity-num">{viewedProfile.friends_count || 0}</div>
+                      <div className="activity-label">Friends</div>
+                    </div>
+                    <div className="faith-activity-card">
+                      <div className="activity-icon-container"><IconHeadphones /></div>
+                      <div className="activity-num">{viewedProfile.stream_time_hours || 0}h</div>
+                      <div className="activity-label">Streamed</div>
+                    </div>
+                    <div className="faith-activity-card">
+                      <div className="activity-icon-container"><IconBook /></div>
+                      <div className="activity-num">{viewedProfile.devotions_read || 0}</div>
+                      <div className="activity-label">Devotions</div>
+                    </div>
+                  </div>
+
+                  <h3 className="profile-section-heading" style={{ marginTop: '30px' }}>Personal details</h3>
+                  <div className="profile-detail-card">
+                    <div className="detail-row">
+                      <div className="detail-icon"><IconGlobe /></div>
+                      <div className="detail-text">
+                        <span className="detail-label">Country</span>
+                        <span className="detail-value">{viewedProfile.country || 'Not provided'}</span>
+                      </div>
+                    </div>
+                    <div className="detail-row">
+                      <div className="detail-icon"><IconChurch /></div>
+                      <div className="detail-text">
+                        <span className="detail-label">Denomination</span>
+                        <span className="detail-value">{viewedProfile.denomination || 'Not provided'}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              {/* TAB CONTENT: TARGET USER'S SERVICES */}
+              {profileTab === 'Services' && (
+                <div className="profile-tab-content">
+                  <h3 className="profile-section-heading" style={{ marginBottom: '15px' }}>Offered Services</h3>
+                  {viewedUserServices.length === 0 ? (
+                    <div className="empty-dream-state" style={{ marginTop: '0' }}>
+                      <div className="empty-dream-icon">💼</div>
+                      <h3>No services listed</h3>
+                      <p>{viewedProfile.full_name} has not listed any services yet.</p>
+                    </div>
+                  ) : (
+                    viewedUserServices.map(service => (
+                      <div key={service.id} className="profile-service-card">
+                        <div className="service-header">
+                          <h4 className="service-title">{service.title}</h4>
+                          <div className="service-price">{service.price} KPC</div>
+                        </div>
+                        <p className="service-desc">{service.desc}</p>
+                        <button className="service-action-btn" onClick={() => handlePurchaseService(service)}>Request Service</button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+
+              {/* TAB CONTENT: TARGET USER'S POSTS */}
+              {profileTab === 'Posts' && (
+                <div className="profile-tab-content">
+                  {globalPosts.filter(post => post.author_id === viewedProfile.id).length === 0 ? (
+                    <div className="empty-dream-state" style={{ marginTop: '0' }}>
+                      <div className="empty-dream-icon"><IconBook /></div>
+                      <h3>No posts yet</h3>
+                      <p>When {viewedProfile.full_name} shares thoughts or media, they will appear here.</p>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                      {globalPosts.filter(post => post.author_id === viewedProfile.id).map(post => {
+                        const isVideo = post.image_url?.match(/\.(mp4|webm|ogg|mov)$/i);
+                        return (
+                          <div key={post.id} className="feed-post-card">
+                            <div className="post-header">
+                              <div className="post-user-info">
+                                {viewedProfile.avatar_url ? (
+                                  <img src={viewedProfile.avatar_url} alt="" className="post-avatar" />
+                                ) : (
+                                  <div className="post-avatar" style={{ background: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: 'bold' }}>
+                                    {viewedProfile.full_name?.substring(0, 2).toUpperCase()}
+                                  </div>
+                                )}
+                                <div className="post-meta">
+                                  <strong style={{ color: '#fff', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                    {viewedProfile.full_name} 
+                                    {(viewedProfile.account_type === 'Premium' || viewedProfile.account_type === 'Apostle') && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
+                                  </strong>
+                                  <span style={{ color: '#8e9aab', fontSize: '11px' }}>{new Date(post.created_at).toLocaleDateString()}</span>
+                                </div>
+                              </div>
+                            </div>
+                            <p style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '1.5', marginBottom: '12px' }}>{post.content}</p>
+                            
+                            {post.image_url && (
+                              isVideo ? (
+                                <video src={post.image_url} controls style={{ width: '100%', borderRadius: '12px', marginBottom: '12px', maxHeight: '400px', backgroundColor: '#000' }} />
+                              ) : (
+                                <img src={post.image_url} alt="Post media" style={{ width: '100%', borderRadius: '12px', marginBottom: '12px' }} />
+                              )
+                            )}
+                            
+                            <div style={{ display: 'flex', gap: '15px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '12px' }}>
+                              <span style={{ color: '#8e9aab', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}><HeartIcon /> {post.likes_count}</span>
+                              <span style={{ color: '#8e9aab', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}><MessageIcon /> {post.comments_count}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
+          </div>
+          <AppBottomNav />
+        </div>
+      )}
+
 
       {renderStreamPlayer()}
 
