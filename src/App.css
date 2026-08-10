@@ -5619,17 +5619,11 @@ to {
   background: none;
 }
 
-/*
-=========================================
-   MEDIA PLAYER SOCIAL ACTIONS
-   =========================================
-*/
-
 .player-social-sidebar {
   position: absolute;
   z-index: 20;
   right: 15px;
-  bottom: 140px; /* Sits right above the media controls */
+  bottom: 140px;
 
   display: flex;
   flex-direction: column;
@@ -5684,7 +5678,6 @@ to {
   backdrop-filter: blur(10px);
 }
 
-/* Specific styling for the Web3 tipping button */
 
 .social-icon-circle.tip-btn {
   color: #f3ca58;
@@ -5700,11 +5693,6 @@ to {
   text-shadow: 0 2px 4px rgba(0, 0, 0, 0.8);
 }
 
-/*
-=========================================
-   SLIDING COMMENTS PANEL
-   =========================================
-*/
 
 .comments-panel {
   position: absolute;
@@ -5846,12 +5834,6 @@ to {
   background: linear-gradient(135deg, #f3ca58, #29beaf);
 }
 
-/*
-=========================================
-   SPOTIFY-STYLE MEDIA PLAYER & MINI PLAYER
-   =========================================
-*/
-
 .mini-player-container {
   position: fixed;
   z-index: 1000;
@@ -5929,8 +5911,6 @@ to {
   color: #8e9aab;
 }
 
-/* EXPANDED UI */
-
 .spotify-audio-layout {
   position: fixed;
   z-index: 2000;
@@ -5940,12 +5920,12 @@ to {
 
   display: flex;
   overflow-x: hidden;
-  overflow-y: auto; /* ENABLES VERTICAL SCROLLING */
+  overflow-y: auto;
   flex-direction: column;
 
   width: 100%;
   max-width: 500px;
-  padding: 20px 20px 120px 20px; /* Extra bottom padding so you can scroll all the way down */
+  padding: 20px 20px 120px 20px;
 
   transform: translateX(-50%);
 
@@ -5953,8 +5933,6 @@ to {
 
   scroll-behavior: smooth;
 }
-
-/* Hide scrollbar for clean UI */
 
 .spotify-audio-layout::-webkit-scrollbar {
   width: 4px;
@@ -6065,14 +6043,8 @@ to {
 }
 
 .video-host.minimized {
-  display: none; /* Hides video visually, but audio keeps playing in background! */
+  display: none;
 }
-
-/*
-=========================================
-   MODERN INTEGRATED SOCIAL COMMENTS
-   =========================================
-*/
 
 .integrated-comments-section {
   margin-top: 40px;
@@ -6110,8 +6082,6 @@ to {
   border-radius: 12px;
   background: rgba(41, 190, 175, 0.15);
 }
-
-/* Modern inline input bar */
 
 .social-comment-input-box {
   display: flex;
@@ -6169,8 +6139,6 @@ to {
 .social-send-btn:active {
   transform: scale(0.9);
 }
-
-/* Social Comment Bubbles */
 
 .social-comment-card {
   display: flex;
@@ -6438,10 +6406,6 @@ to {
   transform: none;
 }
 
-/* =========================================
-   EMPTY DREAM STATE
-   ========================================= */
-
 .empty-dream-state {
   display: flex;
   flex-direction: column;
@@ -6475,10 +6439,6 @@ to {
   line-height: 1.5;
   max-width: 250px;
 }
-
-/* =========================================
-   PROFESSIONAL FB-STYLE PROFILE
-   ========================================= */
 
 .profile-cover-photo {
   height: 150px;
@@ -6572,7 +6532,6 @@ to {
   align-items: center;
 }
 
-/* Action Buttons Row */
 .profile-action-row {
   display: flex;
   gap: 10px;
@@ -6615,7 +6574,6 @@ to {
   cursor: pointer;
 }
 
-/* Horizontal Tabs (FB Style) */
 .profile-fb-tabs {
   display: flex;
   border-bottom: 1px solid rgba(255,255,255,0.1);
@@ -6648,7 +6606,6 @@ to {
   border-radius: 3px 3px 0 0;
 }
 
-/* Tab Content Areas */
 .profile-tab-content {
   padding: 0 20px;
 }
@@ -6710,7 +6667,6 @@ to {
   font-weight: 600;
 }
 
-/* Service Cards */
 .profile-service-card {
   background: rgba(16, 25, 38, 0.6);
   border: 1px solid rgba(255,255,255,0.08);
@@ -6768,7 +6724,6 @@ to {
   background: rgba(41, 190, 175, 0.1);
 }
 
-/* Activity Grid */
 .faith-activity-grid {
   display: flex;
   gap: 10px;
@@ -6794,7 +6749,7 @@ to {
 
 .faith-activity-card .activity-num {
   font-size: 18px;
-  font-weight: 800;
+  font-weight: 600;
   color: #fff;
   margin-bottom: 2px;
 }
@@ -6806,7 +6761,6 @@ to {
   font-weight: 700;
 }
 
-/* Ministries Row */
 .ministries-row {
   display: flex;
   gap: 15px;
