@@ -1408,26 +1408,7 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
 
   const [claimedVideos, setClaimedVideos] = useState({});
   const [isClaiming, setIsClaiming] = useState(false);
-  const musicData = [
-    { id: 'm1', title: 'Atmosphere of Grace', artist: 'Kingdom Worship', reward: 5, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', img: 'https://images.unsplash.com/photo-1501612780327-45045538702b?auto=format&fit=crop&w=300&q=80' },
-    { id: 'm2', title: 'Deep Calls To Deep', artist: 'Grace Collective', reward: 5, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', img: 'https://images.unsplash.com/photo-1459749411175-04bf5292ceea?auto=format&fit=crop&w=300&q=80' },
-    { id: 'm3', title: 'Rivers of Joy', artist: 'David O.', reward: 5, src: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3', img: 'https://images.unsplash.com/photo-1510915361894-faa8b36259f9?auto=format&fit=crop&w=300&q=80' }
-  ];
-
-  const videoData = [
-    { id: 'v1', title: 'The Power of Prayer in Hard Times', channel: 'Pastor Josh', views: '14K views', duration: '45:20', reward: 15, src: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerJoyrides.mp4', avatarBg: '#e74c3c', letter: 'P', img: 'https://images.unsplash.com/photo-1438029071396-1e831a7fa6d8?auto=format&fit=crop&w=800&q=80' },
-    { id: 'v2', title: 'Walking by Faith, Not by Sight', channel: 'Devotional Hub', views: '8.2K views', duration: '28:15', reward: 10, src: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4', avatarBg: '#e5c158', letter: 'D', img: 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&w=800&q=80' },
-  ];
-
-  const movieData = [
-    { id: 'f1', title: "Kingdom Journey", reward: 50, src: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4', img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=300&q=80' },
-    { id: 'f2', title: "Overcomer's Path", reward: 50, src: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/TearsOfSteel.mp4', img: 'https://images.unsplash.com/photo-1447069387593-a5de0862481e?auto=format&fit=crop&w=300&q=80' },
-    { id: 'f3', title: "God's Not Dead", reward: 50, src: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4', img: 'https://images.unsplash.com/photo-1536440136628-849c177e76a1?auto=format&fit=crop&w=300&q=80' },
-    { id: 'f4', title: "War Room", reward: 50, src: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerEscapes.mp4', img: 'https://images.unsplash.com/photo-1447069387593-a5de0862481e?auto=format&fit=crop&w=300&q=80' },
-    { id: 'f5', title: "Breakthrough", reward: 50, src: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerFun.mp4', img: 'https://images.unsplash.com/photo-1478720568477-152d9b164e26?auto=format&fit=crop&w=300&q=80' },
-    { id: 'f6', title: "Overcomer", reward: 50, src: 'http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerMeltdowns.mp4', img: 'https://images.unsplash.com/photo-1551008475-4533d141425e?auto=format&fit=crop&w=300&q=80' }
-  ];
-
+  
   const handleWatchAndEarn = async (video) => {
     if (claimedVideos[video.id]) return;
 
@@ -1460,7 +1441,6 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
   // --- STREAM-TO-EARN PLAYER STATE ---
   const [activeMedia, setActiveMedia] = useState(null);
   const [mediaType, setMediaType] = useState('');
-  const [isPlaying, setIsPlaying] = useState(false);
   const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -1483,7 +1463,6 @@ useEffect(() => {
     setIsLiked(false);
     setIsCommentsOpen(false);
     
-    // Fetch real comments for this specific media file
     const fetchMediaComments = async () => {
       const { data, error } = await supabase
         .from('media_comments')
@@ -1564,142 +1543,163 @@ useEffect(() => {
   const [claimedArticles, setClaimedArticles] = useState({});
   const [isClaimingArticle, setIsClaimingArticle] = useState(false);
 
-  const dashboardWorship = [
-    { id: 'dw1', title: 'Ministration-Tape-2026', artist: 'Frank-Edwards', reward: 5, src: '/media/Frank-Edwards-FRANK-EDWARDS-MINISTRATION-TAPE-2026-(CeeNaija.com).mp3', img: '/album/Frank-Edwards-Ministration-TAPE-2026.jpg' },
-    { id: 'dw2', title: 'Back To Jesus', artist: 'Matthew West', reward: 5, src: '/media/Matthew-West-Back-To-Jesus-Lyric-Video-(CeeNaija.com).mp3', img: '/album/Matthew-West-Back-To-Jesus.jpg' },
-    { id: 'dw3', title: 'I Want Jesus', artist: 'William McDowell', reward: 5, src: '/media/William-McDowell-I-Want-Jesus-(CeeNaija.com).mp3', img: '/album/William-McDowell-I-Want-Jesus.jpg' },
-    { id: 'dw4', title: 'Oh You Bring', artist: 'Hillsong United', reward: 5, src: '/media/Hillsong_United_-_Oh_You_Bring_CeeNaija.com_.mp3', img: '/album/Hillsong-United-Rythm-of-Grace-1.png' }
-  ];
+  const [dashboardWorship, setDashboardWorship] = useState([]);
+  const [newsData, setNewsData] = useState([]);
 
-  const newsData = [
-    {
-      id: 'n1', badge: 'UPDATE', title: 'Most adults in England and Wales not in a traditional marriage',
-      desc: 'The Coalition for Marriage has criticised plans to give the "rewards of marriage" to the unmarried.',
-      content:`'The Coalition for Marriage (C4M) has condemned government plans to give marriages legal rewards to unmarried couples, noting that official figures now show that most adults in the country are not married to a person of the opposite sex.
+// Admin Media States
+  const [editingId, setEditingId] = useState(null);
+  const [videoData, setVideoData] = useState([]);
+  const [movieData, setMovieData] = useState([]);
+  const [musicData, setMusicData] = useState([]);
+  const [isUploading, setIsUploading] = useState(false);
 
-Last week the Office for National Statistics released data suggesting that 51.1 per cent of adults in England and Wales are married or in a civil partnership. C4M took issue with this claim, however. While the group did not dispute the figure, they pointed out that it included civil partnerships and same-sex marriages.
+  const handleFileUpload = async (event, fieldToUpdate) => {
+    const file = event.target.files[0];
+    if (!file) return;
 
-When these are filtered out, the percentage of adults married to a person of the opposite sex is in fact 49.8 per cent.
+    setIsUploading(true);
+    
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+    const filePath = `${adminTab.toLowerCase()}/${fileName}`;
 
-C4M said that ONS figures had shown a slow but real decline in the percentage of those in traditional marriages. In the last 10 years the percentage of adults who have never married has risen from 32.6 to 34.9, while the percentage of cohabiting adults has increased from 9.8 to 10.8.
+    try {
+      const { data, error } = await supabase.storage
+        .from('kingdom_media')
+        .upload(filePath, file);
 
-Two age groups in particular have seen a sharp rise in the percentage who have never married: 25 to 34 year olds and 45 to 69 year olds. While the first group could be explained by young people simply not getting married yet, C4M noted that in the case of older people, marriage hasn’t been postponed, it has been skipped.
+      if (error) throw error;
+      const { data: { publicUrl } } = supabase.storage
+        .from('kingdom_media')
+        .getPublicUrl(filePath);
 
-Given such statistics, C4M questioned the wisdom of the government’s consultation on giving the rights of married couples to those who cohabit.
+      setAdminUpload(prev => ({ ...prev, [fieldToUpdate]: publicUrl }));
+      alert("File uploaded successfully!");
 
-Under the plans, in the event of a break up with a couple that lives together for three years, or has a child together, the lower earner could expect some form of financial contribution from the higher earner for a certain period – unless both partners opt out. In the event of death without a valid will, a cohabiting partner could receive the same automatic inheritance rights as a husband or wife.
+    } catch (error) {
+      alert("Error uploading file: " + error.message);
+    } finally {
+      setIsUploading(false);
+    }
+  };
 
-C4M noted that anyone who wanted these rights is already able to gain them, either by actually getting married or by making a will.
+  const [adminUpload, setAdminUpload] = useState({
+    title: '',
+    artist: '',
+    description: '',
+    img: '',
+    src: '',
+    content: '',
+    category: 'Nigerian Gospel'
+  });
 
-Marriage matters not least because children need stability. Across ten years of UK household data, cohabiting parents were 3.4 times more likely to split up in any given year than married parents. And that gap holds true at every income level, said Dr Tony Rucinski, Director of Supporter Strategy at C4M.
+  const fetchAllMediaData = async () => {
+    const { data: music } = await supabase.from('kingdom_music').select('*').order('created_at', { ascending: false });
+    if (music) setMusicData(music);
 
-Even the poorest married parents hold together slightly better than the richest cohabiting ones. Marriage is not a luxury for the comfortable, its what keeps a child’s home in one piece.
+    const { data: vids } = await supabase.from('kingdom_videos').select('*').order('created_at', { ascending: false });
+    if (vids) setVideoData(vids);
 
-The group urged supporters to respond to the governments consultation on marriage before it closes on 14 August.`,
-     reward: 2, img: 'https://www.christiantoday.com/media/cache/img/9/89/98920sp_385w_217h_361x_221y.webp'
-    },
-    {
-      id: 'n2', badge: 'WORLD NEWS', title: 'Practising Christians embracing AI faster than pastors, research finds',
-      desc: 'Practising Christians in the US are using artificial intelligence more frequently than the general population',
-      content: `Practising Christians in the US are using artificial intelligence more frequently than the general population and considerably more than pastors, according to new research from Barna.
+    const { data: movies } = await supabase.from('kingdom_movies').select('*').order('created_at', { ascending: false });
+    if (movies) setMovieData(movies);
 
-The study found 44 per cent of practising Christians use AI "very often" or "often" in their personal lives, compared with 31 per cent of US adults overall and 29 per cent of non-practising Christians.
+    const { data: news } = await supabase.from('kingdom_news').select('*').order('created_at', { ascending: false });
+    if (news) setNewsData(news);
+  };
 
-A similar gap emerged in the workplace, where 39 per cent of practising Christians reported using AI often or very often, compared with 26 per cent of adults nationally.
+  useEffect(() => {
+    fetchAllMediaData();
+  }, []);
 
-Pastors appear to be adopting the technology more slowly. In a separate Barna survey, 16 per cent said they use AI "often" in their personal lives, while a third use it "sometimes" and 45 per cent said they use it "not very much" or "not at all".
-
-For work, 24 per cent of pastors reported using AI often or very often, compared with 39 per cent of practising Christians.
-
-“Ask people yes-or-no whether they use AI, and the average pastor and the average American look about the same,” said Daniel Copeland, Barna’s vice president of research. “It’s frequency of use where the difference actually shows up.”
-
-He warned that church leaders risk underestimating how embedded the technology has already become in the lives of their congregations.
-
-“Pastors understand that AI is out there, but they’re not immersed in it the way their engaged congregants may be,” Copeland said. “The danger for pastors is underestimating just how normal AI is for the people around them. For most practicing Christians, AI isn’t for occasional use. It’s already woven into how they work, learn and make decisions.”
-
-The research suggests Christians are primarily turning to AI for everyday purposes, including finding information, learning how to complete tasks, seeking advice, following the news and improving their writing.
-
-Religious uses were less common, with around a third of practising Christians saying they had used AI for spiritual guidance or Bible-related questions during the previous month.
-
-However, Barna found nearly half of practising Christians would trust AI with something relating to their spiritual growth.
-
-The findings also highlight a potential challenge for churches. One in three practising Christians said they would like guidance from their pastor on navigating AI, but just 12 per cent of pastors said they felt prepared to provide it.
-
-Copeland said ministers did not necessarily need to become experts in artificial intelligence to respond.
-
-“The better move is for pastors to double down on what they already do well: teaching people how to engage scripture, building real relationships, making space for analog discipleship. That’s what people can lean on when AI gives them an answer that’s incomplete, misleading or just wrong.”
-
-The research forms part of Barna's Faith & AI project, produced in partnership with Gloo as part of its multi-year State of the Church initiative.`,
-      reward: 2, img: 'https://premierchristian.news/image_cache/d/e/7/c/5/de7c5541cd49b93ad03762f1e79aeb62a698b604.webp'
-    },
-    {
-      id: 'n3', badge: 'UK NEWS', title: 'Churches urged to take up free Home Office security training',
-      desc: 'Churches across England and Wales are being encouraged to sign up for a free Home Office security training programme',
-      content: `Churches across England and Wales are being encouraged to sign up for a free Home Office security training programme designed to help places of worship prepare for security threats and hate crime.
-
-The scheme, launched by the Home Office earlier this year and provided by CDS Support, gives guidance on recognising threats and improving preparedness when responding to incidents.
-
-The programme has been in development since the 2019 Christchurch terror attacks in New Zealand, after the then Home Secretary committed to providing security training for places of worship. Following a pilot last year, the scheme officially launched in February.
-
-Security Minister Dan Jarvis told Premier Christian News: “Everyone should feel safe and secure at their place of worship.
-
-“This free training is helping faith organisations better understand security threats and prepare for incidents. It teaches them practical steps to protect their congregants and property.
-
-“We’ve provided record funding this year to strengthen protective security at faith sites.
-
-“The Government is proud to work closely with churches and all faith groups to keep their communities safe.”
-
-The Home Office says it is providing a record £77 million this financial year to improve protective security at faith sites, including £5 million specifically for churches and other non-Jewish and non-Muslim places of worship.
-
-Training is available in both multi-faith and faith-specific formats, with dedicated modules for Christian, Hindu, Jewish, Muslim and Sikh communities. Sessions are delivered in person at places of worship and community venues, through live online classes, and via an e-learning platform.
-
-Ella Rees, Marketing Manager at CDS Support, said the programme had already seen strong engagement from churches.
-
-"We've seen a really good uptake across all faith communities, including across all Christian denominations, with hundreds of people trained so far," she told Premier.
-
-She said the training helps churches prepare for a range of risks, from theft and antisocial behaviour to hate crime and serious terrorist incidents, while allowing each place of worship to tailor security measures to its own circumstances.
-
-Rees also said the programme has brought churches and other faith communities together to share experiences and practical ways of addressing common security challenges.
-
-For church leaders unsure whether the training is necessary, she said many participants have adopted the same approach: "We hope it never happens, but we want to be prepared if it does."
-
-Training is free and available both in person and online. Churches can register through the Faith Security Training website or by contacting CDS Support directly.`,
-      reward: 2, img: 'https://premierchristian.news/image_cache/9/5/7/d/8/957d86eaf907444d666004b25987fc7f5a42795c.webp'
-    },
-    {
-      id: 'n4', badge: 'WORLD NEWS', title: 'Vatican wealth rises to €2.7bn as gold and property values surge',
-      desc: `The Vatican's asset management arm said on Friday its operating surplus fell more than 60% in 2025`,
-      content: `The Vatican's asset management arm said on Friday its operating surplus fell more than 60% in 2025, but its overall wealth rose thanks to gains in gold, real estate and investments.
-
-In a year marked by the transition from Pope Francis to Pope Leo, the Vatican's operating result totalled €22.8 million ($26.2 million), down from €62.2 million in 2024, while net assets rose by €89 million to €2.686 billion.
-
-The Administration of the Patrimony of the Holy See, which manages the Vatican's financial investments and real-estate portfolio, said in a statement it had transferred €22.7 million to help finance the Holy See's operations.
-
-The figures offer fresh insight into the Vatican's finances as Leo, elected in May after the death of Francis, faces the challenge of overcoming years of budget shortfalls.
-
-'RETURN TO ORDINARY OPERATING CONDITIONS'
-
-The Vatican had reported a 35.5% year-on-year increase in profits from holdings in 2024, but said accounts then had been boosted by a one-off restructuring of its investment portfolio.
-
-"By contrast, 2025 represents a return to ordinary operating conditions," said Archbishop Giordano Piccinotti, the president of APSA, adding that the priority was not to maximise profit but to preserve and strengthen the Church's patrimony.
-
-It said the Vatican shunned high levels of risk, with some 17% of its investments tied up in equity markets in 2025, 32% in bonds and 29% in physical gold. It also has a sizeable real estate portfolio, managing almost 5,500 properties worldwide.
-
-The investment portfolio showed an accounting loss of €3.7 million last year under new Vatican accounting rules, but stronger real-estate earnings ensured a positive overall operating result.
-
-REVALUATION OF GOLD
-
-The strongest asset gains came from a revaluation of the gold holdings, which added €40.8 million to the Vatican's net wealth. A rise in real-estate values contributed a further €39.2 million, while securities valuations added €16.3 million.
-
-Real estate remained APSA's main source of ordinary income, generating €44.5 million in 2025, up €9.4 million from a year earlier, which the agency attributed to more efficient management, higher rental income and lower maintenance costs.
-
-The agency said it had launched a three-year programme running from 2025 to 2027 aimed at selling non-strategic properties.
-
-The Vatican has become increasingly focused on professional management of its real estate after a series of scandals, including a failed London investment that led to a major fraud trial.`,
-      reward: 2, img: 'https://premierchristian.news/image_cache/e/6/d/4/4/e6d442a4e5ef8cf0738d4e8cab7220e1c0beae13.webp'
+  const handleAdminPublish = async () => {
+    if (!adminUpload.title || !adminUpload.img) {
+      return alert("Title and Cover Image are required!");
     }
 
-  ];
+    let tableName = '';
+    let payload = {};
+
+    if (adminTab === 'Music') {
+      tableName = 'kingdom_music';
+      payload = {
+        title: adminUpload.title,
+        artist: adminUpload.artist || 'Unknown',
+        img: adminUpload.img,
+        src: adminUpload.src,
+        category: adminUpload.category || 'Nigerian Gospel'
+      };
+    } else if (adminTab === 'Movies') {
+      tableName = 'kingdom_movies';
+      payload = {
+        title: adminUpload.title,
+        description: adminUpload.description,
+        img: adminUpload.img,
+        src: adminUpload.src,
+        category: adminUpload.category || 'Trending Now'
+      };
+    } else if (adminTab === 'Videos') {
+      tableName = 'kingdom_videos';
+      payload = {
+        title: adminUpload.title,
+        channel: adminUpload.artist || 'KingdomPlus TV',
+        description: adminUpload.description,
+        img: adminUpload.img,
+        src: adminUpload.src,
+        category: adminUpload.category || 'Sermons'
+      };
+    } else if (adminTab === 'News') {
+      tableName = 'kingdom_news';
+      payload = {
+        title: adminUpload.title,
+        content: adminUpload.content,
+        img: adminUpload.img
+      };
+    }
+
+    if (editingId) {
+      const { error } = await supabase.from(tableName).update(payload).eq('id', editingId);
+      if (error) alert("Error updating: " + error.message);
+      else alert(`${adminTab} updated successfully!`);
+    } else {
+      const { error } = await supabase.from(tableName).insert([payload]);
+      if (error) alert("Error publishing: " + error.message);
+      else alert(`${adminTab} published successfully!`);
+    }
+
+    setEditingId(null);
+    setAdminUpload({ title: '', artist: '', description: '', img: '', src: '', content: '', category: 'Nigerian Gospel' });
+    fetchAllMediaData();
+  };
+
+  const handleStartEdit = (item) => {
+    setEditingId(item.id);
+    setAdminUpload({
+      title: item.title || '',
+      artist: item.artist || item.channel || '',
+      description: item.description || '',
+      img: item.img || '',
+      src: item.src || '',
+      content: item.content || '',
+      category: item.category || 'Nigerian Gospel'
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleDeleteContent = async (id) => {
+    if (!window.confirm("Are you sure you want to delete this item?")) return;
+
+    let tableName = adminTab === 'Music' ? 'kingdom_music' :
+                    adminTab === 'Movies' ? 'kingdom_movies' :
+                    adminTab === 'Videos' ? 'kingdom_videos' : 'kingdom_news';
+
+    const { error } = await supabase.from(tableName).delete().eq('id', id);
+    if (error) alert("Error deleting: " + error.message);
+    else {
+      alert("Deleted successfully!");
+      fetchAllMediaData();
+    }
+  };
+
 
   const handleClaimArticleReward = async () => {
     if (!activeArticle || claimedArticles[activeArticle.id]) return;
@@ -1749,7 +1749,23 @@ The Vatican has become increasingly focused on professional management of its re
         <span className="nav-label">Media</span>
       </div>
       <div className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => { setActiveTab('chat'); setStep(23); }}>
-        <div className="nav-icon-wrapper"><ChatIcon /></div>
+        <div className="nav-icon-wrapper" style={{ position: 'relative' }}>
+          <ChatIcon />
+          {unreadChatCount > 0 && (
+            <div style={{
+              position: 'absolute', top: '-4px', right: '-6px',
+              background: '#e74c3c', color: '#fff',
+              fontSize: '9px', fontWeight: '900',
+              width: '16px', height: '16px',
+              borderRadius: '50%', display: 'flex',
+              alignItems: 'center', justifyContent: 'center',
+              border: '2px solid #09101a'
+            }}>
+              {unreadChatCount > 9 ? '9+' : unreadChatCount}
+            </div>
+          )}
+          
+        </div>
         <span className="nav-label">Chat</span>
       </div>
       
@@ -3333,28 +3349,6 @@ useEffect(() => {
   // ==========================================
 
   const [isAdmin, setIsAdmin] = useState(true); 
-  const [pendingDreams, setPendingDreams] = useState([
-    {
-      id: 'dummy-1',
-      title: 'A river of gold...',
-      desc: 'I saw a river flowing with bright yellow light, and people were gathering around it to drink...',
-      user: '@user_wallet'
-    }
-  ]);
-  
-  const [interpretationText, setInterpretationText] = useState("");
-  const submitInterpretation = (dreamId, text) => {
-    if (!text.trim()) {
-      alert("Please enter an interpretation before submitting.");
-      return;
-    }
-    
-    console.log("Updating Dream ID:", dreamId, "with interpretation:", text);
-    alert("Interpretation submitted successfully!");
-    
-    setInterpretationText("");
-  };
-
 const [profileTab, setProfileTab] = useState('All');
 // ==========================================
   // LIVE SUPABASE PROFILE FETCH
@@ -3914,7 +3908,359 @@ const handlePurchaseService = async (service) => {
     }
   };
 
+// ==========================================
+  // BOOKSTORE STATES
+  // ==========================================
+  const [selectedStoreBook, setSelectedStoreBook] = useState(null);
+  const [isReadingBook, setIsReadingBook] = useState(false);
+  const [isAddBookModalOpen, setIsAddBookModalOpen] = useState(false);
+  
+  const [newBookForm, setNewBookForm] = useState({
+    title: '',
+    desc: '',
+    price: '',
+    isFree: false
+  });
 
+  const handlePurchaseBook = (book) => {
+    if (book.price === 0 || book.price === 'Free') {
+      setIsReadingBook(true);
+    } else {
+      alert(`Purchased '${book.title}' for ${book.price} KPC!`);
+      setIsReadingBook(true);
+    }
+  };
+
+// ==========================================
+  // KINGDOMPLUS MESSENGER STATES (LIVE)
+  // ==========================================
+  const [dbChats, setDbChats] = useState([]);
+  const [publicGroups, setPublicGroups] = useState([]);
+  const [activeDbChat, setActiveDbChat] = useState(null);
+  const [dbMessages, setDbMessages] = useState([]);
+  const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [newGroupDesc, setNewGroupDesc] = useState('');
+
+  const fetchMessengerData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: myParticipants } = await supabase.from('chat_participants').select('chat_id').eq('user_id', user.id);
+      if (myParticipants?.length > 0) {
+        const chatIds = myParticipants.map(p => p.chat_id);
+        const { data: myChats } = await supabase.from('chats').select('*, chat_participants(user_id)').in('id', chatIds).order('created_at', { ascending: false });
+        setDbChats(myChats || []);
+      }
+
+
+      const { data: groups } = await supabase.from('chats').select('*').eq('type', 'group').order('created_at', { ascending: false });
+      setPublicGroups(groups || []);
+      
+    } catch (error) {
+      console.error("Error fetching messenger data:", error);
+    }
+  };
+
+  useEffect(() => {
+    if (step === 23) fetchMessengerData();
+  }, [step]);
+
+  useEffect(() => {
+    if (!activeDbChat) return;
+
+    const fetchMessages = async () => {
+      const { data } = await supabase.from('messages').select('*, user_profiles:sender_id(username, avatar_url)').eq('chat_id', activeDbChat.id).order('created_at', { ascending: true });
+      setDbMessages(data || []);
+    };
+    fetchMessages();
+
+    const subscription = supabase
+      .channel(`chat_${activeDbChat.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${activeDbChat.id}` }, 
+        async (payload) => {
+          const { data: profile } = await supabase.from('user_profiles').select('full_name, avatar_url').eq('id', payload.new.sender_id).single();
+          const newMsg = { ...payload.new, user_profile: profile };
+          setDbMessages(prev => [...prev, newMsg]);
+        }
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(subscription); };
+  }, [activeDbChat]);
+
+  const handleSendDbMessage = async (e) => {
+    e.preventDefault();
+    if (!chatInputMessage.trim() || !activeDbChat) return;
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      await supabase.from('messages').insert([{
+        chat_id: activeDbChat.id,
+        sender_id: user.id,
+        content: chatInputMessage,
+        intent: messageIntent
+      }]);
+
+      setChatInputMessage('');
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  };
+
+  const handleInitiateDirectChat = async (targetUser) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user.id === targetUser.id) return alert("You cannot DM yourself.");
+
+      if (targetUser.dms_locked) {
+        return alert(`🔒 ${targetUser.username} has locked their DMs to the public.`);
+      }
+
+      const { data: existingChats } = await supabase.rpc('check_existing_dm', { user1: user.id, user2: targetUser.id });
+      
+      const existingDm = dbChats.find(c => c.type === 'direct' && c.chat_participants.some(p => p.user_id === targetUser.id));
+      
+      if (existingDm) {
+        setActiveDbChat(existingDm);
+        return;
+      }
+
+      const { data: newChat, error: chatError } = await supabase.from('chats').insert([{ type: 'direct' }]).select().single();
+      if (chatError) throw chatError;
+
+      await supabase.from('chat_participants').insert([
+        { chat_id: newChat.id, user_id: user.id },
+        { chat_id: newChat.id, user_id: targetUser.id }
+      ]);
+
+      fetchMessengerData();
+      setActiveDbChat(newChat);
+
+    } catch (error) {
+      console.error("Error creating DM:", error);
+    }
+  };
+
+  const handleCreateGroup = async () => {
+    if (!newGroupName.trim()) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: newGroup, error } = await supabase.from('chats').insert([{
+        type: 'group',
+        name: newGroupName,
+        description: newGroupDesc,
+        created_by: user.id
+      }]).select().single();
+
+      if (error) throw error;
+
+      await supabase.from('chat_participants').insert([{ chat_id: newGroup.id, user_id: user.id }]);
+
+      setIsCreateGroupModalOpen(false);
+      fetchMessengerData();
+      alert("Kingdom Group created successfully!");
+    } catch (error) {
+      console.error("Error creating group:", error);
+    }
+  };
+
+  const toggleDMLock = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const newStatus = !userProfile.dms_locked;
+      
+      await supabase.from('user_profiles').update({ dms_locked: newStatus }).eq('id', user.id);
+      setUserProfile(prev => ({ ...prev, dms_locked: newStatus }));
+      alert(newStatus ? "🔒 Your DMs are now locked." : "🔓 Your DMs are open to the Kingdom.");
+    } catch (error) {
+      console.error("Error toggling DM lock:", error);
+    }
+  };
+
+// ==========================================
+  // NOTIFICATION STATES
+  // ==========================================
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
+  
+  const stepRef = useRef(step);
+  
+  useEffect(() => {
+    stepRef.current = step;
+    if (step === 23) setUnreadChatCount(0);
+  }, [step]);
+
+  useEffect(() => {
+    let globalSub = null;
+
+    const initNotificationListener = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const channelName = `notifications_${user.id}`;
+      
+      globalSub = supabase
+        .channel(channelName)
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
+          if (payload.new.sender_id !== user.id && stepRef.current !== 23) {
+            setUnreadChatCount(prev => prev + 1);
+          }
+        })
+        .subscribe();
+    };
+    
+    initNotificationListener();
+
+    return () => {
+      if (globalSub) supabase.removeChannel(globalSub);
+    };
+  }, []);
+
+const [globalUsers, setGlobalUsers] = useState([]);
+const [incomingRequests, setIncomingRequests] = useState([]);
+const [sentRequests, setSentRequests] = useState([]);
+const [friends, setFriends] = useState([]);
+
+const fetchGlobalUsers = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+  
+  const { data, error } = await supabase
+    .from('user_profiles')
+    .select('*')
+    .neq('id', user.id)
+    .limit(100);
+    
+  if (data) setGlobalUsers(data);
+};
+
+const fetchConnections = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data: incoming } = await supabase
+    .from('friend_requests')
+    .select('*, sender:user_profiles!sender_id(*)')
+    .eq('receiver_id', user.id)
+    .eq('status', 'pending');
+
+  const { data: sent } = await supabase
+    .from('friend_requests')
+    .select('*, receiver:user_profiles!receiver_id(*)')
+    .eq('sender_id', user.id)
+    .eq('status', 'pending');
+
+  const { data: friendsList } = await supabase
+    .from('friend_requests')
+    .select('*, sender:user_profiles!sender_id(*), receiver:user_profiles!receiver_id(*)')
+    .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
+    .eq('status', 'accepted');
+
+  if (incoming) setIncomingRequests(incoming);
+  if (sent) setSentRequests(sent);
+  if (friendsList) setFriends(friendsList);
+};
+
+useEffect(() => {
+  if (step === 23) {
+    if (hubTab === 'PEOPLE' && peopleSubTab === 'GLOBAL') {
+      fetchGlobalUsers();
+    } else if (hubTab === 'REQUESTS') {
+      fetchConnections();
+    }
+  }
+}, [step, hubTab, peopleSubTab]);
+
+const sendFriendRequest = async (receiverId) => {
+  const { data: { user } } = await supabase.auth.getUser();
+  await supabase.from('friend_requests').insert([{ sender_id: user.id, receiver_id: receiverId, status: 'pending' }]);
+  alert("Request sent!");
+  fetchGlobalUsers();
+};
+
+const handleRequestAction = async (requestId, action) => {
+  await supabase.from('friend_requests').update({ status: action }).eq('id', requestId);
+  fetchConnections();
+};
+
+// Stream tracking states
+  const [streamSeconds, setStreamSeconds] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+
+  const rewardStreamKPC = async (amount) => {
+    try {
+      const KPC_MINT = new PublicKey(GLOBAL_KPC_MINT);
+      const feePayer = Keypair.fromSecretKey(GLOBAL_TREASURY_KEY);
+      const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+      const userPub = new PublicKey(generatedAddress);
+
+      const dest = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, userPub);
+      const src = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, feePayer.publicKey);
+
+      await transfer(connection, feePayer, src.address, dest.address, feePayer.publicKey, amount * Math.pow(10, 8));
+      
+      setKpcBalance(prev => prev + amount);
+      console.log(`Earned ${amount} KPC for streaming!`);
+      
+    } catch (error) {
+      setKpcBalance(prev => prev + amount);
+      console.log(`Simulated Mode: Earned ${amount} KPC for streaming.`);
+    }
+  };
+
+  useEffect(() => {
+    let interval = null;
+    
+    if (isPlaying) {
+      interval = setInterval(() => {
+        setStreamSeconds(prev => {
+          const newTime = prev + 1;
+
+          if (newTime % 60 === 0) {
+            rewardStreamKPC(1);
+            
+            if (userProfile?.id) {
+              supabase.rpc('increment_streak', { user_id: userProfile.id });
+            }
+          }
+          return newTime;
+        });
+      }, 1000);
+    } else {
+      clearInterval(interval);
+    }
+
+    return () => clearInterval(interval);
+  }, [isPlaying, userProfile?.id, generatedAddress]);
+
+
+const [pendingDreams, setPendingDreams] = useState([]);
+const [dreamReply, setDreamReply] = useState('');
+const fetchPendingDreams = async () => {
+    const { data } = await supabase.from('dreams').select('*').eq('status', 'pending');
+    if (data) setPendingDreams(data);
+  };
+
+  const handleSendInterpretation = async (dreamId) => {
+    if (!dreamReply) return alert("Please type an interpretation.");
+    
+    const { error } = await supabase.from('dreams').update({ 
+      interpretation: dreamReply, 
+      status: 'answered' 
+    }).eq('id', dreamId);
+
+    if (error) {
+      alert("Error sending interpretation.");
+    } else {
+      alert("Interpretation sent!");
+      setDreamReply('');
+      fetchPendingDreams();
+    }
+  };
+
+ 
 
   
   return (
@@ -4567,12 +4913,17 @@ const handlePurchaseService = async (service) => {
                   <h3>Trending Gospel Songs</h3>
                 </div>
                 <div className="horizontal-scroll">
-                  {dashboardWorship.map((track) => (
+                  {musicData
+                    .filter(track => track.category === 'Trending Now')
+                    .map((track) => (
                     <div
                       key={track.id}
                       className="media-card"
                       style={{ cursor: 'pointer' }}
-                      onClick={() => openPlayer(track, 'audio')}
+                      onClick={() => {
+                        openPlayer(track, 'audio');
+                        setIsPlaying(true);
+                      }}
                     >
                       <img src={track.img} alt={track.title} className="media-bg" />
                       <div className="media-content">
@@ -4581,9 +4932,12 @@ const handlePurchaseService = async (service) => {
                       </div>
                     </div>
                   ))}
+                  {musicData.filter(track => track.category === 'Trending Now').length === 0 && (
+                    <div style={{ color: '#8e9aab', fontSize: '12px', padding: '10px' }}>No trending songs yet.</div>
+                  )}
                 </div>
 
-                {/* Interactive Read-To-Earn News Section */}
+                {/* Kingdom Happenings Section */}
                 <div className="section-header" style={{ marginTop: '10px' }}>
                   <h3>Kingdom Happenings <span>(World Christian News)</span></h3>
                 </div>
@@ -5143,13 +5497,12 @@ const handlePurchaseService = async (service) => {
         </div>
       )}
 
-     {/* =========================================
-          STEP 10: KINGDOM HUB (LIVE DATA)
+{/* =========================================
+          STEP 10: KINGDOM HUB
           ========================================= */}
       {step === 10 && (
         <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
           
-          {/* Header */}
           <div className="kingdom-top-header">
             <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
               <BackArrowIcon />
@@ -5162,7 +5515,6 @@ const handlePurchaseService = async (service) => {
             </button>
           </div>
 
-          {/* Hub Tabs */}
           <div className="feed-tabs-container" style={{ marginBottom: '10px' }}>
             {['Devotions', 'Bible Plans', 'Messages', 'Bible'].map((tab) => (
               <div key={tab} className={`feed-tab ${kingdomTab === tab ? 'active' : ''}`} onClick={() => setKingdomTab(tab)}>
@@ -5173,7 +5525,7 @@ const handlePurchaseService = async (service) => {
 
           <div className="feed-scroll-area" style={{ flexGrow: 1, padding: '0 20px 120px 20px', overflowY: 'auto' }}>
 
-            {/* ==================== 1. DEVOTIONS ==================== */}
+            {/* 1. DEVOTIONS */}
             {kingdomTab === 'Devotions' && (
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
@@ -5182,12 +5534,8 @@ const handlePurchaseService = async (service) => {
                     <span onClick={() => setIsAddDevotionModalOpen(true)} style={{ color: '#f3ca58', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>+ Publish</span>
                   )}
                 </div>
-
                 {devotionsList.map(item => (
-                  <div 
-                    key={item.id} className="devotion-card" 
-                    onClick={() => setSelectedDevotion(item)} style={{ cursor: 'pointer', marginBottom: '15px' }}
-                  >
+                  <div key={item.id} className="devotion-card" onClick={() => setSelectedDevotion(item)} style={{ cursor: 'pointer', marginBottom: '15px' }}>
                     <img src={item.img || 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=200'} alt="devotion" className="devotion-img" />
                     <div className="devotion-info">
                       <h4 className="devotion-title">{item.title}</h4>
@@ -5199,16 +5547,12 @@ const handlePurchaseService = async (service) => {
               </>
             )}
 
-            {/* ==================== 2. BIBLE PLANS ==================== */}
+            {/* 2. BIBLE PLANS */}
             {kingdomTab === 'Bible Plans' && (
               <>
                 <h3 className="kingdom-section-title">Your Active Plans</h3>
                 {biblePlansList.map(plan => (
-                  <div 
-                    key={plan.id} className="devotion-card" 
-                    onClick={() => setSelectedPlan(plan)}
-                    style={{ flexDirection: 'column', alignItems: 'flex-start', marginBottom: '15px', cursor: 'pointer' }}
-                  >
+                  <div key={plan.id} className="devotion-card" onClick={() => setSelectedPlan(plan)} style={{ flexDirection: 'column', alignItems: 'flex-start', marginBottom: '15px', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
                       <img src={plan.img} alt="plan" className="devotion-img" />
                       <div className="devotion-info">
@@ -5222,7 +5566,7 @@ const handlePurchaseService = async (service) => {
               </>
             )}
 
-            {/* ==================== 3. MESSAGES (MULTI-FORMAT) ==================== */}
+            {/* 3. MESSAGES */}
             {kingdomTab === 'Messages' && (
               <>
                 <h3 className="kingdom-section-title">Ministry Resources</h3>
@@ -5231,12 +5575,9 @@ const handlePurchaseService = async (service) => {
                     <div key={msg.id} className="message-card" onClick={() => setSelectedMessage(msg)} style={{ cursor: 'pointer' }}>
                       <div className="message-img-wrapper">
                         <img src={msg.img} alt="msg" className="message-img" />
-                        
-                        {/* Dynamic Icon based on format */}
                         <div className="message-play-btn" style={{ background: msg.format === 'audio' ? 'rgba(155, 89, 182, 0.8)' : msg.format === 'text' ? 'rgba(243, 202, 88, 0.8)' : 'rgba(41, 190, 175, 0.8)' }}>
                           {msg.format === 'audio' ? <span style={{fontSize:'12px'}}>🎧</span> : msg.format === 'text' ? <span style={{fontSize:'12px'}}>📖</span> : <PlayIcon />}
                         </div>
-                        
                         {msg.duration && <span className="message-duration">{msg.duration}</span>}
                       </div>
                       <span className="message-title">{msg.title}</span>
@@ -5248,24 +5589,17 @@ const handlePurchaseService = async (service) => {
               </>
             )}
 
-            {/* ==================== 4. LIVE BIBLE READER ==================== */}
+            {/* 4. BIBLE READER */}
             {kingdomTab === 'Bible' && (
               <div className="bible-reader-card">
                 <div className="bible-header" style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '20px' }}>
-                  <select 
-                    value={selectedBook} onChange={(e) => setSelectedBook(e.target.value)}
-                    style={{ background: '#101926', color: '#f3ca58', border: '1px solid rgba(243, 202, 88, 0.3)', padding: '8px 12px', borderRadius: '10px', fontWeight: '800' }}
-                  >
+                  <select value={selectedBook} onChange={(e) => setSelectedBook(e.target.value)} style={{ background: '#101926', color: '#f3ca58', border: '1px solid rgba(243, 202, 88, 0.3)', padding: '8px 12px', borderRadius: '10px', fontWeight: '800' }}>
                     {bibleBooks.map(b => <option key={b} value={b}>{b}</option>)}
                   </select>
-                  <select 
-                    value={selectedChapter} onChange={(e) => setSelectedChapter(Number(e.target.value))}
-                    style={{ background: '#101926', color: '#fff', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '8px 12px', borderRadius: '10px', fontWeight: '800' }}
-                  >
+                  <select value={selectedChapter} onChange={(e) => setSelectedChapter(Number(e.target.value))} style={{ background: '#101926', color: '#fff', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '8px 12px', borderRadius: '10px', fontWeight: '800' }}>
                     {[...Array(50).keys()].map(n => <option key={n+1} value={n+1}>Chapter {n+1}</option>)}
                   </select>
                 </div>
-
                 <div className="bible-text-body" style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
                   {isLoadingBible ? (
                     <div style={{ textAlign: 'center', padding: '40px', color: '#8e9aab' }}>Fetching Holy Scripture...</div>
@@ -5280,131 +5614,191 @@ const handlePurchaseService = async (service) => {
                     ))
                   )}
                 </div>
-
                 <div className="bible-reward-banner" style={{ marginTop: '20px' }}>
                   <div className="reward-text">
                     <strong>Daily Reading Goal</strong>
                     <span>Read {selectedBook} {selectedChapter} to claim.</span>
                   </div>
-                  <button
-                    className="claim-btn"
-                    style={hasClaimedChapter ? { background: '#1a2533', color: '#4a5a6e', boxShadow: 'none' } : {}}
-                    onClick={claimBibleReward} disabled={hasClaimedChapter || isLoadingBible}
-                  >
+                  <button className="claim-btn" style={hasClaimedChapter ? { background: '#1a2533', color: '#4a5a6e', boxShadow: 'none' } : {}} onClick={claimBibleReward} disabled={hasClaimedChapter || isLoadingBible}>
                     {hasClaimedChapter ? 'Claimed ✓' : 'Finish & Claim +5 KPC'}
                   </button>
                 </div>
               </div>
             )}
 
-            {/* ==================== 5. STORE ==================== */}
+            {/* 5. STORE (UPGRADED) */}
             {kingdomTab === 'Store' && (
-              <div className="store-grid">
-                {storeBooksList.map(book => (
-                  <div key={book.id} className="store-card">
-                    <img src={book.img} alt="book" className="store-book-cover" />
-                    <span className="store-book-title">{book.title}</span>
-                    <span className="store-book-author">{book.author}</span>
-                    <button className="store-buy-btn">{book.price} KPC</button>
-                  </div>
-                ))}
-              </div>
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 className="kingdom-section-title" style={{ margin: 0 }}>Kingdom Library</h3>
+                  
+                  {/* HIDDEN PUBLISH BUTTON - ONLY PREMIUM/APOSTLE CAN SEE */}
+                  {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') && (
+                    <button 
+                      onClick={() => setIsAddBookModalOpen(true)} 
+                      style={{ background: 'transparent', border: '1px solid #f3ca58', color: '#f3ca58', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
+                    >
+                      + Publish Book
+                    </button>
+                  )}
+                </div>
+
+                <div className="store-grid">
+                  {storeBooksList.map(book => (
+                    <div key={book.id} className="store-card" onClick={() => setSelectedStoreBook(book)} style={{ cursor: 'pointer' }}>
+                      <img src={book.img} alt="book" className="store-book-cover" />
+                      <span className="store-book-title">{book.title}</span>
+                      <span className="store-book-author">{book.author}</span>
+                      <button className="store-buy-btn" style={{ background: book.price === 0 || book.price === 'Free' ? 'rgba(41, 190, 175, 0.1)' : 'rgba(243, 202, 88, 0.1)', color: book.price === 0 || book.price === 'Free' ? '#29beaf' : '#f3ca58' }}>
+                        {book.price === 0 || book.price === 'Free' ? 'Free' : `${book.price} KPC`}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
 
           </div>
 
           {/* =========================================
-              MODALS FOR VIEWING CONTENT
+              MODALS FOR CONTENT & STORE
               ========================================= */}
 
-          {/* 1. DEVOTION READING MODAL */}
           {selectedDevotion && (
+            <div className="constrained-overlay" style={{ zIndex: 1000 }}><div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto', padding: '20px' }}><div className="dream-modal-header" style={{ marginBottom: '15px' }}><h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>{selectedDevotion.title}</h3><button className="dream-modal-close" onClick={() => setSelectedDevotion(null)}><XIcon /></button></div>{selectedDevotion.img && (<img src={selectedDevotion.img} alt="devotion cover" style={{ width: '100%', height: '200px', objectFit: 'cover', borderRadius: '12px', marginBottom: '15px' }} />)}<div style={{ margin: '15px 0' }}><span style={{ color: '#f3ca58', fontSize: '14px', fontWeight: '800' }}>📖 {selectedDevotion.scripture}</span><p style={{ color: '#e2e8f0', fontSize: '15px', lineHeight: '1.7', marginTop: '15px', whiteSpace: 'pre-line' }}>{selectedDevotion.body || "Father, thank You for Your word today."}</p></div><button onClick={() => handleCompleteDevotion(selectedDevotion)} style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '20px' }}>{readDevotionsList.includes(selectedDevotion.id) ? 'Completed ✓' : `Mark as Read & Claim +${selectedDevotion.reward || 5} KPC`}</button></div></div>
+          )}
+          {selectedPlan && (
+            <div className="constrained-overlay" style={{ zIndex: 1000 }}><div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto' }}><div className="dream-modal-header"><h3 style={{ color: '#fff', margin: 0 }}>{selectedPlan.title}</h3><button className="dream-modal-close" onClick={() => setSelectedPlan(null)}><XIcon /></button></div><img src={selectedPlan.img} alt="plan cover" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '12px', margin: '15px 0' }} /><p style={{ color: '#cbd5e1', fontSize: '14px', marginBottom: '20px' }}>{selectedPlan.desc}</p><div style={{ background: 'rgba(0,0,0,0.3)', padding: '15px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}><h4 style={{ color: '#f3ca58', margin: '0 0 10px 0' }}>Today's Assignment</h4><p style={{ color: '#fff', margin: 0, fontSize: '14px' }}>Read Romans 8:1-17</p></div><button onClick={() => { alert("Plan day completed! Rewards issued."); setSelectedPlan(null); }} style={{ width: '100%', padding: '16px', background: '#29beaf', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '20px' }}>Complete Today's Reading</button></div></div>
+          )}
+          {selectedMessage && (
+            <div className="constrained-overlay" style={{ zIndex: 1000 }}><div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto' }}><div className="dream-modal-header" style={{ marginBottom: '15px' }}><h3 style={{ color: '#fff', margin: 0 }}>{selectedMessage.title}</h3><button className="dream-modal-close" onClick={() => setSelectedMessage(null)}><XIcon /></button></div>{(selectedMessage.format === 'video' || selectedMessage.format === 'audio' || !selectedMessage.format) && (<div style={{ width: '100%', height: selectedMessage.format === 'audio' ? '100px' : '220px', background: '#000', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '15px' }}><span style={{ fontSize: '30px', color: '#29beaf' }}>{selectedMessage.format === 'audio' ? '🎧' : '▶'}</span><span style={{ color: '#8e9aab', fontSize: '12px', marginTop: '10px' }}>{selectedMessage.format === 'audio' ? 'Audio stream ready' : 'Video stream ready'}</span></div>)}{selectedMessage.format === 'text' && (<div style={{ padding: '15px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', marginBottom: '15px', border: '1px solid rgba(255,255,255,0.1)' }}><p style={{ color: '#e2e8f0', fontSize: '15px', lineHeight: '1.6', margin: 0 }}>This is the text transcript or article content for the selected message. The believer can read through this fully inside the app.</p></div>)}<div style={{ color: '#8e9aab', fontSize: '13px' }}>By {selectedMessage.author}</div></div></div>
+          )}
+
+          {selectedStoreBook && (
             <div className="constrained-overlay" style={{ zIndex: 1000 }}>
               <div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto', padding: '20px' }}>
                 <div className="dream-modal-header" style={{ marginBottom: '15px' }}>
-                  <h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>{selectedDevotion.title}</h3>
-                  <button className="dream-modal-close" onClick={() => setSelectedDevotion(null)}><XIcon /></button>
+                  <h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>Library</h3>
+                  <button className="dream-modal-close" onClick={() => setSelectedStoreBook(null)}><XIcon /></button>
                 </div>
                 
-                {/* Image is now included! */}
-                {selectedDevotion.img && (
-                  <img src={selectedDevotion.img} alt="devotion cover" style={{ width: '100%', height: '200px', objectFit: 'cover', borderRadius: '12px', marginBottom: '15px' }} />
-                )}
+                <div style={{ display: 'flex', gap: '15px', marginBottom: '20px' }}>
+                  <img src={selectedStoreBook.img} alt="book cover" style={{ width: '100px', height: '140px', objectFit: 'cover', borderRadius: '8px', boxShadow: '0 10px 20px rgba(0,0,0,0.5)' }} />
+                  <div>
+                    <h3 style={{ color: '#fff', margin: '0 0 5px 0', fontSize: '18px' }}>{selectedStoreBook.title}</h3>
+                    <p style={{ color: '#29beaf', margin: '0 0 10px 0', fontSize: '13px', fontWeight: '800' }}>By {selectedStoreBook.author}</p>
+                    <span style={{ display: 'inline-block', background: selectedStoreBook.price === 0 || selectedStoreBook.price === 'Free' ? 'rgba(41, 190, 175, 0.1)' : 'rgba(243, 202, 88, 0.1)', color: selectedStoreBook.price === 0 || selectedStoreBook.price === 'Free' ? '#29beaf' : '#f3ca58', padding: '4px 10px', borderRadius: '8px', fontSize: '14px', fontWeight: '900' }}>
+                      {selectedStoreBook.price === 0 || selectedStoreBook.price === 'Free' ? 'Free Access' : `${selectedStoreBook.price} KPC`}
+                    </span>
+                  </div>
+                </div>
+
+                <p style={{ color: '#cbd5e1', fontSize: '14px', lineHeight: '1.6', marginBottom: '20px' }}>
+                  {selectedStoreBook.desc || "Dive deep into profound spiritual insights and biblical wisdom. This book is crafted to elevate your walk with God and equip you for ministry."}
+                </p>
+
+                <div style={{ display: 'flex', gap: '10px' }}>
+                  <button 
+                    onClick={() => handlePurchaseBook(selectedStoreBook)}
+                    style={{ flex: 1, padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer' }}
+                  >
+                    {selectedStoreBook.price === 0 || selectedStoreBook.price === 'Free' ? 'Read Online Now' : `Buy for ${selectedStoreBook.price} KPC`}
+                  </button>
+                  <button 
+                    onClick={() => alert("Downloading PDF to your device...")}
+                    style={{ padding: '0 20px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '14px', color: '#fff', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    title="Download Offline"
+                  >
+                    <span style={{ fontSize: '20px' }}>⬇</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* LIVE READER MODAL */}
+          {isReadingBook && selectedStoreBook && (
+            <div className="constrained-overlay" style={{ zIndex: 1100, background: '#101926' }}>
+              <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', background: '#1e293b', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <span style={{ color: '#fff', fontWeight: '800', fontSize: '16px' }}>{selectedStoreBook.title}</span>
+                    <span style={{ color: '#8e9aab', fontSize: '12px' }}>Chapter 1</span>
+                  </div>
+                  <button onClick={() => setIsReadingBook(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><XIcon /></button>
+                </div>
                 
-                <div style={{ margin: '15px 0' }}>
-                  <span style={{ color: '#f3ca58', fontSize: '14px', fontWeight: '800' }}>📖 {selectedDevotion.scripture}</span>
-                  <p style={{ color: '#e2e8f0', fontSize: '15px', lineHeight: '1.7', marginTop: '15px', whiteSpace: 'pre-line' }}>
-                    {selectedDevotion.body || "Father, thank You for Your word today. Lead us in the paths of righteousness and give us the strength to walk in Your wisdom."}
+                <div style={{ flex: 1, padding: '30px 20px', overflowY: 'auto', background: '#f8f9fa', color: '#334155' }}>
+                  <h2 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '20px', color: '#0f172a' }}>Introduction</h2>
+                  <p style={{ fontSize: '18px', lineHeight: '1.8', marginBottom: '20px', fontFamily: 'serif' }}>
+                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
+                  </p>
+                  <p style={{ fontSize: '18px', lineHeight: '1.8', marginBottom: '20px', fontFamily: 'serif' }}>
+                    Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
                   </p>
                 </div>
-
-                <button 
-                  onClick={() => handleCompleteDevotion(selectedDevotion)}
-                  style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '20px' }}
-                >
-                  {readDevotionsList.includes(selectedDevotion.id) ? 'Completed ✓' : `Mark as Read & Claim +${selectedDevotion.reward || 5} KPC`}
-                </button>
-              </div>
-            </div>
-          )}
-
-          {/* 2. BIBLE PLAN MODAL */}
-          {selectedPlan && (
-            <div className="constrained-overlay" style={{ zIndex: 1000 }}>
-              <div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
-                <div className="dream-modal-header">
-                  <h3 style={{ color: '#fff', margin: 0 }}>{selectedPlan.title}</h3>
-                  <button className="dream-modal-close" onClick={() => setSelectedPlan(null)}><XIcon /></button>
-                </div>
-                <img src={selectedPlan.img} alt="plan cover" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '12px', margin: '15px 0' }} />
-                <p style={{ color: '#cbd5e1', fontSize: '14px', marginBottom: '20px' }}>{selectedPlan.desc}</p>
                 
-                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '15px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <h4 style={{ color: '#f3ca58', margin: '0 0 10px 0' }}>Today's Assignment</h4>
-                  <p style={{ color: '#fff', margin: 0, fontSize: '14px' }}>Read Romans 8:1-17</p>
+                <div style={{ padding: '15px 20px', background: '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <button style={{ background: 'transparent', border: 'none', color: '#8e9aab', fontSize: '14px', fontWeight: '700' }}>← Previous</button>
+                  <span style={{ color: '#cbd5e1', fontSize: '12px' }}>Page 1 of 120</span>
+                  <button style={{ background: 'transparent', border: 'none', color: '#29beaf', fontSize: '14px', fontWeight: '700' }}>Next →</button>
                 </div>
-
-                <button 
-                  onClick={() => { alert("Plan day completed! Rewards issued."); setSelectedPlan(null); }}
-                  style={{ width: '100%', padding: '16px', background: '#29beaf', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '20px' }}
-                >
-                  Complete Today's Reading
-                </button>
               </div>
             </div>
           )}
 
-          {/* 3. MULTI-FORMAT MESSAGE MODAL */}
-          {selectedMessage && (
+          {/* PUBLISH BOOK MODAL (PREMIUM ONLY) */}
+          {isAddBookModalOpen && (
             <div className="constrained-overlay" style={{ zIndex: 1000 }}>
               <div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
-                <div className="dream-modal-header" style={{ marginBottom: '15px' }}>
-                  <h3 style={{ color: '#fff', margin: 0 }}>{selectedMessage.title}</h3>
-                  <button className="dream-modal-close" onClick={() => setSelectedMessage(null)}><XIcon /></button>
+                <div className="dream-modal-header" style={{ marginBottom: '20px' }}>
+                  <h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>Publish a Book</h3>
+                  <button className="dream-modal-close" onClick={() => setIsAddBookModalOpen(false)}><XIcon /></button>
                 </div>
 
-                {/* Video / Audio Player Placeholder */}
-                {(selectedMessage.format === 'video' || selectedMessage.format === 'audio' || !selectedMessage.format) && (
-                  <div style={{ width: '100%', height: selectedMessage.format === 'audio' ? '100px' : '220px', background: '#000', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '15px' }}>
-                    <span style={{ fontSize: '30px', color: '#29beaf' }}>
-                      {selectedMessage.format === 'audio' ? '🎧' : '▶'}
-                    </span>
-                    <span style={{ color: '#8e9aab', fontSize: '12px', marginTop: '10px' }}>
-                      {selectedMessage.format === 'audio' ? 'Audio stream ready' : 'Video stream ready'}
-                    </span>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  <div>
+                    <label style={{ color: '#cbd5e1', fontSize: '11px', fontWeight: '800', marginBottom: '6px', display: 'block' }}>BOOK TITLE</label>
+                    <input type="text" value={newBookForm.title} onChange={(e) => setNewBookForm({...newBookForm, title: e.target.value})} style={{ width: '100%', padding: '12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#fff', outline: 'none' }} placeholder="E.g. The Power of Prayer" />
                   </div>
-                )}
 
-                {/* Text Reader Placeholder */}
-                {selectedMessage.format === 'text' && (
-                  <div style={{ padding: '15px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', marginBottom: '15px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <p style={{ color: '#e2e8f0', fontSize: '15px', lineHeight: '1.6', margin: 0 }}>
-                      This is the text transcript or article content for the selected message. The believer can read through this fully inside the app.
-                    </p>
+                  <div>
+                    <label style={{ color: '#cbd5e1', fontSize: '11px', fontWeight: '800', marginBottom: '6px', display: 'block' }}>DESCRIPTION</label>
+                    <textarea value={newBookForm.desc} onChange={(e) => setNewBookForm({...newBookForm, desc: e.target.value})} style={{ width: '100%', padding: '12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#fff', outline: 'none', height: '80px', resize: 'none' }} placeholder="What is this book about?" />
                   </div>
-                )}
 
-                <div style={{ color: '#8e9aab', fontSize: '13px' }}>By {selectedMessage.author}</div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(41, 190, 175, 0.1)', padding: '12px', borderRadius: '10px', border: '1px solid rgba(41, 190, 175, 0.3)' }}>
+                    <input type="checkbox" id="isFreeCheck" checked={newBookForm.isFree} onChange={(e) => setNewBookForm({...newBookForm, isFree: e.target.checked, price: ''})} style={{ width: '18px', height: '18px', accentColor: '#29beaf' }} />
+                    <label htmlFor="isFreeCheck" style={{ color: '#29beaf', fontSize: '14px', fontWeight: '800', cursor: 'pointer' }}>Make this book free for the community</label>
+                  </div>
+
+                  {!newBookForm.isFree && (
+                    <div>
+                      <label style={{ color: '#cbd5e1', fontSize: '11px', fontWeight: '800', marginBottom: '6px', display: 'block' }}>PRICE (KPC)</label>
+                      <input type="number" value={newBookForm.price} onChange={(e) => setNewBookForm({...newBookForm, price: e.target.value})} style={{ width: '100%', padding: '12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(243, 202, 88, 0.3)', borderRadius: '10px', color: '#f3ca58', outline: 'none', fontWeight: '900', fontSize: '16px' }} placeholder="E.g. 50" />
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px dashed rgba(255,255,255,0.3)', borderRadius: '10px', color: '#cbd5e1', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>
+                      + Upload Cover Image
+                    </button>
+                    <button style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px dashed rgba(255,255,255,0.3)', borderRadius: '10px', color: '#cbd5e1', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>
+                      + Upload PDF/EPUB
+                    </button>
+                  </div>
+                </div>
+
+                <button 
+                  onClick={() => {
+                    alert("Book successfully published to the Kingdom Library!");
+                    setIsAddBookModalOpen(false);
+                    setNewBookForm({ title: '', desc: '', price: '', isFree: false });
+                  }}
+                  style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '25px' }}
+                >
+                  Publish Book
+                </button>
               </div>
             </div>
           )}
@@ -5412,6 +5806,7 @@ const handlePurchaseService = async (service) => {
           <AppBottomNav />
         </div>
       )}
+
 
     {/* =========================================
           STEP 11: TREASURY
@@ -5487,14 +5882,12 @@ const handlePurchaseService = async (service) => {
 
             </div>
 
-            {/* Quick Action Buttons */}
             <div className="treasury-actions-row">
               <div className="treasury-action-item" onClick={() => setActiveModal('send')}>
                 <div className="treasury-action-circle" style={{ color: '#f3ca58', background: 'rgba(243, 202, 88, 0.1)' }}><SendIcon /></div>
                 <span className="treasury-action-label">Give /<br />Send</span>
               </div>
               
-              {/* If Premium/Church show Church QR, otherwise Scan QR */}
               {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') ? (
                 <div className="treasury-action-item" onClick={() => setActiveModal('qr')}>
                   <div className="treasury-action-circle" style={{ color: '#29beaf', background: 'rgba(41, 190, 175, 0.1)' }}>
@@ -5529,7 +5922,7 @@ const handlePurchaseService = async (service) => {
               </div>
             </div>
 
-            {/* Dynamic Activity Ledger Section */}
+            {/* Activity Ledger Section */}
             <div className="activity-section">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                 <h3 className="activity-title" style={{ margin: 0 }}>Spiritual Activity</h3>
@@ -5616,7 +6009,7 @@ const handlePurchaseService = async (service) => {
             </div>
           )}
 
-          {/* 2A. CHURCH QR PROJECTION & DOWNLOAD MODAL */}
+          {/* CHURCH QR PROJECTION & DOWNLOAD MODAL */}
           {activeModal === 'qr' && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#101926', zIndex: 1000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
               <button onClick={() => setActiveModal(null)} style={{ position: 'absolute', top: '30px', right: '30px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><XIcon /></button>
@@ -5639,7 +6032,7 @@ const handlePurchaseService = async (service) => {
             </div>
           )}
 
-          {/* 2B. LIVE SCAN QR VIEWFINDER MODAL */}
+          {/* LIVE SCAN QR VIEWFINDER MODAL */}
           {activeModal === 'scan' && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10, 15, 26, 0.95)', backdropFilter: 'blur(20px)', zIndex: 1000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
               <button onClick={() => setActiveModal(null)} style={{ position: 'absolute', top: '30px', right: '30px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}><XIcon /></button>
@@ -5647,7 +6040,7 @@ const handlePurchaseService = async (service) => {
               <h3 style={{ color: '#fff', fontSize: '20px', fontWeight: '900', marginBottom: '10px' }}>Scan to Give / Tithe</h3>
               <p style={{ color: '#8e9aab', fontSize: '13px', marginBottom: '30px', textAlign: 'center' }}>Point your camera at the church screen QR code</p>
               
-              {/* MODERN LIVE QR SCANNER COMPONENT */}
+              {/* LIVE QR SCANNER COMPONENT */}
               <div style={{ width: '280px', height: '280px', borderRadius: '24px', overflow: 'hidden', position: 'relative', border: '2px dashed #29beaf', background: '#000' }}>
                 <Scanner 
                   onScan={(detectedCodes) => {
@@ -5849,7 +6242,6 @@ const handlePurchaseService = async (service) => {
 
           </div>
 
-          {/* Sticky Bottom Action */}
           <div className="footer-lock">
             <button
               className="action-button"
@@ -5875,8 +6267,6 @@ const handlePurchaseService = async (service) => {
           ========================================= */}
       {step === 14 && (
         <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
-
-          {/* Header */}
           <div className="feed-header-top" style={{ paddingBottom: '10px' }}>
             <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
               <BackArrowIcon />
@@ -5886,8 +6276,6 @@ const handlePurchaseService = async (service) => {
             </h2>
             <div style={{ width: '36px' }}></div>
           </div>
-
-          {/* Scrollable Content Area */}
           <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px' }}>
 
             <div className="dream-hero-card">
@@ -5923,8 +6311,6 @@ const handlePurchaseService = async (service) => {
                 </div>
               ))}
             </div>
-
-            {/* List or Empty State */}
             <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
               {dreams.length === 0 ? (
                 <div className="empty-dream-state">
@@ -6032,7 +6418,7 @@ const handlePurchaseService = async (service) => {
           )}
 
           {/* =========================================================
-              NEW DREAM CREATION MODAL
+              DREAM CREATION MODAL
               ========================================================= */}
           {isDreamModalOpen && (
             <div className="constrained-overlay">
@@ -6133,7 +6519,7 @@ const handlePurchaseService = async (service) => {
       )}
 
       {/* =========================================
-          STEP 15: LOGIN PAGE (FUNCTIONAL & DATA-TRACKED)
+          STEP 15: LOGIN PAGE
           ========================================= */}
       {step === 15 && (
         <div className="feed-screen-container">
@@ -6145,8 +6531,6 @@ const handlePurchaseService = async (service) => {
 
             <h1 className="login-title metallic-gold-text">Welcome back</h1>
             <p className="login-subtitle">Sign in to your Kingdom sanctuary</p>
-
-            {/* Google Social Login Simulation */}
             <button
               className="google-btn"
               onClick={() => alert("Google Web3 Auth: To connect an existing Gmail account, please use your registered email below during devnet testing.")}
@@ -6247,8 +6631,6 @@ const handlePurchaseService = async (service) => {
                   />
                   <button className="scan-icon-btn"><ScanIcon /></button>
                 </div>
-
-                {/* Horizontally scrollable recent contacts */}
                 <div className="recent-contacts">
                   <div className="contact-chip" onClick={() => setSendRecipient('@voiceofzion')}>
                     Pastor Tunde <span className="contact-chip-handle">@voiceofzion</span>
@@ -6292,8 +6674,6 @@ const handlePurchaseService = async (service) => {
             )}
 
           </div>
-
-          {/* Sticky Bottom Button for Sending */}
           {sendSwapTab === 'Send' && (
             <div className="footer-lock">
               <button
@@ -6321,11 +6701,12 @@ const handlePurchaseService = async (service) => {
       )}
 
       {/* =========================================
-          STEP 17: MEDIA HUB (FULLY INTERACTIVE)
+          STEP 17: MEDIA HUB
           ========================================= */}
       {step === 17 && (
-        <div className="feed-screen-container">
+        <div className="feed-screen-container" style={{ width: '100vw', maxWidth: '100vw', height: '100vh', overflowX: 'hidden', display: 'flex', flexDirection: 'column' }}>
 
+          {/* MEDIA HEADER */}
           <div className="media-header">
             <div className="media-header-left">
               <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
@@ -6346,6 +6727,7 @@ const handlePurchaseService = async (service) => {
             </div>
           </div>
 
+          {/* MEDIA TOGGLE */}
           <div className="media-toggle-container">
             <button className={`media-toggle-btn ${mediaTab === 'Music' ? 'active' : ''}`} onClick={() => setMediaTab('Music')}>
               <MusicIcon /> Music
@@ -6358,90 +6740,78 @@ const handlePurchaseService = async (service) => {
             </button>
           </div>
 
+          {/* SEARCH */}
           <div className="media-search-container">
             <input
               type="text"
               className="media-search-input"
               placeholder={
-                mediaTab === 'Music' ? 'Songs, artists, albums' :
-                  mediaTab === 'Videos' ? 'Search sermons & teachings' : 'Titles, genres'
+                mediaTab === 'Music' ? 'Search songs, artists, regions...' :
+                mediaTab === 'Videos' ? 'Search sermons & teachings...' : 'Search movie titles...'
               }
             />
           </div>
 
-          <div className="feed-scroll-area" style={{ paddingBottom: '100px' }}>
+          <div className="feed-scroll-area" style={{ paddingBottom: '120px', flex: 1 }}>
 
-            {/* ======================= MUSIC ======================= */}
+            {/* ======================= KINGDOM SOUNDS (MUSIC) ======================= */}
             {mediaTab === 'Music' && (
               <>
-                <div
-                  className="music-hero-card"
-                  style={{ backgroundImage: `url('${musicData[0]?.img}')`, cursor: 'pointer' }}
-                  onClick={() => openPlayer(musicData[0], 'audio')}
-                >
-                  <div className="music-hero-overlay"></div>
-                  <div className="music-hero-content">
-                    <div className="music-featured-badge"><FlameIcon /> FEATURED TRACK</div>
-                    <h3 className="music-hero-title">{musicData[0]?.title}</h3>
-                    <span className="music-hero-artist">{musicData[0]?.artist} • Click to Stream</span>
+                {/* FEATURED HERO SONG */}
+                {musicData.length > 0 && (
+                  <div
+                    className="music-hero-card"
+                    style={{ backgroundImage: `url('${musicData[0]?.img}')`, cursor: 'pointer' }}
+                    onClick={() => openPlayer(musicData[0], 'audio')}
+                  >
+                    <div className="music-hero-overlay"></div>
+                    <div className="music-hero-content">
+                      <div className="music-featured-badge"><FlameIcon /> FEATURED TRACK</div>
+                      <h3 className="music-hero-title">{musicData[0]?.title}</h3>
+                      <span className="music-hero-artist">{musicData[0]?.artist} • Tap to Stream</span>
+                    </div>
+                    <div className="music-play-btn"><PlaySolidIcon /></div>
                   </div>
-                  <div className="music-play-btn"><PlaySolidIcon /></div>
-                </div>
+                )}
 
-                <div className="section-header">
-                  <div className="section-title"><TrendingIcon /> Trending Now</div>
-                  <ChevronRightIcon />
-                </div>
+                {/* REGIONAL / CATEGORY CAROUSELS */}
+                {['Nigerian Gospel', 'South African Gospel', 'Ghanaian Gospel', 'American Gospel', 'Most Popular'].map(categoryName => {
+                  const categorySongs = musicData.filter(song => song.category === categoryName);
+                  if (categorySongs.length === 0) return null;
 
-                <div className="h-scroll-container">
-                  {musicData.map((song) => (
-                    <div
-                      key={song.id}
-                      className="music-square-card scroll-snap-item"
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => openPlayer(song, 'audio')}
-                    >
-                      <div className="music-square-img-box">
-                        <img src={song.img} alt={song.title} className="media-cover-img" />
-                        <div className="music-square-play"><PlaySolidIcon /></div>
+                  return (
+                    <div key={categoryName} style={{ marginBottom: '24px' }}>
+                      <div className="section-header">
+                        <div className="section-title"><TrendingIcon /> {categoryName}</div>
+                        <ChevronRightIcon />
                       </div>
-                      <div className="music-square-title">{song.title}</div>
-                      <div className="music-square-artist">
-                        {song.artist} <VerifiedIcon />
+
+                      <div className="h-scroll-container">
+                        {categorySongs.map((song) => (
+                          <div
+                            key={song.id}
+                            className="music-square-card scroll-snap-item"
+                            style={{ cursor: 'pointer' }}
+                            onClick={() => openPlayer(song, 'audio')}
+                          >
+                            <div className="music-square-img-box">
+                              <img src={song.img} alt={song.title} className="media-cover-img" />
+                              <div className="music-square-play"><PlaySolidIcon /></div>
+                            </div>
+                            <div className="music-square-title">{song.title}</div>
+                            <div className="music-square-artist">
+                              {song.artist} <VerifiedIcon />
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
-
-                <div className="section-header" style={{ marginTop: '10px' }}>
-                  <div className="section-title"><FlameIcon /> Top Tracks This Week</div>
-                  <ChevronRightIcon />
-                </div>
-
-                <div>
-                  {musicData.map((track, i) => (
-                    <div
-                      key={track.id}
-                      className="top-list-item"
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => openPlayer(track, 'audio')}
-                    >
-                      <div className="top-list-num">{i + 1}</div>
-                      <div className="top-list-img">
-                        <img src={track.img} alt={track.title} className="media-cover-img" />
-                      </div>
-                      <div className="top-list-info">
-                        <div className="top-list-title">{track.title} <VerifiedIcon /></div>
-                        <div className="top-list-artist">{track.artist} • <HeadphonesIcon /> 142k streams</div>
-                      </div>
-                      <div style={{ color: '#f3ca58' }}><PlayOutlineIcon /></div>
-                    </div>
-                  ))}
-                </div>
+                  );
+                })}
               </>
             )}
 
-            {/* ======================= VIDEOS ======================= */}
+            {/* ======================= KINGDOM TUBE (VIDEOS) ======================= */}
             {mediaTab === 'Videos' && (
               <>
                 <div className="video-subtabs">
@@ -6452,96 +6822,77 @@ const handlePurchaseService = async (service) => {
                   ))}
                 </div>
 
-                {videoData.map((vid) => (
-                  <div key={vid.id} className="video-card">
-                    <div
-                      className="video-thumbnail-container"
-                      style={{ cursor: 'pointer' }}
-                      onClick={() => openPlayer(vid, 'video')}
-                    >
-                      <img src={vid.img} alt={vid.title} className="media-cover-img" />
+                {videoData
+                  .filter(vid => videoSubTab === 'All' || vid.category === videoSubTab)
+                  .map((vid) => (
+                    <div key={vid.id} className="video-card">
+                      <div className="video-thumbnail-container" style={{ cursor: 'pointer' }} onClick={() => openPlayer(vid, 'video')}>
+                        <img src={vid.img} alt={vid.title} className="media-cover-img" />
+                        <div className="video-duration-badge">{vid.duration || '10:00'}</div>
+                      </div>
 
-                      {!claimedVideos[vid.id] && (
-                        <div className="video-reward-badge">
-                          <CrownIcon /> EARN {vid.reward} KPC
+                      <div className="video-info-row">
+                        <div className="video-avatar" style={{ background: '#29beaf' }}>KP</div>
+                        <div style={{ flex: 1 }}>
+                          <div className="video-title" style={{ cursor: 'pointer' }} onClick={() => openPlayer(vid, 'video')}>{vid.title}</div>
+                          <div className="video-channel">{vid.channel || 'KingdomPlus TV'} <VerifiedIcon /></div>
+                          <button className="video-reward-btn" onClick={() => openPlayer(vid, 'video')}>
+                            <PlaySolidIcon /> Stream Sermon
+                          </button>
                         </div>
-                      )}
-
-                      <div className="video-duration-badge">{vid.duration}</div>
-                    </div>
-
-                    <div className="video-info-row">
-                      <div className="video-avatar" style={{ background: vid.avatarBg }}>{vid.letter}</div>
-                      <div style={{ flex: 1 }}>
-                        <div className="video-title" style={{ cursor: 'pointer' }} onClick={() => openPlayer(vid, 'video')}>{vid.title}</div>
-                        <div className="video-channel">{vid.channel} <VerifiedIcon /> • {vid.views}</div>
-
-                        <button
-                          className={`video-reward-btn ${claimedVideos[vid.id] ? 'claimed' : ''}`}
-                          onClick={() => openPlayer(vid, 'video')}
-                        >
-                          {claimedVideos[vid.id] ? (
-                            <><CheckIcon /> Reward Claimed — Play Again</>
-                          ) : (
-                            <><PlaySolidIcon /> Watch & Earn {vid.reward} KPC</>
-                          )}
-                        </button>
-
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </>
             )}
 
-            {/* ======================= MOVIES ======================= */}
+            {/* ======================= KINGDOM CINEMA (MOVIES) ======================= */}
             {mediaTab === 'Movies' && (
               <>
-                <div className="movie-hero" style={{ backgroundImage: `url('${movieData[0]?.img}')` }}>
-                  <div className="movie-hero-overlay"></div>
-                  <div className="movie-hero-content">
-                    <div className="movie-hero-badge">KP ORIGINAL</div>
-                    <h3 className="movie-hero-title">{movieData[0]?.title}</h3>
-                    <div className="movie-hero-meta">
-                      <span style={{ color: '#2ecc71', fontWeight: '800' }}>98% Match</span>
-                      <div className="movie-meta-box">PG-13</div>
-                      <span>2026</span>
-                      <span>Faith • Drama</span>
-                    </div>
-                    <div className="movie-actions">
-                      <button className="movie-btn-play" onClick={() => openPlayer(movieData[0], 'video')}>
-                        <PlaySolidIcon /> Play Stream
-                      </button>
-                      <button className="movie-btn-info"><InfoIcon /> Details</button>
+                {movieData.length > 0 && (
+                  <div className="movie-hero" style={{ backgroundImage: `url('${movieData[0]?.img}')` }}>
+                    <div className="movie-hero-overlay"></div>
+                    <div className="movie-hero-content">
+                      <div className="movie-hero-badge">KP ORIGINAL</div>
+                      <h3 className="movie-hero-title">{movieData[0]?.title}</h3>
+                      <div className="movie-hero-meta">
+                        <span style={{ color: '#2ecc71', fontWeight: '800' }}>98% Match</span>
+                        <div className="movie-meta-box">PG-13</div>
+                        <span>Faith & Drama</span>
+                      </div>
+                      <div className="movie-actions">
+                        <button className="movie-btn-play" onClick={() => openPlayer(movieData[0], 'video')}>
+                          <PlaySolidIcon /> Stream Film
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
 
-                {['Trending Now', 'Faith & Family', 'Documentaries'].map((section, idx) => (
-                  <div key={section} style={{ marginBottom: '30px' }}>
-                    <div className="section-header" style={{ marginBottom: '12px' }}>
-                      <div className="section-title" style={{ fontSize: '18px' }}>{section}</div>
-                      <ChevronRightIcon />
-                    </div>
+                {['Trending Now', 'Faith & Family', 'Documentaries', 'KP Original'].map((sectionName) => {
+                  const sectionMovies = movieData.filter(movie => movie.category === sectionName);
+                  if (sectionMovies.length === 0) return null;
 
-                    <div className="h-scroll-container">
-                      {movieData.map((movie, i) => (
-                        <div
-                          key={movie.id || i}
-                          className="movie-portrait-card scroll-snap-item"
-                          style={{ cursor: 'pointer' }}
-                          onClick={() => openPlayer(movie, 'video')}
-                        >
-                          <div className="movie-poster">
-                            <img src={movie.img} alt={movie.title} className="media-cover-img" />
-                            {i === 0 && idx === 0 && <div className="movie-kp-icon">KP</div>}
+                  return (
+                    <div key={sectionName} style={{ marginBottom: '30px' }}>
+                      <div className="section-header" style={{ marginBottom: '12px' }}>
+                        <div className="section-title" style={{ fontSize: '18px' }}>{sectionName}</div>
+                        <ChevronRightIcon />
+                      </div>
+
+                      <div className="h-scroll-container">
+                        {sectionMovies.map((movie) => (
+                          <div key={movie.id} className="movie-portrait-card scroll-snap-item" style={{ cursor: 'pointer' }} onClick={() => openPlayer(movie, 'video')}>
+                            <div className="movie-poster">
+                              <img src={movie.img} alt={movie.title} className="media-cover-img" />
+                            </div>
+                            <div className="movie-poster-title">{movie.title}</div>
                           </div>
-                          <div className="movie-poster-title">{movie.title}</div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </>
             )}
 
@@ -6550,27 +6901,20 @@ const handlePurchaseService = async (service) => {
         </div>
       )}
 
+
 {/* =========================================
           STEP 18: PROFILE PAGE
           ========================================= */}
       {step === 18 && (
         <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
-          
-          {/* Hidden File Inputs for Uploading */}
           <input type="file" hidden ref={wallpaperInputRef} accept="image/*" onChange={(e) => handleImageSelect(e, 'wallpaper_url')} />
           <input type="file" hidden ref={avatarInputRef} accept="image/*" onChange={(e) => handleImageSelect(e, 'avatar_url')} />
-
-          {/* Fixed Header (Sits above the scroll area) */}
           <div className="feed-header-top" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
             <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
               <BackArrowIcon />
             </button>
           </div>
-
-          {/* MAIN SCROLL AREA - Cover photo and profile now scroll together naturally */}
           <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px', overflowY: 'auto', paddingTop: '0' }}>
-            
-            {/* Wallpaper Area - Now INSIDE the scroll area */}
             <div 
               className="profile-cover-photo" 
               onClick={() => wallpaperInputRef.current.click()}
@@ -6595,7 +6939,6 @@ const handlePurchaseService = async (service) => {
             ) : (
               <>
                 <div className="profile-identity-section">
-                  {/* Avatar Area - Overlaps the cover photo perfectly now */}
                   <div className="profile-avatar-overlap" onClick={() => avatarInputRef.current.click()} style={{ cursor: 'pointer', zIndex: 10 }}>
                     {userProfile.avatar_url ? (
                       <img src={userProfile.avatar_url} alt="Profile" className="profile-avatar-circle" style={{ objectFit: 'cover' }} />
@@ -6633,6 +6976,29 @@ const handlePurchaseService = async (service) => {
                     <button className="profile-btn-primary" onClick={openEditModal}>Edit Profile</button>
                     <button className="profile-btn-secondary">Share</button>
                     <button className="profile-btn-icon"><LinkIcon /></button>
+
+{userProfile?.id === '8da85fd9-c923-4bd2-8d1e-1d317e0d9fde' && (
+  <button 
+    onClick={() => setStep(24)} 
+    style={{
+      background: 'linear-gradient(135deg, #e74c3c, #c0392b)',
+      color: '#fff',
+      border: 'none',
+      padding: '10px',
+      borderRadius: '16px',
+      fontWeight: '600',
+      fontSize: '13px',
+      cursor: 'pointer',
+      marginTop: '15px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '8px',
+      boxShadow: '0 4px 15px rgba(231, 76, 60, 0.3)'
+    }}
+  > ADMIN
+  </button>
+)}
                   </div>
                 </div>
 
@@ -6720,7 +7086,7 @@ const handlePurchaseService = async (service) => {
                   </div>
                 )}
                 
-                {/* TAB CONTENT: SERVICES */}
+                {/* SERVICES */}
                 {profileTab === 'Services' && (
                   <div className="profile-tab-content">
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
@@ -7059,7 +7425,7 @@ const handlePurchaseService = async (service) => {
           STEP 23: KINGDOMPLUS MESSENGER
           ========================================= */}
       {step === 23 && (
-        <div className="feed-screen-container" style={{ width: '100%', maxWidth: '100vw', overflowX: 'hidden', paddingBottom: '90px', background: '#09101a', minHeight: '100vh', position: 'relative', boxSizing: 'border-box' }}>
+        <div className="feed-screen-container" style={{ width: '100vw', maxWidth: '100vw', height: '100vh', overflowX: 'hidden', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: 'radial-gradient(circle at top left, #141b2e 0%, #05080f 100%)' }}>
           
           <style>{`
             .glass-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
@@ -7068,33 +7434,43 @@ const handlePurchaseService = async (service) => {
             .glass-scroll { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.1) transparent; }
           `}</style>
 
-          {!activeChat ? (
-            <>
-              {/* --- TOP HEADER (From Screenshot) --- */}
+          {!activeDbChat ? (
+            <div style={{ display: 'flex', flexDirection: 'column', width: '100%', flex: 1, overflow: 'hidden' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px' }}>
                 <button onClick={() => setStep(6)} style={{ background: 'rgba(255,255,255,0.03)', border: 'none', color: '#fff', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
                   <BackArrowIcon />
                 </button>
                 <div style={{ textAlign: 'center' }}>
                   <h2 style={{ color: '#f3ca58', fontSize: '24px', fontWeight: '900', margin: 0, fontFamily: 'serif' }}>Messenger</h2>
-                  <div style={{ color: '#29beaf', fontSize: '10px', fontWeight: '800', letterSpacing: '2px', marginTop: '2px' }}>ENCRYPTED • LIVE</div>
+                  <div style={{ color: '#29beaf', fontSize: '10px', fontWeight: '800', letterSpacing: '2px', marginTop: '2px' }}>WEB3 • LIVE</div>
                 </div>
-                <div style={{ width: '40px', height: '40px', borderRadius: '50%', border: '1px solid rgba(41, 190, 175, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ width: '10px', height: '10px', background: '#29beaf', borderRadius: '50%', boxShadow: '0 0 10px #29beaf' }}></div>
-                </div>
+                {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') ? (
+                  <button onClick={toggleDMLock} title={userProfile?.dms_locked ? 'Unlock DMs' : 'Lock DMs'} style={{ width: '40px', height: '40px', borderRadius: '50%', background: userProfile?.dms_locked ? 'rgba(231, 76, 60, 0.1)' : 'rgba(41, 190, 175, 0.1)', border: userProfile?.dms_locked ? '1px solid #e74c3c' : '1px solid #29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '18px' }}>
+                    {userProfile?.dms_locked ? '🔒' : '🔓'}
+                  </button>
+                ) : (
+                  <div style={{ width: '40px' }}></div>
+                )}
               </div>
 
-              {/* --- MAIN 4-TAB NAVIGATION PILLS --- */}
+              {/* --- TABS --- */}
               <div style={{ display: 'flex', background: 'rgba(255,255,255,0.02)', borderRadius: '30px', margin: '0 20px 20px 20px', padding: '4px' }}>
-                {['CHATS', 'GROUPS', 'PEOPLE', 'REQUESTS'].map(tab => (
-                  <button
-                    key={tab}
-                    onClick={() => setHubTab(tab)}
-                    style={{
-                      flex: 1, padding: '12px 0', border: 'none', borderRadius: '26px', fontSize: '11px', fontWeight: '800', letterSpacing: '0.5px', cursor: 'pointer', transition: 'all 0.2s',
-                      background: hubTab === tab ? 'rgba(243, 202, 88, 0.05)' : 'transparent',
-                      color: hubTab === tab ? '#f3ca58' : '#8e9aab',
-                      border: hubTab === tab ? '1px solid rgba(243, 202, 88, 0.3)' : '1px solid transparent'
+                {['INBOX', 'GROUPS', 'PEOPLE', 'REQUESTS'].map(tab => (
+                  <button 
+                    key={tab} 
+                    onClick={() => setHubTab(tab)} 
+                    style={{ 
+                      flex: 1, 
+                      padding: '12px 0', 
+                      border: 'none', 
+                      borderRadius: '26px', 
+                      fontSize: '10px', 
+                      fontWeight: '900', 
+                      cursor: 'pointer', 
+                      transition: 'all 0.2s', 
+                      background: hubTab === tab ? 'rgba(243, 202, 88, 0.1)' : 'transparent', 
+                      color: hubTab === tab ? '#f3ca58' : '#8e9aab', 
+                      border: hubTab === tab ? '1px solid rgba(243, 202, 88, 0.3)' : '1px solid transparent' 
                     }}
                   >
                     {tab}
@@ -7102,168 +7478,160 @@ const handlePurchaseService = async (service) => {
                 ))}
               </div>
 
-              {/* ==================== TAB 1: CHATS ==================== */}
-              {hubTab === 'CHATS' && (
-                <div style={{ padding: '0 20px', display: 'flex', flexDirection: 'column' }}>
+              {/* ==================== TAB 1: INBOX & FRIENDS ==================== */}
+              {hubTab === 'INBOX' && (
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', width: '100%' }}>
                   
-                  {/* Ministry Intent Filters */}
-                  <div className="glass-scroll" style={{ display: 'flex', gap: '8px', marginBottom: '16px', overflowX: 'auto', paddingBottom: '6px' }}>
-                    {['ALL', 'URGENT PRAYER', 'COUNSELING', 'TESTIMONY'].map(sub => (
-                      <button 
-                        key={sub}
-                        onClick={() => setChatSubTab(sub)}
-                        style={{ padding: '8px 14px', borderRadius: '20px', border: chatSubTab === sub ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', background: chatSubTab === sub ? 'rgba(41, 190, 175, 0.1)' : 'transparent', color: chatSubTab === sub ? '#29beaf' : '#8e9aab', fontSize: '10px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
-                      >
-                        {sub}
-                      </button>
-                    ))}
+                  {/* HORIZONTAL FRIENDS LIST */}
+                  <div style={{ padding: '0 20px', marginBottom: '10px', flexShrink: 0 }}>
+                    <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '10px' }}>MY CONNECTIONS</div>
+                    <div className="glass-scroll" style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '10px' }}>
+                      {friends.length === 0 ? (
+                        <span style={{ color: '#55657a', fontSize: '12px' }}>No connections yet. Head to the People tab!</span>
+                      ) : (
+                        friends.map(friend => {
+                          const profile = friend.sender_id === userProfile?.id ? friend.receiver : friend.sender;
+                          return (
+                            <div key={friend.id} onClick={() => handleInitiateDirectChat(profile)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0 }}>
+                              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'linear-gradient(135deg, #29beaf, #1a8277)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '20px', fontWeight: '900', border: '2px solid #09101a', boxShadow: '0 0 0 2px rgba(41, 190, 175, 0.4)' }}>
+                                {profile?.full_name?.charAt(0) || 'U'}
+                              </div>
+                              <span style={{ color: '#e2e8f0', fontSize: '11px', fontWeight: '700', maxWidth: '64px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                {profile?.full_name?.split(' ')[0]}
+                              </span>
+                            </div>
+                          )
+                        })
+                      )}
+                    </div>
                   </div>
 
-                  {/* Chat List */}
-                  <div className="glass-scroll" style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', height: 'calc(100vh - 280px)' }}>
-                    {chatInbox
-                      .filter(c => chatSubTab === 'ALL' || c.intent === chatSubTab)
-                      .map((chat) => (
-                      <div key={chat.id} onClick={() => setActiveChat(chat)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                          
-                          {/* UPDATED: Avatar Wrapper with handleViewProfile */}
-                          <div onClick={(e) => handleViewProfile(e, chat)} style={{ position: 'relative', cursor: 'pointer' }}>
-                            <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: 'linear-gradient(135deg, #101926, #1f3752)', border: '1px solid rgba(243, 202, 88, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontWeight: '900', fontSize: '18px' }}>
-                              {chat.name.charAt(0)}
-                            </div>
-                            {chat.status === 'online' && <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12px', height: '12px', background: '#29beaf', borderRadius: '50%', border: '2px solid #09101a' }}></div>}
-                          </div>
+                  <div style={{ padding: '0 20px', flexShrink: 0, marginBottom: '10px' }}>
+                    <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>ACTIVE CHATS</div>
+                  </div>
 
-                          <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                              <span style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>{chat.name}</span>
-                              {chat.intent && chat.intent !== 'NORMAL' && (
-                                <span style={{ fontSize: '8px', fontWeight: '900', padding: '2px 6px', borderRadius: '6px', background: chat.intent === 'URGENT PRAYER' ? 'rgba(231, 76, 60, 0.2)' : 'rgba(243, 202, 88, 0.2)', color: chat.intent === 'URGENT PRAYER' ? '#e74c3c' : '#f3ca58' }}>
-                                  {chat.intent}
-                                </span>
-                              )}
+                  <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', flex: 1, paddingBottom: '100px' }}>
+                    {dbChats.length === 0 ? (
+                      <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', marginTop: '20px' }}>Your inbox is empty.</div>
+                    ) : (
+                      dbChats.map((chat) => (
+                        <div key={chat.id} onClick={() => setActiveDbChat(chat)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                            <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: chat.type === 'group' ? 'rgba(41, 190, 175, 0.1)' : 'linear-gradient(135deg, #101926, #1f3752)', border: '1px solid rgba(243, 202, 88, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px' }}>
+                              {chat.type === 'group' ? '⛪' : '👤'}
                             </div>
-                            <div style={{ color: '#8e9aab', fontSize: '13px', marginTop: '2px' }}>{chat.lastMsg}</div>
+                            <div>
+                              <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>
+                                {chat.type === 'group' ? chat.name : "Private Chat"}
+                              </div>
+                              <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>
+                                Tap to open conversation
+                              </div>
+                            </div>
                           </div>
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                          <span style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '700' }}>{chat.time}</span>
-                          {chat.unread > 0 && <div style={{ background: '#29beaf', color: '#101926', fontSize: '10px', fontWeight: '900', width: '18px', height: '18px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{chat.unread}</div>}
-                        </div>
-                      </div>
-                    ))}
-                    {chatInbox.filter(c => chatSubTab === 'ALL' || c.intent === chatSubTab).length === 0 && (
-                      <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', padding: '20px' }}>No messages found in this category.</div>
+                      ))
                     )}
                   </div>
                 </div>
               )}
 
-              {/* ==================== TAB 2: ROOMS ==================== */}
+              {/* ==================== TAB 2: GROUPS ==================== */}
               {hubTab === 'GROUPS' && (
-                <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '24px', overflowY: 'auto', height: 'calc(100vh - 220px)' }}>
-                  <div>
-                    <div style={{ color: '#f3ca58', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '12px' }}>FEATURED · MY CHURCH</div>
-                    <div style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.05) 0%, rgba(255,255,255,0.01) 100%)', padding: '20px', borderRadius: '24px', border: '1px solid rgba(41, 190, 175, 0.2)', cursor: 'pointer' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                        <div style={{ display: 'flex', gap: '14px' }}>
-                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(243, 202, 88, 0.1)', border: '1px solid rgba(243, 202, 88, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58' }}>⛪</div>
-                          <div>
-                            <div style={{ color: '#f3ca58', fontSize: '10px', fontWeight: '800', letterSpacing: '0.5px' }}>FEATURED ROOM</div>
-                            <div style={{ color: '#fff', fontSize: '18px', fontWeight: '800', margin: '4px 0' }}>Mary Mother of Jesus</div>
-                            <div style={{ color: '#8e9aab', fontSize: '13px' }}>Your local church community</div>
-                          </div>
-                        </div>
-                        <div style={{ background: 'rgba(41, 190, 175, 0.15)', color: '#29beaf', padding: '4px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '4px', border: '1px solid rgba(41, 190, 175, 0.3)' }}><span style={{ width: '6px', height: '6px', background: '#29beaf', borderRadius: '50%' }}></span> LIVE</div>
-                      </div>
-                    </div>
+                <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto', flex: 1, paddingBottom: '100px', width: '100%' }}>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                    <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>GLOBAL ROOMS</div>
+                    {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') && (
+                      <button onClick={() => setIsCreateGroupModalOpen(true)} style={{ background: 'transparent', border: '1px solid #29beaf', color: '#29beaf', padding: '4px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>+ Create Group</button>
+                    )}
                   </div>
-                  <div>
-                    <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '12px' }}>MY DENOMINATION</div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
+
+                  {publicGroups.map(group => (
+                    <div key={group.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#29beaf', fontSize: '20px' }}>👥</div>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(243, 202, 88, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px' }}>#</div>
                         <div>
-                          <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>Catholic</div>
-                          <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>Denomination room</div>
+                          <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>{group.name}</div>
+                          <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>{group.description || 'Public Kingdom Chat'}</div>
                         </div>
                       </div>
-                      <div style={{ color: '#8e9aab', fontSize: '10px', fontWeight: '800', letterSpacing: '0.5px', textAlign: 'right' }}>ENTER<br/>→</div>
+                      <button 
+                        onClick={async () => {
+                          const { data: { user } } = await supabase.auth.getUser();
+                          await supabase.from('chat_participants').insert([{ chat_id: group.id, user_id: user.id }]);
+                          alert("Joined group successfully!");
+                          fetchMessengerData();
+                        }}
+                        style={{ color: '#101926', background: '#29beaf', padding: '8px 16px', borderRadius: '12px', fontSize: '10px', fontWeight: '900', border: 'none', cursor: 'pointer' }}
+                      >
+                        JOIN
+                      </button>
                     </div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}><GlobeIcon /> GLOBAL ROOMS</div>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(243, 202, 88, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px' }}>#</div>
-                          <div>
-                            <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>Worship & Praise</div>
-                            <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>Songs, testimonies, and worship</div>
-                          </div>
-                        </div>
-                        <div style={{ color: '#8e9aab', fontSize: '10px', fontWeight: '800', letterSpacing: '0.5px', textAlign: 'right' }}>ENTER<br/>→</div>
-                      </div>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#29beaf', fontSize: '20px' }}>#</div>
-                          <div>
-                            <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>Prayer Wall</div>
-                            <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>Share and lift up prayer requests</div>
-                          </div>
-                        </div>
-                        <div style={{ color: '#8e9aab', fontSize: '10px', fontWeight: '800', letterSpacing: '0.5px', textAlign: 'right' }}>ENTER<br/>→</div>
-                      </div>
+                  ))}
+                  {publicGroups.length === 0 && <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px' }}>No public groups available.</div>}
+                </div>
+              )}
+
+              {/* ==================== CREATE GROUP MODAL ==================== */}
+              {isCreateGroupModalOpen && (
+                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(9, 16, 26, 0.95)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+                  <div style={{ width: '100%', maxWidth: '400px', background: '#101926', padding: '24px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                      <h3 style={{ color: '#fff', margin: 0 }}>Create Public Group</h3>
+                      <button onClick={() => setIsCreateGroupModalOpen(false)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}><XIcon /></button>
                     </div>
+                    <input type="text" placeholder="Group Name" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} style={{ width: '100%', padding: '14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', marginBottom: '12px', outline: 'none', boxSizing: 'border-box' }} />
+                    <textarea placeholder="Description" value={newGroupDesc} onChange={(e) => setNewGroupDesc(e.target.value)} style={{ width: '100%', padding: '14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', marginBottom: '20px', outline: 'none', height: '80px', resize: 'none', boxSizing: 'border-box' }} />
+                    <button onClick={handleCreateGroup} style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '12px', color: '#101926', fontWeight: '900', cursor: 'pointer' }}>Create Group</button>
                   </div>
                 </div>
               )}
 
-             {/* ==================== TAB 3: PEOPLE ==================== */}
+              {/* ==================== TAB 3: PEOPLE ==================== */}
               {hubTab === 'PEOPLE' && (
-                <div style={{ padding: '0 20px' }}>
-                  <div className="glass-scroll" style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px', overflowX: 'auto' }}>
-                    {['MY CHURCH', 'DENOMINATION', 'NEARBY', 'GLOBAL'].map(sub => (
-                      <button 
-                        key={sub}
-                        onClick={() => setPeopleSubTab(sub)}
-                        style={{ padding: '10px 14px', borderRadius: '12px', border: peopleSubTab === sub ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', background: peopleSubTab === sub ? 'rgba(41, 190, 175, 0.1)' : 'transparent', color: peopleSubTab === sub ? '#29beaf' : '#8e9aab', fontSize: '10px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
-                      >
-                        {sub === 'MY CHURCH' && <span><ChurchIcon /></span>}
-                        {sub === 'DENOMINATION' && <span><RosterUsersIcon /></span>}
-                        {sub === 'NEARBY' && <span>📍</span>}
-                        {sub === 'GLOBAL' && <span><GlobeIcon /></span>}
-                        {sub}
-                      </button>
-                    ))}
+                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', width: '100%' }}>
+                  <div style={{ padding: '0 20px', flexShrink: 0 }}>
+                    <div className="glass-scroll" style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px', overflowX: 'auto' }}>
+                      {['MY CHURCH', 'DENOMINATION', 'NEARBY', 'GLOBAL'].map(sub => (
+                        <button 
+                          key={sub}
+                          onClick={() => setPeopleSubTab(sub)}
+                          style={{ padding: '10px 14px', borderRadius: '12px', border: peopleSubTab === sub ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', background: peopleSubTab === sub ? 'rgba(41, 190, 175, 0.1)' : 'transparent', color: peopleSubTab === sub ? '#29beaf' : '#8e9aab', fontSize: '10px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
+                        >
+                          {sub}
+                        </button>
+                      ))}
+                    </div>
+                    
+                    <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '24px', width: '100%', boxSizing: 'border-box' }}>
+                      <SearchIcon />
+                      <input type="text" placeholder="Search believers..." value={peopleSearch} onChange={(e) => setPeopleSearch(e.target.value)} style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', width: '100%', fontSize: '14px' }} />
+                    </div>
                   </div>
-                  <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '24px' }}>
-                    <SearchIcon />
-                    <input type="text" placeholder="Search believers..." value={peopleSearch} onChange={(e) => setPeopleSearch(e.target.value)} style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', width: '100%', fontSize: '14px' }} />
-                  </div>
-                  <div className="glass-scroll" style={{ display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', height: 'calc(100vh - 300px)' }}>
-                    {peopleSubTab === 'GLOBAL' ? (
-                      [].filter(u => u.email !== currentUser?.email).length > 0 ? (
-                        [].filter(u => u.email !== currentUser?.email).map((dbUser, idx) => (
-                          <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              
-                              <div onClick={(e) => handleViewProfile(e, dbUser)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: dbUser.formData?.avatar || 'rgba(41, 190, 175, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#29beaf', fontWeight: '900', cursor: 'pointer' }}>
-                                {!dbUser.formData?.avatar && (dbUser.formData?.fullName?.charAt(0) || dbUser.email.charAt(0).toUpperCase())}
-                              </div>
 
+                  <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', flex: 1, paddingBottom: '100px' }}>
+                    {peopleSubTab === 'GLOBAL' ? (
+                      globalUsers.length > 0 ? (
+                        globalUsers.map(user => (
+                          <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                                {user.full_name?.charAt(0) || 'U'}
+                              </div>
                               <div>
-                                <div style={{ color: '#fff', fontSize: '14px', fontWeight: '800' }}>{dbUser.formData?.fullName || 'Believer'}</div>
-                                <div style={{ color: '#8e9aab', fontSize: '11px' }}>@{dbUser.formData?.username || dbUser.email.split('@')[0]}</div>
+                                <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>{user.full_name || 'Anonymous Believer'}</div>
+                                <div style={{ color: '#8e9aab', fontSize: '11px' }}>{user.denomination || 'Kingdom Citizen'}</div>
                               </div>
                             </div>
-                            <button onClick={() => handleAddFriend(dbUser)} style={{ background: friendsList.some(f => f.email === dbUser.email) ? 'rgba(41, 190, 175, 0.1)' : 'linear-gradient(90deg, #f3ca58, #29beaf)', border: friendsList.some(f => f.email === dbUser.email) ? '1px solid rgba(41, 190, 175, 0.3)' : 'none', padding: '6px 12px', borderRadius: '8px', color: friendsList.some(f => f.email === dbUser.email) ? '#29beaf' : '#101926', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>
-                              {friendsList.some(f => f.email === dbUser.email) ? '✓ Added' : 'Add Friend'}
+                            <button onClick={() => sendFriendRequest(user.id)} style={{ background: 'transparent', border: '1px solid #f3ca58', color: '#f3ca58', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>
+                              CONNECT
                             </button>
                           </div>
                         ))
-                      ) : <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px' }}>No other users registered in the global database yet.</div>
+                      ) : (
+                        <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px' }}>Loading global directory...</div>
+                      )
                     ) : (
                       <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '14px' }}>No one found in this category yet.</div>
                     )}
@@ -7273,286 +7641,114 @@ const handlePurchaseService = async (service) => {
 
               {/* ==================== TAB 4: REQUESTS ==================== */}
               {hubTab === 'REQUESTS' && (
-                <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '40px', overflowY: 'auto', height: 'calc(100vh - 220px)' }}>
-                  <div>
-                    <div style={{ color: '#f3ca58', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '20px' }}>INCOMING</div>
-                    {friendRequests.length === 0 ? (
-                      <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '14px' }}>No new requests.</div>
+                <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '30px', overflowY: 'auto', flex: 1, paddingBottom: '100px', width: '100%' }}>
+                  
+                  {/* INCOMING REQUESTS */}
+                  <div style={{ width: '100%' }}>
+                    <div style={{ color: '#f3ca58', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '16px' }}>INCOMING ({incomingRequests.length})</div>
+                    {incomingRequests.length === 0 ? (
+                      <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '16px' }}>No new requests.</div>
                     ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {friendRequests.map(req => (
-                          <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '900' }}>{req.name.charAt(0)}</div>
-                              <div>
-                                <div style={{ color: '#fff', fontSize: '14px', fontWeight: '800' }}>{req.name}</div>
-                                <div style={{ color: '#8e9aab', fontSize: '11px' }}>{req.handle}</div>
-                              </div>
-                            </div>
-                            <div style={{ display: 'flex', gap: '6px' }}>
-                              <button onClick={() => { setFriendsList(prev => [...prev, { ...req, status: 'online' }]); setFriendRequests(prev => prev.filter(r => r.id !== req.id)); }} style={{ background: '#2ecc71', border: 'none', padding: '6px 12px', borderRadius: '8px', color: '#101926', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>Accept</button>
-                              <button onClick={() => setFriendRequests(prev => prev.filter(r => r.id !== req.id))} style={{ background: 'rgba(255,255,255,0.05)', border: 'none', padding: '6px 12px', borderRadius: '8px', color: '#fff', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>Reject</button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div>
-                    <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '20px' }}>SENT</div>
-                    <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '14px' }}>No pending sent requests.</div>
-                  </div>
-                  <div>
-                    <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '20px' }}>FRIENDS ({friendsList.length})</div>
-                    {friendsList.length === 0 ? (
-                      <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '14px' }}>No friends yet — send a request from People.</div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        {friendsList.map(friend => (
-                          <div key={friend.id} style={{ display: 'flex', alignItems: 'center', gap: '14px', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                            
-                            <div onClick={(e) => handleViewProfile(e, friend)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: friend.avatar ? `url(${friend.avatar}) center/cover no-repeat` : 'linear-gradient(135deg, #101926, #1f3752)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontWeight: '900', border: '1px solid rgba(243, 202, 88, 0.3)', cursor: 'pointer' }}>
-                              {!friend.avatar && friend.name.charAt(0)}
-                            </div>
-
-                            <div>
-                              <div style={{ color: '#fff', fontSize: '14px', fontWeight: '800' }}>{friend.name}</div>
-                              <div style={{ color: '#8e9aab', fontSize: '11px' }}>{friend.handle}</div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* --- FLOATING ACTION BUTTON --- */}
-              {hubTab === 'CHATS' && (
-                <div 
-                  onClick={() => setIsNewChatModalOpen(true)}
-                  style={{ position: 'absolute', bottom: '90px', right: '20px', width: '56px', height: '56px', borderRadius: '50%', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 4px 12px rgba(41, 190, 175, 0.4)', cursor: 'pointer', zIndex: 9999, transition: 'transform 0.2s' }}
-                  onMouseDown={(e) => e.currentTarget.style.transform = 'scale(0.9)'}
-                  onMouseUp={(e) => e.currentTarget.style.transform = 'scale(1)'}
-                >
-                  <NewChatIcon />
-                </div>
-              )}
-
-              {/* --- NEW CHAT CONTACTS MODAL OVERLAY --- */}
-              {isNewChatModalOpen && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#09101a', zIndex: 10000, display: 'flex', flexDirection: 'column' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '16px', padding: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)', background: 'rgba(9, 16, 26, 0.95)' }}>
-                    <button onClick={() => setIsNewChatModalOpen(false)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center' }}><BackArrowIcon /></button>
-                    <div>
-                      <h3 style={{ color: '#fff', fontSize: '18px', margin: 0 }}>Select Believer</h3>
-                      <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>{friendsList.length} Friends</div>
-                    </div>
-                  </div>
-                  <div className="glass-scroll" style={{ padding: '20px', overflowY: 'auto', flex: 1 }}>
-                    {friendsList.length === 0 ? (
-                      <div style={{ textAlign: 'center', marginTop: '40px' }}>
-                        <h4 style={{ color: '#fff', fontSize: '16px', margin: '0 0 8px 0' }}>No Contacts Yet</h4>
-                        <p style={{ color: '#8e9aab', fontSize: '13px', margin: '0 0 20px 0' }}>Head to the PEOPLE tab and search the GLOBAL directory to add believers.</p>
-                        <button onClick={() => { setIsNewChatModalOpen(false); setHubTab('PEOPLE'); setPeopleSubTab('GLOBAL'); }} style={{ background: 'linear-gradient(90deg, #f3ca58, #29beaf)', border: 'none', padding: '10px 20px', borderRadius: '12px', color: '#101926', fontSize: '13px', fontWeight: '800', cursor: 'pointer' }}>Find Believers</button>
-                      </div>
-                    ) : (
-                      friendsList.map(friend => (
-                        <div key={friend.id} onClick={() => { setActiveChat(friend); setIsNewChatModalOpen(false); }} style={{ display: 'flex', alignItems: 'center', gap: '14px', padding: '14px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', marginBottom: '10px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer' }}>
-                          <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: friend.avatar ? `url(${friend.avatar}) center/cover no-repeat` : 'linear-gradient(135deg, #101926, #1f3752)', border: '1px solid rgba(243, 202, 88, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontWeight: '900', fontSize: '18px' }}>
-                            {!friend.avatar && friend.name.charAt(0)}
-                          </div>
-                          <div style={{ flex: 1 }}>
-                            <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>{friend.name}</div>
-                            <div style={{ color: '#8e9aab', fontSize: '13px', marginTop: '2px' }}>{friend.handle}</div>
+                      incomingRequests.map(req => (
+                        <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <div style={{ color: '#fff', fontSize: '14px' }}>{req.sender?.full_name}</div>
+                          <div style={{ display: 'flex', gap: '8px' }}>
+                            <button onClick={() => handleRequestAction(req.id, 'accepted')} style={{ background: '#29beaf', color: '#101926', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>ACCEPT</button>
+                            <button onClick={() => handleRequestAction(req.id, 'rejected')} style={{ background: 'rgba(231, 76, 60, 0.2)', color: '#e74c3c', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>DECLINE</button>
                           </div>
                         </div>
                       ))
                     )}
                   </div>
-                </div>
-              )}
-
-              {/* =========================================
-                  DYNAMIC PROFILE VIEW MODAL
-                  ========================================= */}
-              {selectedProfile && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 10000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(5px)' }}>
-                  
-                  {/* Invisible background click to close */}
-                  <div onClick={() => setSelectedProfile(null)} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}></div>
-                  
-                  {/* The Profile Card */}
-                  <div style={{ width: '100%', maxWidth: '500px', background: '#09101a', borderTopLeftRadius: '30px', borderTopRightRadius: '30px', border: '1px solid rgba(255,255,255,0.05)', position: 'relative', zIndex: 10001, overflow: 'hidden', animation: 'slideUp 0.3s ease-out' }}>
-                    
-                    <style>{`
-                      @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-                    `}</style>
-
-                    {/* Cover Photo Area */}
-                    <div style={{ height: '120px', background: selectedProfile.isMinistry ? 'linear-gradient(135deg, #1f3752, #09101a)' : 'linear-gradient(135deg, rgba(41, 190, 175, 0.2), rgba(243, 202, 88, 0.1))', position: 'relative' }}>
-                      <button onClick={() => setSelectedProfile(null)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(0,0,0,0.4)', border: 'none', color: '#fff', width: '32px', height: '32px', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        ✕
-                      </button>
-                    </div>
-
-                    {/* Avatar Overlapping Cover */}
-                    <div style={{ padding: '0 24px 24px 24px', position: 'relative', top: '-40px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-                        <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: selectedProfile.avatar ? `url(${selectedProfile.avatar}) center/cover` : (selectedProfile.isMinistry ? 'linear-gradient(135deg, #f3ca58, #b89020)' : 'linear-gradient(135deg, #29beaf, #1a8277)'), border: '4px solid #09101a', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '32px', fontWeight: '900' }}>
-                          {!selectedProfile.avatar && selectedProfile.name.charAt(0)}
+                  <div style={{ width: '100%' }}>
+                    <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '16px' }}>SENT ({sentRequests.length})</div>
+                    {sentRequests.length === 0 ? (
+                       <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '16px' }}>No pending sent requests.</div>
+                    ) : (
+                      sentRequests.map(req => (
+                        <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                          <div style={{ color: '#fff', fontSize: '14px' }}>{req.receiver?.full_name}</div>
+                          <div style={{ color: '#8e9aab', fontSize: '10px', fontWeight: 'bold' }}>PENDING</div>
                         </div>
-                        
-                        {/* Dynamic Action Button */}
-                        <button 
-                          onClick={() => { setActiveChat(selectedProfile.originalData); setSelectedProfile(null); }}
-                          style={{ background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', padding: '10px 20px', borderRadius: '24px', color: '#101926', fontWeight: '900', fontSize: '13px', cursor: 'pointer' }}
-                        >
-                          Message
-                        </button>
-                      </div>
-
-                      {/* Profile Info */}
-                      <div style={{ marginTop: '16px' }}>
-                        <h2 style={{ color: '#fff', fontSize: '22px', fontWeight: '900', margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          {selectedProfile.name}
-                          {selectedProfile.isMinistry && <VerifiedChurchIcon />}
-                        </h2>
-                        <div style={{ color: '#8e9aab', fontSize: '14px', fontWeight: '700' }}>
-                          {selectedProfile.handle || `@${selectedProfile.name.replace(/\s+/g, '').toLowerCase()}`}
-                        </div>
-                        
-                        {/* Dynamic Badge */}
-                        <div style={{ display: 'inline-block', marginTop: '12px', padding: '6px 12px', borderRadius: '12px', fontSize: '11px', fontWeight: '800', background: selectedProfile.isMinistry ? 'rgba(243, 202, 88, 0.1)' : 'rgba(41, 190, 175, 0.1)', color: selectedProfile.isMinistry ? '#f3ca58' : '#29beaf', border: `1px solid ${selectedProfile.isMinistry ? 'rgba(243, 202, 88, 0.3)' : 'rgba(41, 190, 175, 0.3)'}` }}>
-                          {selectedProfile.isMinistry ? '⛪ Ordained Ministry' : '🕊️ Verified Believer'}
-                        </div>
-                      </div>
-
-                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.05)', margin: '20px 0' }}></div>
-
-                      {/* Extended Actions */}
-                      <div style={{ display: 'flex', gap: '12px' }}>
-                        {selectedProfile.isMinistry ? (
-                          <>
-                            <button onClick={() => setActiveModal('send')} style={{ flex: 1, background: 'rgba(243, 202, 88, 0.1)', border: '1px solid rgba(243, 202, 88, 0.3)', color: '#f3ca58', padding: '12px', borderRadius: '16px', fontSize: '13px', fontWeight: '800', cursor: 'pointer' }}>
-                              Support / Tithe
-                            </button>
-                            <button style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '12px', borderRadius: '16px', fontSize: '13px', fontWeight: '800', cursor: 'pointer' }}>
-                              Join Service
-                            </button>
-                          </>
-                        ) : (
-                          <>
-                            <button onClick={() => setActiveModal('send')} style={{ flex: 1, background: 'rgba(41, 190, 175, 0.1)', border: '1px solid rgba(41, 190, 175, 0.3)', color: '#29beaf', padding: '12px', borderRadius: '16px', fontSize: '13px', fontWeight: '800', cursor: 'pointer' }}>
-                              Send KPC Tip
-                            </button>
-                            {!friendsList.some(f => f.email === selectedProfile.id) && (
-                              <button onClick={() => handleAddFriend(selectedProfile.originalData)} style={{ flex: 1, background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: '#fff', padding: '12px', borderRadius: '16px', fontSize: '13px', fontWeight: '800', cursor: 'pointer' }}>
-                                Add Friend
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-                      
-                    </div>
+                      ))
+                    )}
                   </div>
+
                 </div>
               )}
-
-            </>
+            </div>
           ) : (
 
-            /* --- VIEW 2: ACTIVE KINGDOM CHAT ROOM --- */
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', background: '#09101a', overflow: 'hidden', position: 'relative', zIndex: 1000 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', background: 'transparent', overflow: 'hidden', position: 'relative', zIndex: 1000 }}>
               
-              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'rgba(9, 16, 26, 0.95)', borderBottom: '1px solid rgba(255,255,255,0.05)', zIndex: 20 }}>
+              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'rgba(9, 16, 26, 0.4)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(255,255,255,0.05)', zIndex: 20 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <button onClick={() => setActiveChat(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+                  <button onClick={() => setActiveDbChat(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
                     <BackArrowIcon />
                   </button>
-                  <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: activeChat.type === 'Ministry Groups' ? 'rgba(41, 190, 175, 0.1)' : 'linear-gradient(135deg, #101926, #1f3752)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: activeChat.type === 'Ministry Groups' ? '#29beaf' : '#f3ca58', fontWeight: '900', fontSize: '16px', border: '1px solid rgba(243, 202, 88, 0.3)' }}>
-                    {activeChat.name.charAt(0)}
-                  </div>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '800', margin: 0 }}>{activeChat.name}</h3>
-                    <span style={{ color: activeChat.status === 'online' ? '#2ecc71' : '#8e9aab', fontSize: '11px', fontWeight: '700' }}>
-                      {activeChat.status === 'online' ? 'Online' : `last seen at ${activeChat.lastSeen || 'recently'}`}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', color: '#8e9aab' }}>
-                  {activeChat.type !== 'Ministry Groups' && (
-                    <button onClick={() => setActiveModal('send')} style={{ background: 'rgba(243, 202, 88, 0.1)', border: '1px solid rgba(243, 202, 88, 0.3)', color: '#f3ca58', padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '800', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      Tip
-                    </button>
-                  )}
-                  <span style={{ cursor: 'pointer', display: 'flex' }} onClick={() => alert("Initiating Kingdom Call...")}>
-                    <VoiceCallIcon />
-                  </span>
-                  
-                  <div style={{ position: 'relative' }}>
-                    <span style={{ cursor: 'pointer', display: 'flex' }} onClick={() => setIsChatMenuOpen(!isChatMenuOpen)}>
-                      <ThreeDotsIcon />
-                    </span>
-                    {isChatMenuOpen && (
-                      <>
-                        <div onClick={() => setIsChatMenuOpen(false)} style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 90 }}></div>
-                        <div style={{ position: 'absolute', top: '30px', right: 0, background: '#101926', border: '1px solid rgba(41, 190, 175, 0.2)', borderRadius: '12px', width: '160px', padding: '8px 0', boxShadow: '0 10px 30px rgba(0,0,0,0.8)', zIndex: 100 }}>
-                          {['Pin Chat', 'Mute Notifications', 'Block User', 'Delete Chat'].map(action => (
-                            <div key={action} onClick={() => { alert(`${action} applied.`); setIsChatMenuOpen(false); }} style={{ padding: '12px 16px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', color: action === 'Block User' || action === 'Delete Chat' ? '#e74c3c' : '#fff', transition: 'all 0.2s' }}>{action}</div>
-                          ))}
-                        </div>
-                      </>
-                    )}
+                    <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '800', margin: 0 }}>
+                      {activeDbChat.type === 'group' ? activeDbChat.name : "Private Message"}
+                    </h3>
+                    <span style={{ color: '#2ecc71', fontSize: '11px', fontWeight: '700' }}>Live Chat Sync</span>
                   </div>
                 </div>
               </div>
 
               <div className="glass-scroll" style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                 <div style={{ textAlign: 'center', color: '#55657a', fontSize: '11px', fontWeight: '700', marginBottom: '10px' }}>
-                  🔒 Encrypted Kingdom Chat
+                  🔒 Encrypted Web3 Chat
                 </div>
 
-                {activeConversation.map((msg) => (
-                  <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: msg.isMe ? 'flex-end' : 'flex-start' }}>
-                    {msg.intent && msg.intent !== 'NORMAL' && (
-                      <span style={{ fontSize: '9px', fontWeight: '900', padding: '2px 8px', borderRadius: '6px', background: msg.intent === 'URGENT PRAYER' ? 'rgba(231, 76, 60, 0.2)' : 'rgba(243, 202, 88, 0.2)', color: msg.intent === 'URGENT PRAYER' ? '#e74c3c' : '#f3ca58', marginBottom: '4px', letterSpacing: '0.5px' }}>
-                        {msg.intent}
-                      </span>
-                    )}
-                    <div style={{ background: msg.isMe ? 'rgba(41, 190, 175, 0.15)' : 'rgba(255,255,255,0.05)', color: msg.isMe ? '#29beaf' : '#fff', padding: '12px 16px', borderRadius: msg.isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px', maxWidth: '75%', fontSize: '14px', lineHeight: '1.4', border: msg.isMe ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', wordBreak: 'break-word' }}>
-                      {msg.text}
+                {dbMessages.map((msg) => {
+                  const isMe = userProfile?.id === msg.sender_id; 
+                  
+                  return (
+                    <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                      
+                      {!isMe && activeDbChat.type === 'group' && (
+                        <div style={{ fontSize: '10px', color: '#8e9aab', marginBottom: '4px', marginLeft: '12px' }}>
+                          {msg.user_profile?.full_name || 'Unknown'}
+                        </div>
+                      )}
+
+                      {msg.intent && msg.intent !== 'NORMAL' && (
+                        <span style={{ fontSize: '9px', fontWeight: '900', padding: '2px 8px', borderRadius: '6px', background: msg.intent === 'URGENT PRAYER' ? 'rgba(231, 76, 60, 0.2)' : 'rgba(243, 202, 88, 0.2)', color: msg.intent === 'URGENT PRAYER' ? '#e74c3c' : '#f3ca58', marginBottom: '4px', letterSpacing: '0.5px' }}>
+                          {msg.intent}
+                        </span>
+                      )}
+                      
+                      <div style={{ background: isMe ? 'rgba(41, 190, 175, 0.15)' : 'rgba(255,255,255,0.05)', color: isMe ? '#29beaf' : '#fff', padding: '12px 16px', borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px', maxWidth: '75%', fontSize: '14px', lineHeight: '1.4', border: isMe ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', wordBreak: 'break-word', backdropFilter: 'blur(5px)' }}>
+                        {msg.content}
+                      </div>
+                      
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', color: '#55657a', fontSize: '10px', fontWeight: '700' }}>
+                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {isMe && <ChatDoubleCheckIcon />}
+                      </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', color: '#55657a', fontSize: '10px', fontWeight: '700' }}>
-                      {msg.time} {msg.isMe && <ChatDoubleCheckIcon />}
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
 
-              <div style={{ flexShrink: 0, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box' }}>
+              <div style={{ flexShrink: 0, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,0.2)' }}>
                 <div className="glass-scroll" style={{ display: 'flex', gap: '8px', marginBottom: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
-                  {['URGENT PRAYER', 'COUNSELING', 'TESTIMONY'].map(intent => (
+                  {['NORMAL', 'URGENT PRAYER', 'COUNSELING', 'TESTIMONY'].map(intent => (
                     <span 
-                      key={intent} 
-                      onClick={() => setMessageIntent(intent)} 
+                      key={intent} onClick={() => setMessageIntent(intent)} 
                       style={{ padding: '6px 12px', borderRadius: '14px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', background: messageIntent === intent ? '#f3ca58' : 'rgba(255,255,255,0.05)', color: messageIntent === intent ? '#101926' : '#8e9aab' }}
                     >
                       {intent}
                     </span>
                   ))}
                 </div>
-                <form onSubmit={handleSendMessage} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '24px', padding: '6px 6px 6px 16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                
+                <form onSubmit={handleSendDbMessage} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '24px', padding: '6px 6px 6px 16px', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <span style={{ color: '#8e9aab', cursor: 'pointer', display: 'flex', transform: 'rotate(-45deg)' }} onClick={() => alert("Select a document or image to attach.")}>
                     <AttachIcon />
                   </span>
                   <input 
-                    type="text" 
-                    placeholder={messageIntent === 'NORMAL' ? "Message..." : `Draft your ${messageIntent.toLowerCase()}...`}
-                    value={chatInputMessage} 
-                    onChange={(e) => setChatInputMessage(e.target.value)} 
+                    type="text" placeholder={messageIntent === 'NORMAL' ? "Message..." : `Draft your ${messageIntent.toLowerCase()}...`}
+                    value={chatInputMessage} onChange={(e) => setChatInputMessage(e.target.value)} 
                     style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '14px', padding: '0 8px' }} 
                   />
                   <button type="submit" style={{ background: chatInputMessage ? 'linear-gradient(90deg, #f3ca58, #29beaf)' : 'rgba(255,255,255,0.05)', border: 'none', width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: chatInputMessage ? '#101926' : '#8e9aab', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>
@@ -7560,13 +7756,13 @@ const handlePurchaseService = async (service) => {
                   </button>
                 </form>
               </div>
-
             </div>
           )}
 
-         {!activeChat && <AppBottomNav />}
+          {!activeDbChat && <AppBottomNav />}
         </div>
       )}
+          
 
 {/* =========================================
           STEP 24: ADMIN DESK
@@ -7575,7 +7771,7 @@ const handlePurchaseService = async (service) => {
         <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
           
           <div className="feed-header-top" style={{ paddingBottom: '10px' }}>
-            <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
+            <button className="back-button" onClick={() => setStep(18)} style={{ width: '36px', height: '36px' }}>
               <BackArrowIcon />
             </button>
             <h2 style={{ fontSize: '18px', fontWeight: '800', margin: '0' }}>
@@ -7586,8 +7782,8 @@ const handlePurchaseService = async (service) => {
 
           {/* Admin Navigation Tabs */}
           <div className="feed-tabs-container" style={{ marginBottom: '15px', padding: '0 20px' }}>
-            {['Dreams', 'Music', 'Movies', 'News'].map((tab) => (
-              <div key={tab} className={`feed-tab ${adminTab === tab ? 'active' : ''}`} onClick={() => setAdminTab(tab)}>
+            {['Dreams', 'Music', 'Videos', 'Movies', 'News'].map((tab) => (
+              <div key={tab} className={`feed-tab ${adminTab === tab ? 'active' : ''}`} onClick={() => { setAdminTab(tab); setEditingId(null); }}>
                 <span style={{ marginLeft: '4px' }}>{tab}</span>
               </div>
             ))}
@@ -7595,57 +7791,151 @@ const handlePurchaseService = async (service) => {
 
           <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px' }}>
             
-            {/* --- DREAMS / PROPHET DESK --- */}
+            {/* --- MEDIA & CONTENT FORM --- */}
+            {['Music', 'Videos', 'Movies', 'News'].includes(adminTab) && (
+              <>
+                <div style={{ margin: '0 20px 25px 20px', padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '700', margin: 0 }}>
+                      {editingId ? `Edit ${adminTab}` : `Upload New ${adminTab}`}
+                    </h3>
+                    {editingId && (
+                      <button onClick={() => { setEditingId(null); setAdminUpload({ title: '', artist: '', description: '', img: '', src: '', content: '', category: 'Nigerian Gospel' }); }} style={{ background: 'rgba(231, 76, 60, 0.2)', border: 'none', color: '#e74c3c', padding: '4px 8px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer' }}>Cancel Edit</button>
+                    )}
+                  </div>
+                  
+                  <label className="dream-input-label">TITLE</label>
+                  <input type="text" className="dream-input" placeholder={`Enter ${adminTab.toLowerCase()} title...`} value={adminUpload.title} onChange={(e) => setAdminUpload({...adminUpload, title: e.target.value})} />
+       
             {adminTab === 'Dreams' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '700', padding: '0 20px' }}>Pending Interpretations</h3>
                 
-                {/* Example of a Pending Dream Card */}
-                <div className="admin-dream-card" style={{ margin: '0 20px', padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(243, 202, 88, 0.3)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ color: '#f3ca58', fontSize: '11px', fontWeight: '800' }}>PENDING REVIEW</span>
-                    <span style={{ color: '#8e9aab', fontSize: '11px' }}>@user_wallet</span>
-                  </div>
-                  <h4 style={{ color: '#fff', fontSize: '16px', marginBottom: '8px' }}>A river of gold...</h4>
-                  <p style={{ color: '#e2e8f0', fontSize: '13px', marginBottom: '15px', lineHeight: '1.5' }}>
-                    I saw a river flowing with bright yellow light, and people were gathering around it to drink...
-                  </p>
-                  
-                  <textarea 
-                    className="dream-textarea" 
-                    placeholder="Type your prophetic interpretation here..." 
-                    style={{ height: '100px', marginBottom: '10px' }}
-                  ></textarea>
-                  <button className="modal-btn-primary" style={{ width: '100%' }}>Send Interpretation</button>
-                </div>
+                {pendingDreams.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#8e9aab', padding: '20px' }}>No pending dreams right now.</div>
+                ) : (
+                  pendingDreams.map(dream => (
+                    <div key={dream.id} className="admin-dream-card" style={{ margin: '0 20px', padding: '16px', background: 'rgba(255,255,255,0.05)', borderRadius: '16px', border: '1px solid rgba(243, 202, 88, 0.3)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                        <span style={{ color: '#f3ca58', fontSize: '11px', fontWeight: '800' }}>PENDING REVIEW</span>
+                      </div>
+                      <h4 style={{ color: '#fff', fontSize: '16px', marginBottom: '8px' }}>{dream.title}</h4>
+                      <p style={{ color: '#e2e8f0', fontSize: '13px', marginBottom: '15px', lineHeight: '1.5' }}>
+                        {dream.content}
+                      </p>
+                      
+                      <textarea 
+                        className="dream-textarea" 
+                        placeholder="Type your prophetic interpretation here..." 
+                        value={dreamReply}
+                        onChange={(e) => setDreamReply(e.target.value)}
+                        style={{ height: '100px', marginBottom: '10px' }}
+                      ></textarea>
+                      <button onClick={() => handleSendInterpretation(dream.id)} className="modal-btn-primary" style={{ width: '100%' }}>Send Interpretation</button>
+                    </div>
+                  ))
+                )}
               </div>
             )}
 
-            {/* --- MEDIA & CONTENT UPLOAD (Music, Movies, News) --- */}
-            {['Music', 'Movies', 'News'].includes(adminTab) && (
-              <div style={{ margin: '0 20px', padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '700', marginBottom: '20px' }}>Upload New {adminTab}</h3>
-                
-                <label className="dream-input-label">TITLE</label>
-                <input type="text" className="dream-input" placeholder={`Enter ${adminTab.toLowerCase()} title...`} />
+                  {adminTab !== 'News' && (
+                    <>
+                      <label className="dream-input-label">ARTIST / CREATOR / CHANNEL</label>
+                      <input type="text" className="dream-input" placeholder="Name of creator or channel..." value={adminUpload.artist} onChange={(e) => setAdminUpload({...adminUpload, artist: e.target.value})} />
 
-                {adminTab !== 'News' && (
-                  <>
-                    <label className="dream-input-label">ARTIST / CREATOR</label>
-                    <input type="text" className="dream-input" placeholder="Name of creator..." />
-                  </>
-                )}
+                      <label className="dream-input-label">REGION / CATEGORY</label>
+                      <select className="app-select" value={adminUpload.category} onChange={(e) => setAdminUpload({...adminUpload, category: e.target.value})} style={{ marginBottom: '20px' }}>
+                        {adminTab === 'Music' && (
+                          <>
+                            <option value="Nigerian Gospel">Nigerian Gospel</option>
+                            <option value="South African Gospel">South African Gospel</option>
+                            <option value="American Gospel">American Gospel</option>
+                            <option value="Ghanaian Gospel">Ghanaian Gospel</option>
+                            <option value="Most Popular">Most Popular</option>
+                            <option value="Trending Now">Trending Now</option>
+                            <option value="Afro Gospel">Afro Gospel</option>
+                            <option value="Rising Gospel">Rising Gospel</option>
 
-                <label className="dream-input-label">COVER IMAGE</label>
-                <div style={{ border: '2px dashed rgba(41, 190, 175, 0.3)', padding: '25px', borderRadius: '12px', textAlign: 'center', marginBottom: '20px', color: '#29beaf', cursor: 'pointer', background: 'rgba(41, 190, 175, 0.05)' }}>
-                   + Click to upload artwork
+                          </>
+                        )}
+                        {adminTab === 'Videos' && (
+                          <>
+                            <option value="Sermons">Sermons</option>
+                            <option value="Worship">Worship</option>
+                            <option value="Teaching">Teaching</option>
+                            <option value="Shorts">Shorts</option>
+                            <option value="Prophetic">Prophetic</option>
+                          </>
+                        )}
+                        {adminTab === 'Movies' && (
+                          <>
+                            <option value="KP Original">KP Original</option>
+                            <option value="Trending Now">Trending Now</option>
+                            <option value="Faith & Family">Faith & Family</option>
+                            <option value="Documentaries">Documentaries</option>
+                          </>
+                        )}
+                      </select>
+
+                      <label className="dream-input-label">SHORT DESCRIPTION</label>
+                      <input type="text" className="dream-input" placeholder="Catchy description..." value={adminUpload.description} onChange={(e) => setAdminUpload({...adminUpload, description: e.target.value})} />
+                    </>
+                  )}
+
+                  <label className="dream-input-label">COVER IMAGE (URL OR FILE)</label>
+                  <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                    <input type="text" className="dream-input" placeholder="Paste image link..." value={adminUpload.img} onChange={(e) => setAdminUpload({...adminUpload, img: e.target.value})} style={{ marginBottom: 0, flex: 1 }} />
+                    <div style={{ position: 'relative', width: '45px', height: '45px', flexShrink: 0, borderRadius: '12px', background: 'rgba(41, 190, 175, 0.1)', border: '1px solid #29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#29beaf', cursor: 'pointer', overflow: 'hidden' }}>
+                      <span style={{ fontSize: '20px', fontWeight: '900' }}>+</span>
+                      <input type="file" accept="image/*" onChange={(e) => handleFileUpload(e, 'img')} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+                    </div>
+                  </div>
+
+                  {adminTab === 'News' ? (
+                    <>
+                      <label className="dream-input-label">ARTICLE CONTENT</label>
+                      <textarea className="dream-textarea" placeholder="Write or paste full article..." value={adminUpload.content} onChange={(e) => setAdminUpload({...adminUpload, content: e.target.value})}></textarea>
+                    </>
+                  ) : (
+                    <>
+                      <label className="dream-input-label">SOURCE MEDIA (URL OR FILE)</label>
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                        <input type="text" className="dream-input" placeholder="Paste media link..." value={adminUpload.src} onChange={(e) => setAdminUpload({...adminUpload, src: e.target.value})} style={{ marginBottom: 0, flex: 1 }} />
+                        <div style={{ position: 'relative', width: '45px', height: '45px', flexShrink: 0, borderRadius: '12px', background: 'rgba(243, 202, 88, 0.1)', border: '1px solid #f3ca58', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', cursor: 'pointer', overflow: 'hidden' }}>
+                          <span style={{ fontSize: '20px', fontWeight: '900' }}>+</span>
+                          <input type="file" accept="audio/*,video/*" onChange={(e) => handleFileUpload(e, 'src')} style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }} />
+                        </div>
+                      </div>
+                    </>
+                  )}
+
+                  <button onClick={handleAdminPublish} disabled={isUploading} className="modal-btn-primary" style={{ width: '100%', marginTop: '10px' }}>
+                    {isUploading ? "Uploading file..." : editingId ? `Save Changes to ${adminTab}` : `Publish ${adminTab}`}
+                  </button>
                 </div>
 
-                <label className="dream-input-label">SOURCE MEDIA URL</label>
-                <input type="text" className="dream-input" placeholder="Paste link to media file..." />
-
-                <button className="modal-btn-primary" style={{ width: '100%', marginTop: '10px' }}>Publish {adminTab}</button>
-              </div>
+                {/* --- PUBLISHED LIST MANAGER (EDIT / DELETE) --- */}
+                <div style={{ margin: '0 20px' }}>
+                  <h3 style={{ color: '#fff', fontSize: '15px', fontWeight: '800', marginBottom: '15px' }}>Manage Published {adminTab}</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {(adminTab === 'Music' ? musicData : adminTab === 'Videos' ? videoData : adminTab === 'Movies' ? movieData : newsData).map(item => (
+                      <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.03)', padding: '12px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', overflow: 'hidden' }}>
+                          <img src={item.img} alt="" style={{ width: '40px', height: '40px', borderRadius: '8px', objectFit: 'cover' }} />
+                          <div style={{ overflow: 'hidden' }}>
+                            <div style={{ color: '#fff', fontSize: '13px', fontWeight: '700', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '160px' }}>{item.title}</div>
+                            <div style={{ color: '#8e9aab', fontSize: '11px' }}>{item.category || item.artist || 'Media'}</div>
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button onClick={() => handleStartEdit(item)} style={{ background: 'rgba(41, 190, 175, 0.2)', border: '1px solid #29beaf', color: '#29beaf', padding: '6px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>EDIT</button>
+                          <button onClick={() => handleDeleteContent(item.id)} style={{ background: 'rgba(231, 76, 60, 0.2)', border: '1px solid #e74c3c', color: '#e74c3c', padding: '6px 10px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer', fontWeight: 'bold' }}>DELETE</button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
             )}
             
           </div>
@@ -7653,6 +7943,8 @@ const handlePurchaseService = async (service) => {
           <AppBottomNav />
         </div>
       )}
+
+
 {/* =========================================
           STEP 25: PUBLIC PROFILE VIEW
           ========================================= */}
