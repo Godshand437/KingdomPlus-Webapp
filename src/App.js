@@ -7790,24 +7790,8 @@ const fetchPendingDreams = async () => {
           </div>
 
           <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px' }}>
-            
-            {/* --- MEDIA & CONTENT FORM --- */}
-            {['Music', 'Videos', 'Movies', 'News'].includes(adminTab) && (
-              <>
-                <div style={{ margin: '0 20px 25px 20px', padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '700', margin: 0 }}>
-                      {editingId ? `Edit ${adminTab}` : `Upload New ${adminTab}`}
-                    </h3>
-                    {editingId && (
-                      <button onClick={() => { setEditingId(null); setAdminUpload({ title: '', artist: '', description: '', img: '', src: '', content: '', category: 'Nigerian Gospel' }); }} style={{ background: 'rgba(231, 76, 60, 0.2)', border: 'none', color: '#e74c3c', padding: '4px 8px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer' }}>Cancel Edit</button>
-                    )}
-                  </div>
-                  
-                  <label className="dream-input-label">TITLE</label>
-                  <input type="text" className="dream-input" placeholder={`Enter ${adminTab.toLowerCase()} title...`} value={adminUpload.title} onChange={(e) => setAdminUpload({...adminUpload, title: e.target.value})} />
-       
-            {adminTab === 'Dreams' && (
+
+               {adminTab === 'Dreams' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
                 <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '700', padding: '0 20px' }}>Pending Interpretations</h3>
                 
@@ -7837,7 +7821,24 @@ const fetchPendingDreams = async () => {
                 )}
               </div>
             )}
+            
 
+            {/* --- MEDIA & CONTENT FORM --- */}
+            {['Music', 'Videos', 'Movies', 'News'].includes(adminTab) && (
+              <>
+                <div style={{ margin: '0 20px 25px 20px', padding: '20px', background: 'rgba(255,255,255,0.02)', borderRadius: '16px', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '700', margin: 0 }}>
+                      {editingId ? `Edit ${adminTab}` : `Upload New ${adminTab}`}
+                    </h3>
+                    {editingId && (
+                      <button onClick={() => { setEditingId(null); setAdminUpload({ title: '', artist: '', description: '', img: '', src: '', content: '', category: 'Nigerian Gospel' }); }} style={{ background: 'rgba(231, 76, 60, 0.2)', border: 'none', color: '#e74c3c', padding: '4px 8px', borderRadius: '8px', fontSize: '11px', cursor: 'pointer' }}>Cancel Edit</button>
+                    )}
+                  </div>
+                  
+                  <label className="dream-input-label">TITLE</label>
+                  <input type="text" className="dream-input" placeholder={`Enter ${adminTab.toLowerCase()} title...`} value={adminUpload.title} onChange={(e) => setAdminUpload({...adminUpload, title: e.target.value})} />
+      
                   {adminTab !== 'News' && (
                     <>
                       <label className="dream-input-label">ARTIST / CREATOR / CHANNEL</label>
