@@ -4,7 +4,7 @@ import { getOrCreateAssociatedTokenAccount, transfer } from '@solana/spl-token';
 import './App.css';
 import { supabase } from './supabaseClient';
 import { Buffer } from 'buffer';
-import { QrReader } from 'react-qr-reader';
+import { Scanner } from '@yudiel/react-qr-scanner';
 
 if (typeof window !== 'undefined') {
   window.Buffer = window.Buffer || Buffer;
@@ -804,19 +804,6 @@ const uploadNewTestimony = async (e) => {
     setAnnounceDescInput('');
     setActiveModal(null);
     alert("Your announcement is now live on your members dashboard slides.");
-  };
-
-  // Kingdom Screen State
-  const [hasClaimedChapter, setHasClaimedChapter] = useState(false);
-
-  // Rewards mechanism for Bible Reading
-  const claimBibleReward = () => {
-    if (!hasClaimedChapter) {
-      setKpcBalance(prev => prev + 5);
-      logTransaction('Daily Scripture Study', +5, 'EARN');
-      setHasClaimedChapter(true);
-      alert("Hallelujah! +5 KPC added to your Treasury.");
-    }
   };
 
 
@@ -3818,6 +3805,115 @@ const handlePurchaseService = async (service) => {
     link.click();
   };
 
+// ==========================================
+  // KINGDOM HUB & BIBLE API STATES
+  // ==========================================
+  const [selectedDevotion, setSelectedDevotion] = useState(null);
+  const [readDevotionsList, setReadDevotionsList] = useState([]);
+  const [isAddDevotionModalOpen, setIsAddDevotionModalOpen] = useState(false);
+  const [newDevotionForm, setNewDevotionForm] = useState({ title: '', scripture: '', body: '', reward: 5 });
+  const [selectedPlan, setSelectedPlan] = useState(null);
+  const [selectedMessage, setSelectedMessage] = useState(null);
+
+  // Live Bible API States
+  const [selectedBook, setSelectedBook] = useState('Psalms');
+  const [selectedChapter, setSelectedChapter] = useState(23);
+  const [bibleVerses, setBibleVerses] = useState([]);
+  const [isLoadingBible, setIsLoadingBible] = useState(false);
+  const [hasClaimedChapter, setHasClaimedChapter] = useState(false);
+
+  const bibleBooks = [
+    "Genesis", "Exodus", "Leviticus", "Numbers",  "Deuteronomy", "Joshua", "Judges", "Ruth", "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra", "Nehemiah", "Esther", "Job", "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon", "Isaiah", "Jeremiah", "Lamentation", "Ezekiel", "Daniel", "Hosea", "Joel", "Amos", "Obadiah", "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "Revelation"
+  ];
+
+  const fetchBibleChapter = async (book, chapter) => {
+    setIsLoadingBible(true);
+    setHasClaimedChapter(false);
+    try {
+      const response = await fetch(`https://bible-api.com/${book}+${chapter}?translation=kjv`);
+      const data = await response.json();
+      if (data.verses) {
+        setBibleVerses(data.verses);
+      } else {
+        setBibleVerses([]);
+      }
+    } catch (error) {
+      console.error("Error fetching Bible API:", error);
+    } finally {
+      setIsLoadingBible(false);
+    }
+  };
+
+  useEffect(() => {
+    if (kingdomTab === 'Bible') {
+      fetchBibleChapter(selectedBook, selectedChapter);
+    }
+  }, [selectedBook, selectedChapter, kingdomTab]);
+
+  const handleCompleteDevotion = async (devotion) => {
+    if (readDevotionsList.includes(devotion.id)) {
+      alert("You have already claimed rewards for this devotion today!");
+      return;
+    }
+
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const rewardAmount = devotion.reward || 5;
+
+      await supabase.from('user_profiles').update({
+        kpc_balance: (kpcBalance || 0) + rewardAmount,
+        devotions_read: (userProfile?.devotions_read || 0) + 1
+      }).eq('id', user.id);
+
+      await supabase.from('transactions').insert([{
+        sender_id: user.id,
+        receiver_id: user.id,
+        amount: rewardAmount,
+        tx_type: 'EARN',
+        title: `Completed Devotion: ${devotion.title}`
+      }]);
+
+      setKpcBalance(prev => prev + rewardAmount);
+      setUserProfile(prev => ({ ...prev, devotions_read: (prev?.devotions_read || 0) + 1 }));
+      setReadDevotionsList([...readDevotionsList, devotion.id]);
+      setSelectedDevotion(null);
+      alert(`Praise God! You earned +${rewardAmount} KPC for completing today's devotion.`);
+
+    } catch (error) {
+      console.error("Error claiming devotion reward:", error);
+    }
+  };
+
+    const claimBibleReward = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const rewardAmount = 5;
+
+      await supabase.from('user_profiles').update({
+        kpc_balance: (kpcBalance || 0) + rewardAmount
+      }).eq('id', user.id);
+
+      await supabase.from('transactions').insert([{
+        sender_id: user.id,
+        receiver_id: user.id,
+        amount: rewardAmount,
+        tx_type: 'EARN',
+        title: `Read ${selectedBook} Chapter ${selectedChapter}`
+      }]);
+
+      setKpcBalance(prev => prev + rewardAmount);
+      setHasClaimedChapter(true);
+      alert(`Chapter reward claimed! +5 KPC added to your Treasury.`);
+
+    } catch (error) {
+      console.error("Error claiming Bible reward:", error);
+    }
+  };
+
 
 
   
@@ -5048,12 +5144,12 @@ const handlePurchaseService = async (service) => {
       )}
 
      {/* =========================================
-          STEP 10: KINGDOM TAB (CORE MODULES)
+          STEP 10: KINGDOM HUB (LIVE DATA)
           ========================================= */}
       {step === 10 && (
-        <div className="feed-screen-container">
+        <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
           
-          {/* Top Header with Back & Bookstore Button */}
+          {/* Header */}
           <div className="kingdom-top-header">
             <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
               <BackArrowIcon />
@@ -5066,7 +5162,7 @@ const handlePurchaseService = async (service) => {
             </button>
           </div>
 
-          {/* Kingdom Tabs */}
+          {/* Hub Tabs */}
           <div className="feed-tabs-container" style={{ marginBottom: '10px' }}>
             {['Devotions', 'Bible Plans', 'Messages', 'Bible'].map((tab) => (
               <div key={tab} className={`feed-tab ${kingdomTab === tab ? 'active' : ''}`} onClick={() => setKingdomTab(tab)}>
@@ -5075,141 +5171,125 @@ const handlePurchaseService = async (service) => {
             ))}
           </div>
 
-          <div className="feed-scroll-area" style={{ padding: '0 20px 120px 20px' }}>
+          <div className="feed-scroll-area" style={{ flexGrow: 1, padding: '0 20px 120px 20px', overflowY: 'auto' }}>
 
-            {/* ==================== 1. DEVOTIONS (DYNAMIC) ==================== */}
+            {/* ==================== 1. DEVOTIONS ==================== */}
             {kingdomTab === 'Devotions' && (
               <>
-                {devotionsList.filter(d => d.isFeatured).map(item => (
-                  <div key={item.id} style={{ marginBottom: '20px' }}>
-                    <h3 className="kingdom-section-title">Today's Pick</h3>
-                    <div className="devotion-card" style={{ background: 'linear-gradient(135deg, rgba(41, 190, 175, 0.15) 0%, rgba(16, 25, 38, 0.8) 100%)', borderColor: 'rgba(41, 190, 175, 0.3)' }}>
-                      <img src={item.img} alt="devotion" className="devotion-img" />
-                      <div className="devotion-info">
-                        <h4 className="devotion-title">{item.title}</h4>
-                        <span className="devotion-desc">{item.scripture} • {item.time}</span>
-                        <div className="reward-pill">✨ Earn +{item.reward} KPC</div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <h3 className="kingdom-section-title" style={{ margin: 0 }}>Daily Bread</h3>
+                  {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') && (
+                    <span onClick={() => setIsAddDevotionModalOpen(true)} style={{ color: '#f3ca58', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>+ Publish</span>
+                  )}
+                </div>
 
-                <h3 className="kingdom-section-title">Explore Daily Bread <span className="kingdom-section-link">View all</span></h3>
-                {devotionsList.filter(d => !d.isFeatured).map(item => (
-                  <div key={item.id} className="devotion-card">
-                    <img src={item.img} alt="devotion" className="devotion-img" />
+                {devotionsList.map(item => (
+                  <div 
+                    key={item.id} className="devotion-card" 
+                    onClick={() => setSelectedDevotion(item)} style={{ cursor: 'pointer', marginBottom: '15px' }}
+                  >
+                    <img src={item.img || 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=200'} alt="devotion" className="devotion-img" />
                     <div className="devotion-info">
                       <h4 className="devotion-title">{item.title}</h4>
-                      <span className="devotion-desc">{item.scripture} • {item.time} • <i style={{ color: '#f3ca58' }}>By {item.author || 'Ministry'}</i></span>
-                      <div className="reward-pill">✨ Earn +{item.reward} KPC</div>
+                      <span className="devotion-desc">{item.scripture} • <i style={{ color: '#f3ca58' }}>By {item.author || userProfile?.local_church || 'Ministry'}</i></span>
+                      <div className="reward-pill">✨ Read & Earn +{item.reward || 5} KPC</div>
                     </div>
                   </div>
                 ))}
               </>
             )}
 
-            {/* ==================== 2. BIBLE PLANS (DYNAMIC) ==================== */}
+            {/* ==================== 2. BIBLE PLANS ==================== */}
             {kingdomTab === 'Bible Plans' && (
               <>
                 <h3 className="kingdom-section-title">Your Active Plans</h3>
-                {biblePlansList.filter(p => p.isActive).map(plan => (
-                  <div key={plan.id} className="devotion-card" style={{ flexDirection: 'column', alignItems: 'flex-start', marginBottom: '15px' }}>
+                {biblePlansList.map(plan => (
+                  <div 
+                    key={plan.id} className="devotion-card" 
+                    onClick={() => setSelectedPlan(plan)}
+                    style={{ flexDirection: 'column', alignItems: 'flex-start', marginBottom: '15px', cursor: 'pointer' }}
+                  >
                     <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
                       <img src={plan.img} alt="plan" className="devotion-img" />
                       <div className="devotion-info">
                         <h4 className="devotion-title">{plan.title}</h4>
                         <span className="devotion-desc">{plan.desc}</span>
-                        <div className="reward-pill" style={{ color: '#e5c158', background: 'rgba(229, 193, 88, 0.1)', borderColor: 'rgba(229, 193, 88, 0.3)' }}>
-                          {plan.rewardText}
-                        </div>
+                        <div className="reward-pill" style={{ color: '#e5c158', background: 'rgba(229, 193, 88, 0.1)' }}>{plan.rewardText}</div>
                       </div>
-                    </div>
-                    <div style={{ width: '100%', marginTop: '5px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '10px', color: '#8e9aab', marginBottom: '4px' }}>
-                        <span>Progress</span> <span>{plan.progress}%</span>
-                      </div>
-                      <div className="progress-container" style={{ marginBottom: '0', background: 'rgba(255,255,255,0.05)' }}>
-                        <div className="progress-fill" style={{ width: `${plan.progress}%`, background: '#e5c158' }}></div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-
-                <h3 className="kingdom-section-title" style={{ marginTop: '20px' }}>Discover New Plans</h3>
-                {biblePlansList.filter(p => !p.isActive).map(plan => (
-                  <div key={plan.id} className="devotion-card">
-                    <img src={plan.img} alt="plan" className="devotion-img" />
-                    <div className="devotion-info">
-                      <h4 className="devotion-title">{plan.title}</h4>
-                      <span className="devotion-desc">{plan.desc}</span>
-                      <div className="reward-pill" style={{ marginTop: '4px' }}>{plan.rewardText}</div>
                     </div>
                   </div>
                 ))}
               </>
             )}
 
-            {/* ==================== 3. MESSAGES (DYNAMIC) ==================== */}
+            {/* ==================== 3. MESSAGES (MULTI-FORMAT) ==================== */}
             {kingdomTab === 'Messages' && (
               <>
-                <h3 className="kingdom-section-title">Recent Messages <span className="kingdom-section-link">View all</span></h3>
+                <h3 className="kingdom-section-title">Ministry Resources</h3>
                 <div className="horizontal-scroll" style={{ paddingBottom: '10px' }}>
-                  {messagesList.filter(m => !m.isSeries).map(msg => (
-                    <div key={msg.id} className="message-card">
+                  {messagesList.map(msg => (
+                    <div key={msg.id} className="message-card" onClick={() => setSelectedMessage(msg)} style={{ cursor: 'pointer' }}>
                       <div className="message-img-wrapper">
                         <img src={msg.img} alt="msg" className="message-img" />
-                        <div className="message-play-btn"><PlayIcon /></div>
-                        <span className="message-duration">{msg.duration}</span>
+                        
+                        {/* Dynamic Icon based on format */}
+                        <div className="message-play-btn" style={{ background: msg.format === 'audio' ? 'rgba(155, 89, 182, 0.8)' : msg.format === 'text' ? 'rgba(243, 202, 88, 0.8)' : 'rgba(41, 190, 175, 0.8)' }}>
+                          {msg.format === 'audio' ? <span style={{fontSize:'12px'}}>🎧</span> : msg.format === 'text' ? <span style={{fontSize:'12px'}}>📖</span> : <PlayIcon />}
+                        </div>
+                        
+                        {msg.duration && <span className="message-duration">{msg.duration}</span>}
                       </div>
                       <span className="message-title">{msg.title}</span>
                       <span className="message-author">{msg.author}</span>
+                      <span style={{ fontSize: '10px', color: '#8e9aab', textTransform: 'uppercase', marginTop: '4px' }}>{msg.format || 'Video'}</span>
                     </div>
                   ))}
                 </div>
-
-                <h3 className="kingdom-section-title" style={{ marginTop: '15px' }}>Trending Series</h3>
-                {messagesList.filter(m => m.isSeries).map(series => (
-                  <div key={series.id} className="message-card" style={{ width: '100%', flexDirection: 'row', alignItems: 'center', gap: '12px', padding: '12px', marginBottom: '10px' }}>
-                    <div className="message-img-wrapper" style={{ width: '80px', height: '80px', marginBottom: '0' }}>
-                      <img src={series.img} alt="series" className="message-img" />
-                    </div>
-                    <div className="devotion-info">
-                      <h4 className="message-title">{series.title}</h4>
-                      <span className="message-author">{series.author}</span>
-                      <div className="reward-pill" style={{ marginTop: '6px' }}>✨ +{series.reward} KPC / msg</div>
-                    </div>
-                  </div>
-                ))}
               </>
             )}
 
-            {/* ==================== 4. BIBLE READER (UNTOUCHED) ==================== */}
+            {/* ==================== 4. LIVE BIBLE READER ==================== */}
             {kingdomTab === 'Bible' && (
               <div className="bible-reader-card">
-                <div className="bible-header">
-                  <span className="bible-book-title">Psalms 23</span>
-                  <div className="bible-version-selector">KJV ▼</div>
+                <div className="bible-header" style={{ display: 'flex', gap: '10px', alignItems: 'center', marginBottom: '20px' }}>
+                  <select 
+                    value={selectedBook} onChange={(e) => setSelectedBook(e.target.value)}
+                    style={{ background: '#101926', color: '#f3ca58', border: '1px solid rgba(243, 202, 88, 0.3)', padding: '8px 12px', borderRadius: '10px', fontWeight: '800' }}
+                  >
+                    {bibleBooks.map(b => <option key={b} value={b}>{b}</option>)}
+                  </select>
+                  <select 
+                    value={selectedChapter} onChange={(e) => setSelectedChapter(Number(e.target.value))}
+                    style={{ background: '#101926', color: '#fff', border: '1px solid rgba(255, 255, 255, 0.1)', padding: '8px 12px', borderRadius: '10px', fontWeight: '800' }}
+                  >
+                    {[...Array(50).keys()].map(n => <option key={n+1} value={n+1}>Chapter {n+1}</option>)}
+                  </select>
                 </div>
 
-                <div className="bible-text-body">
-                  <div className="verse-line"><span className="verse-num">1</span><span className="verse-text">The Lord is my shepherd; I shall not want.</span></div>
-                  <div className="verse-line"><span className="verse-num">2</span><span className="verse-text">He maketh me to lie down in green pastures: he leadeth me beside the still waters.</span></div>
-                  <div className="verse-line"><span className="verse-num">3</span><span className="verse-text">He restoreth my soul: he leadeth me in the paths of righteousness for his name's sake.</span></div>
-                  <div className="verse-line"><span className="verse-num">4</span><span className="verse-text">Yea, though I walk through the valley of the shadow of death, I will fear no evil: for thou art with me; thy rod and thy staff they comfort me.</span></div>
-                  <div className="verse-line"><span className="verse-num">5</span><span className="verse-text">Thou preparest a table before me in the presence of mine enemies: thou anointest my head with oil; my cup runneth over.</span></div>
-                  <div className="verse-line"><span className="verse-num">6</span><span className="verse-text">Surely goodness and mercy shall follow me all the days of my life: and I will dwell in the house of the Lord for ever.</span></div>
+                <div className="bible-text-body" style={{ maxHeight: '400px', overflowY: 'auto', paddingRight: '10px' }}>
+                  {isLoadingBible ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#8e9aab' }}>Fetching Holy Scripture...</div>
+                  ) : bibleVerses.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#8e9aab' }}>Select a book to read.</div>
+                  ) : (
+                    bibleVerses.map(v => (
+                      <div key={v.verse} className="verse-line" style={{ marginBottom: '10px', lineHeight: '1.6' }}>
+                        <span className="verse-num" style={{ color: '#29beaf', fontWeight: '800', marginRight: '8px', fontSize: '12px' }}>{v.verse}</span>
+                        <span className="verse-text" style={{ color: '#e2e8f0', fontSize: '15px' }}>{v.text}</span>
+                      </div>
+                    ))
+                  )}
                 </div>
 
-                <div className="bible-reward-banner">
+                <div className="bible-reward-banner" style={{ marginTop: '20px' }}>
                   <div className="reward-text">
                     <strong>Daily Reading Goal</strong>
-                    <span>Read 1 Chapter daily to earn rewards.</span>
+                    <span>Read {selectedBook} {selectedChapter} to claim.</span>
                   </div>
                   <button
                     className="claim-btn"
                     style={hasClaimedChapter ? { background: '#1a2533', color: '#4a5a6e', boxShadow: 'none' } : {}}
-                    onClick={claimBibleReward}
-                    disabled={hasClaimedChapter}
+                    onClick={claimBibleReward} disabled={hasClaimedChapter || isLoadingBible}
                   >
                     {hasClaimedChapter ? 'Claimed ✓' : 'Finish & Claim +5 KPC'}
                   </button>
@@ -5217,27 +5297,119 @@ const handlePurchaseService = async (service) => {
               </div>
             )}
 
-            {/* ==================== 5. STORE (DYNAMIC) ==================== */}
+            {/* ==================== 5. STORE ==================== */}
             {kingdomTab === 'Store' && (
-              <>
-                <h3 className="kingdom-section-title">Featured Books & Ministry Resources</h3>
-                <div className="store-grid">
-                  {storeBooksList.map(book => (
-                    <div key={book.id} className="store-card">
-                      <img src={book.img} alt="book" className="store-book-cover" />
-                      <span className="store-book-title">{book.title}</span>
-                      <span className="store-book-author">{book.author}</span>
-                      <button className="store-buy-btn">{book.price} KPC</button>
-                    </div>
-                  ))}
-                </div>
-              </>
+              <div className="store-grid">
+                {storeBooksList.map(book => (
+                  <div key={book.id} className="store-card">
+                    <img src={book.img} alt="book" className="store-book-cover" />
+                    <span className="store-book-title">{book.title}</span>
+                    <span className="store-book-author">{book.author}</span>
+                    <button className="store-buy-btn">{book.price} KPC</button>
+                  </div>
+                ))}
+              </div>
             )}
 
           </div>
 
-          <AppBottomNav />
+          {/* =========================================
+              MODALS FOR VIEWING CONTENT
+              ========================================= */}
 
+          {/* 1. DEVOTION READING MODAL */}
+          {selectedDevotion && (
+            <div className="constrained-overlay" style={{ zIndex: 1000 }}>
+              <div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto', padding: '20px' }}>
+                <div className="dream-modal-header" style={{ marginBottom: '15px' }}>
+                  <h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>{selectedDevotion.title}</h3>
+                  <button className="dream-modal-close" onClick={() => setSelectedDevotion(null)}><XIcon /></button>
+                </div>
+                
+                {/* Image is now included! */}
+                {selectedDevotion.img && (
+                  <img src={selectedDevotion.img} alt="devotion cover" style={{ width: '100%', height: '200px', objectFit: 'cover', borderRadius: '12px', marginBottom: '15px' }} />
+                )}
+                
+                <div style={{ margin: '15px 0' }}>
+                  <span style={{ color: '#f3ca58', fontSize: '14px', fontWeight: '800' }}>📖 {selectedDevotion.scripture}</span>
+                  <p style={{ color: '#e2e8f0', fontSize: '15px', lineHeight: '1.7', marginTop: '15px', whiteSpace: 'pre-line' }}>
+                    {selectedDevotion.body || "Father, thank You for Your word today. Lead us in the paths of righteousness and give us the strength to walk in Your wisdom."}
+                  </p>
+                </div>
+
+                <button 
+                  onClick={() => handleCompleteDevotion(selectedDevotion)}
+                  style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '20px' }}
+                >
+                  {readDevotionsList.includes(selectedDevotion.id) ? 'Completed ✓' : `Mark as Read & Claim +${selectedDevotion.reward || 5} KPC`}
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 2. BIBLE PLAN MODAL */}
+          {selectedPlan && (
+            <div className="constrained-overlay" style={{ zIndex: 1000 }}>
+              <div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+                <div className="dream-modal-header">
+                  <h3 style={{ color: '#fff', margin: 0 }}>{selectedPlan.title}</h3>
+                  <button className="dream-modal-close" onClick={() => setSelectedPlan(null)}><XIcon /></button>
+                </div>
+                <img src={selectedPlan.img} alt="plan cover" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '12px', margin: '15px 0' }} />
+                <p style={{ color: '#cbd5e1', fontSize: '14px', marginBottom: '20px' }}>{selectedPlan.desc}</p>
+                
+                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '15px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                  <h4 style={{ color: '#f3ca58', margin: '0 0 10px 0' }}>Today's Assignment</h4>
+                  <p style={{ color: '#fff', margin: 0, fontSize: '14px' }}>Read Romans 8:1-17</p>
+                </div>
+
+                <button 
+                  onClick={() => { alert("Plan day completed! Rewards issued."); setSelectedPlan(null); }}
+                  style={{ width: '100%', padding: '16px', background: '#29beaf', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '20px' }}
+                >
+                  Complete Today's Reading
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* 3. MULTI-FORMAT MESSAGE MODAL */}
+          {selectedMessage && (
+            <div className="constrained-overlay" style={{ zIndex: 1000 }}>
+              <div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto' }}>
+                <div className="dream-modal-header" style={{ marginBottom: '15px' }}>
+                  <h3 style={{ color: '#fff', margin: 0 }}>{selectedMessage.title}</h3>
+                  <button className="dream-modal-close" onClick={() => setSelectedMessage(null)}><XIcon /></button>
+                </div>
+
+                {/* Video / Audio Player Placeholder */}
+                {(selectedMessage.format === 'video' || selectedMessage.format === 'audio' || !selectedMessage.format) && (
+                  <div style={{ width: '100%', height: selectedMessage.format === 'audio' ? '100px' : '220px', background: '#000', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '15px' }}>
+                    <span style={{ fontSize: '30px', color: '#29beaf' }}>
+                      {selectedMessage.format === 'audio' ? '🎧' : '▶'}
+                    </span>
+                    <span style={{ color: '#8e9aab', fontSize: '12px', marginTop: '10px' }}>
+                      {selectedMessage.format === 'audio' ? 'Audio stream ready' : 'Video stream ready'}
+                    </span>
+                  </div>
+                )}
+
+                {/* Text Reader Placeholder */}
+                {selectedMessage.format === 'text' && (
+                  <div style={{ padding: '15px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', marginBottom: '15px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <p style={{ color: '#e2e8f0', fontSize: '15px', lineHeight: '1.6', margin: 0 }}>
+                      This is the text transcript or article content for the selected message. The believer can read through this fully inside the app.
+                    </p>
+                  </div>
+                )}
+
+                <div style={{ color: '#8e9aab', fontSize: '13px' }}>By {selectedMessage.author}</div>
+              </div>
+            </div>
+          )}
+
+          <AppBottomNav />
         </div>
       )}
 
@@ -5468,7 +5640,6 @@ const handlePurchaseService = async (service) => {
           )}
 
           {/* 2B. LIVE SCAN QR VIEWFINDER MODAL */}
-          {/* 2B. LIVE SCAN QR VIEWFINDER MODAL */}
           {activeModal === 'scan' && (
             <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(10, 15, 26, 0.95)', backdropFilter: 'blur(20px)', zIndex: 1000, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', padding: '20px' }}>
               <button onClick={() => setActiveModal(null)} style={{ position: 'absolute', top: '30px', right: '30px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '40px', height: '40px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 10 }}><XIcon /></button>
@@ -5476,19 +5647,20 @@ const handlePurchaseService = async (service) => {
               <h3 style={{ color: '#fff', fontSize: '20px', fontWeight: '900', marginBottom: '10px' }}>Scan to Give / Tithe</h3>
               <p style={{ color: '#8e9aab', fontSize: '13px', marginBottom: '30px', textAlign: 'center' }}>Point your camera at the church screen QR code</p>
               
-              {/* LIVE QR SCANNER COMPONENT */}
+              {/* MODERN LIVE QR SCANNER COMPONENT */}
               <div style={{ width: '280px', height: '280px', borderRadius: '24px', overflow: 'hidden', position: 'relative', border: '2px dashed #29beaf', background: '#000' }}>
-                <QrReader
-                  onResult={(result, error) => {
-                    if (!!result) {
-                      const scannedUsername = result?.text;
+                <Scanner 
+                  onScan={(detectedCodes) => {
+                    if (detectedCodes && detectedCodes.length > 0) {
+                      const scannedUsername = detectedCodes[0].rawValue;
                       alert(`Connected to ${scannedUsername}'s Treasury!`);
                       setTransferUsername(scannedUsername);
                       setActiveModal('send');
                     }
                   }}
-                  constraints={{ facingMode: 'environment' }}
-                  style={{ width: '100%', height: '100%' }}
+                  onError={(error) => console.log("Scanner Error:", error?.message)}
+                  components={{ audio: false }}
+                  styles={{ container: { width: '100%', height: '100%' } }}
                 />
               </div>
 
