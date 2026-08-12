@@ -746,27 +746,13 @@ const uploadNewTestimony = async (e) => {
     { id: 2, authorName: 'Pastor David', authorHandle: '@pdavid', time: '5h ago', avatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1bf98c?auto=format&fit=crop&w=100&h=100', content: 'Such a powerful time of worship at Grace Sanctuary this morning. The presence of God was so heavy in the room. Who else was blessed?', image: 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?auto=format&fit=crop&w=400&q=80', likes: 0, comments: 0, isVerified: true }
   ]);
 
-  const [prayerRooms, setPrayerRooms] = useState([
-    { id: 'Breakthrough', title: 'Breakthrough', sub: 'Strongholds broken, new doors', color: '#e5c158', bg: '#8C7A3E', img: 'https://images.unsplash.com/photo-1518002171953-a080ee817e1f?auto=format&fit=crop&w=150&q=80', reqs: 1, lifted: 0 },
-    { id: 'Family', title: 'Family', sub: 'Marriages, parenting, reconciliation', color: '#f39c12', bg: '#2980B9', img: 'https://images.unsplash.com/photo-1476611317561-60117649dd94?auto=format&fit=crop&w=150&q=80', reqs: 0, lifted: 0 },
-    { id: 'Healing', title: 'Healing', sub: 'Bodies, hearts, and minds restored', color: '#ff4757', bg: '#4E8B61', img: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=150&q=80', reqs: 0, lifted: 0 },
-    { id: 'Nations', title: 'Nations', sub: 'Governments, peace, and justice', color: '#4facfe', bg: '#2C3E50', img: 'https://images.unsplash.com/photo-1521295121783-8a321d551ad2?auto=format&fit=crop&w=150&q=80', reqs: 0, lifted: 0 },
-    { id: 'Provision', title: 'Provision', sub: 'Work, finances, daily bread', color: '#2ecc71', bg: '#E74C3C', img: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=150&q=80', reqs: 0, lifted: 0 },
-    { id: 'Salvation', title: 'Salvation', sub: 'Souls coming to Christ', color: '#9b59b6', bg: '#D81B60', img: 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&w=150&q=80', reqs: 0, lifted: 0 },
-    { id: 'Love', title: 'Love', sub: 'Walking in unconditional love', color: '#1abc9c', bg: '#16a085', img: 'https://images.unsplash.com/photo-1518199266791-5375a83164ba?auto=format&fit=crop&w=150&q=80', reqs: 0, lifted: 0 },
-    { id: 'Peace', title: 'Peace', sub: 'Calming the storms of life', color: '#e67e22', bg: '#d35400', img: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?auto=format&fit=crop&w=150&q=80', reqs: 0, lifted: 0 },
-    { id: 'Anxiety', title: 'Anxiety', sub: 'Casting all your cares on Him', color: '#fd79a8', bg: '#e84393', img: 'https://images.unsplash.com/photo-1493836512294-502baa1986e2?auto=format&fit=crop&w=150&q=80', reqs: 0, lifted: 0 },
-    { id: 'Depression', title: 'Depression', sub: 'Finding joy in the morning', color: '#a3b18a', bg: '#588157', img: 'https://images.unsplash.com/photo-1502444330042-d1a1ddf9bb5b?auto=format&fit=crop&w=150&q=80', reqs: 0, lifted: 0 },
-  ]);
+  
 
   const [activeRoom, setActiveRoom] = useState(null);
   const [roomTitleInput, setRoomTitleInput] = useState('');
   const [roomDetailInput, setRoomDetailInput] = useState('');
   const [isUrgent, setIsUrgent] = useState(false);
   const [isAnonymous, setIsAnonymous] = useState(false);
-  const [roomRequests, setRoomRequests] = useState([
-    { id: 1, roomId: 'Breakthrough', author: 'Tobi oba', time: '5d', isUrgent: true, title: 'Divine breakthrough', detail: 'Pray for my breakthrough', prayedCount: 0, hasPrayed: false }
-  ]);
 
   const [formData, setFormData] = useState({
     fullName: '', username: '', email: '', password: '', dob: '', country: '', phone: '', denomination: '', customDenomination: '', churchName: '', isCustomChurch: false
@@ -849,26 +835,121 @@ const uploadNewTestimony = async (e) => {
     }
   };
 
-  const handleCreateRoomPrayer = () => {
-    if (!roomTitleInput.trim() || !activeRoom) return;
-    const newReq = { id: Date.now(), roomId: activeRoom.id, author: isAnonymous ? 'Anonymous' : (formData.fullName || 'You'), time: 'Just now', isUrgent: isUrgent, title: roomTitleInput, detail: roomDetailInput, prayedCount: 0, hasPrayed: false };
-    setRoomRequests([newReq, ...roomRequests]);
-    setPrayerRooms(prev => prev.map(r => r.id === activeRoom.id ? { ...r, reqs: r.reqs + 1 } : r));
-    setRoomTitleInput(''); setRoomDetailInput(''); setIsUrgent(false); setIsAnonymous(false);
-  };
-
-  const handleToggleRoomPray = (reqId) => {
-    setRoomRequests(prev => prev.map(req => {
-      if (req.id === reqId) {
-        const increment = !req.hasPrayed ? 1 : -1;
-        setPrayerRooms(rooms => rooms.map(r => r.id === req.roomId ? { ...r, lifted: r.lifted + increment } : r));
-        return { ...req, hasPrayed: !req.hasPrayed, prayedCount: req.prayedCount + increment };
-      }
-      return req;
-    }));
-  };
 
   const openPrayerRoom = (room) => { setActiveRoom(room); setStep(9); };
+
+  const fetchPrayerStats = async () => {
+    const { data, error } = await supabase
+      .from('prayer_requests')
+      .select('room_id');
+
+    if (data) {
+      const counts = { Breakthrough: 0, Family: 0, Healing: 0, Nations: 0, Provision: 0, Salvation: 0, Love: 0, Peace: 0, Anxiety: 0, Depression: 0, };
+      data.forEach(req => {
+        if (counts[req.room_id] !== undefined) {
+          counts[req.room_id]++;
+        }
+      });
+
+      setPrayerRooms([
+        { id: 'Breakthrough', reqs: counts.Breakthrough },
+        { id: 'Family', reqs: counts.Family },
+        { id: 'Healing', reqs: counts.Healing },
+        { id: 'Nations', reqs: counts.Nations }
+      ]);
+    }
+  };
+
+// Prayer Room Base Metadata & State
+  const PRAYER_ROOMS_META = [
+    { id: 'Breakthrough', title: 'Breakthrough', sub: 'Strongholds broken, new doors', color: '#e5c158', bg: '#8C7A3E', img: 'https://images.unsplash.com/photo-1518002171953-a080ee817e1f?auto=format&fit=crop&w=150&q=80' },
+    { id: 'Family', title: 'Family', sub: 'Marriages, parenting, reconciliation', color: '#f39c12', bg: '#2980B9', img: 'https://images.unsplash.com/photo-1476611317561-60117649dd94?auto=format&fit=crop&w=150&q=80' },
+    { id: 'Healing', title: 'Healing', sub: 'Bodies, hearts, and minds restored', color: '#ff4757', bg: '#4E8B61', img: 'https://images.unsplash.com/photo-1506126613408-eca07ce68773?auto=format&fit=crop&w=150&q=80' },
+    { id: 'Nations', title: 'Nations', sub: 'Governments, peace, and justice', color: '#4facfe', bg: '#2C3E50', img: 'https://images.unsplash.com/photo-1521295121783-8a321d551ad2?auto=format&fit=crop&w=150&q=80' },
+    { id: 'Provision', title: 'Provision', sub: 'Work, finances, daily bread', color: '#2ecc71', bg: '#E74C3C', img: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=150&q=80' },
+    { id: 'Salvation', title: 'Salvation', sub: 'Souls coming to Christ', color: '#9b59b6', bg: '#D81B60', img: 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&w=150&q=80' },
+    { id: 'Love', title: 'Love', sub: 'Walking in unconditional love', color: '#1abc9c', bg: '#16a085', img: 'https://images.unsplash.com/photo-1518199266791-5375a83164ba?auto=format&fit=crop&w=150&q=80' },
+    { id: 'Peace', title: 'Peace', sub: 'Calming the storms of life', color: '#e67e22', bg: '#d35400', img: 'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?auto=format&fit=crop&w=150&q=80' },
+    { id: 'Anxiety', title: 'Anxiety', sub: 'Casting all your cares on Him', color: '#fd79a8', bg: '#e84393', img: 'https://images.unsplash.com/photo-1493836512294-502baa1986e2?auto=format&fit=crop&w=150&q=80' },
+    { id: 'Depression', title: 'Depression', sub: 'Finding joy in the morning', color: '#a3b18a', bg: '#588157', img: 'https://images.unsplash.com/photo-1502444330042-d1a1ddf9bb5b?auto=format&fit=crop&w=150&q=80' }
+  ];
+
+  const [prayerRooms, setPrayerRooms] = useState(PRAYER_ROOMS_META.map(r => ({ ...r, reqs: 0, lifted: 0 })));
+  const [roomRequests, setRoomRequests] = useState([]);
+  const [prayedForIds, setPrayedForIds] = useState([]);
+
+  const fetchPrayerData = async () => {
+    const { data, error } = await supabase
+      .from('prayer_requests')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (data) {
+      setRoomRequests(data);
+
+      const updatedRooms = PRAYER_ROOMS_META.map(room => {
+        const roomReqs = data.filter(req => req.room_id === room.id);
+        const totalLifted = roomReqs.reduce((sum, req) => sum + (req.prayed_count || 0), 0);
+        return {
+          ...room,
+          reqs: roomReqs.length,
+          lifted: totalLifted
+        };
+      });
+      setPrayerRooms(updatedRooms);
+    }
+  };
+
+  const handleCreateRoomPrayer = async () => {
+    if (!roomTitleInput.trim() || !activeRoom) return;
+
+    const newReq = {
+      room_id: activeRoom.id,
+      user_id: userProfile?.id || null,
+      author_name: isAnonymous ? 'Anonymous' : (userProfile?.Username || 'Anonymous Believer'),
+      title: roomTitleInput,
+      content: roomDetailInput,
+      is_urgent: isUrgent,
+      prayed_count: 0
+    };
+
+    const { error } = await supabase.from('prayer_requests').insert([newReq]);
+
+    if (error) {
+      alert("Error posting prayer: " + error.message);
+    } else {
+      setRoomTitleInput('');
+      setRoomDetailInput('');
+      setIsUrgent(false);
+      setIsAnonymous(false);
+      fetchPrayerData();
+    }
+  };
+
+  const handleToggleRoomPray = async (req) => {
+    const isPrayed = prayedForIds.includes(req.id);
+    const increment = isPrayed ? -1 : 1;
+
+    if (isPrayed) {
+      setPrayedForIds(prev => prev.filter(id => id !== req.id));
+    } else {
+      setPrayedForIds(prev => [...prev, req.id]);
+      setKpcBalance(prev => prev + 1);
+    }
+
+    setRoomRequests(prev => prev.map(r => 
+      r.id === req.id ? { ...r, prayed_count: r.prayed_count + increment } : r
+    ));
+
+    await supabase
+      .from('prayer_requests')
+      .update({ prayed_count: req.prayed_count + increment })
+      .eq('id', req.id);
+
+    fetchPrayerData();
+  };
+
+
 
   // Hire Services State
   const [hireTab, setHireTab] = useState('All');
@@ -3556,7 +3637,7 @@ const handlePurchaseService = async (service) => {
         .from('posts')
         .select(`
           *,
-          user_profile:author_id (full_name, avatar_url, account_type, local_church)
+          user_profiles:author_id (full_name, avatar_url, account_type, local_church)
         `)
         .order('created_at', { ascending: false });
 
@@ -3644,7 +3725,7 @@ const handlePurchaseService = async (service) => {
   const handleViewProfile = async (eOrAuthorId, entity) => {
     if (entity) {
       if (eOrAuthorId && typeof eOrAuthorId.stopPropagation === 'function') {
-        eOrAuthorId.stopPropagation(); // Stops click from bubbling up
+        eOrAuthorId.stopPropagation();
       }
       
       const isDBUser = !!entity.email && !entity.id?.startsWith('c');
@@ -3671,7 +3752,7 @@ const handlePurchaseService = async (service) => {
       }
 
       const { data: profileData, error: profileError } = await supabase
-        .from('user_profile')
+        .from('user_profiles')
         .select('*')
         .eq('id', authorId)
         .single();
@@ -3981,7 +4062,7 @@ const handlePurchaseService = async (service) => {
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${activeDbChat.id}` }, 
         async (payload) => {
           const { data: profile } = await supabase.from('user_profiles').select('full_name, avatar_url').eq('id', payload.new.sender_id).single();
-          const newMsg = { ...payload.new, user_profile: profile };
+          const newMsg = { ...payload.new, user_profiles: profile };
           setDbMessages(prev => [...prev, newMsg]);
         }
       )
@@ -4175,9 +4256,14 @@ useEffect(() => {
 
 const sendFriendRequest = async (receiverId) => {
   const { data: { user } } = await supabase.auth.getUser();
-  await supabase.from('friend_requests').insert([{ sender_id: user.id, receiver_id: receiverId, status: 'pending' }]);
+  setSentRequests(prev => [...prev, { receiver_id: receiverId, status: 'pending' }]);
+  await supabase.from('friend_requests').insert([{ 
+    sender_id: user.id, 
+    receiver_id: receiverId, 
+    status: 'pending' 
+  }]);
+  
   alert("Request sent!");
-  fetchGlobalUsers();
 };
 
 const handleRequestAction = async (requestId, action) => {
@@ -4189,26 +4275,28 @@ const handleRequestAction = async (requestId, action) => {
   const [streamSeconds, setStreamSeconds] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  const rewardStreamKPC = async (amount) => {
-    try {
-      const KPC_MINT = new PublicKey(GLOBAL_KPC_MINT);
-      const feePayer = Keypair.fromSecretKey(GLOBAL_TREASURY_KEY);
-      const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
-      const userPub = new PublicKey(generatedAddress);
+const rewardStreamKPC = async (amount) => {
+  const numericAmount = Number(amount) || 0;
+  
+  try {
+    const KPC_MINT = new PublicKey(GLOBAL_KPC_MINT);
+    const feePayer = Keypair.fromSecretKey(GLOBAL_TREASURY_KEY);
+    const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
+    const userPub = new PublicKey(generatedAddress);
 
-      const dest = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, userPub);
-      const src = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, feePayer.publicKey);
+    const dest = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, userPub);
+    const src = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, feePayer.publicKey);
 
-      await transfer(connection, feePayer, src.address, dest.address, feePayer.publicKey, amount * Math.pow(10, 8));
-      
-      setKpcBalance(prev => prev + amount);
-      console.log(`Earned ${amount} KPC for streaming!`);
-      
-    } catch (error) {
-      setKpcBalance(prev => prev + amount);
-      console.log(`Simulated Mode: Earned ${amount} KPC for streaming.`);
-    }
-  };
+    await transfer(connection, feePayer, src.address, dest.address, feePayer.publicKey, numericAmount * Math.pow(10, 8));
+    
+    setKpcBalance(prev => (Number(prev) || 0) + numericAmount);
+    console.log(`Earned ${numericAmount} KPC for streaming!`);
+    
+  } catch (error) {
+    setKpcBalance(prev => (Number(prev) || 0) + numericAmount);
+    console.log(`Simulated Mode: Earned ${numericAmount} KPC for streaming.`);
+  }
+};
 
   useEffect(() => {
     let interval = null;
@@ -4259,6 +4347,8 @@ const fetchPendingDreams = async () => {
       fetchPendingDreams();
     }
   };
+
+
 
  
 
@@ -5114,19 +5204,19 @@ const fetchPendingDreams = async () => {
                     <ul className="prayer-list">
                       <li className="prayer-item">
                         <div className="prayer-label-wrap"><span className="prayer-dot" style={{ backgroundColor: '#29beaf' }}></span>Breakthrough</div>
-                        <span>{prayerRooms.find(r => r.id === 'Breakthrough').reqs}</span>
+                        <span>{prayerRooms.find(r => r.id === 'Breakthrough')?.reqs || 0}</span>
                       </li>
                       <li className="prayer-item">
                         <div className="prayer-label-wrap"><span className="prayer-dot" style={{ backgroundColor: '#2980B9' }}></span>Family</div>
-                        <span>{prayerRooms.find(r => r.id === 'Family').reqs}</span>
+                        <span>{prayerRooms.find(r => r.id === 'Family')?.reqs || 0}</span>
                       </li>
                       <li className="prayer-item">
                         <div className="prayer-label-wrap"><span className="prayer-dot" style={{ backgroundColor: '#4E8B61' }}></span>Healing</div>
-                        <span>{prayerRooms.find(r => r.id === 'Healing').reqs}</span>
+                        <span>{prayerRooms.find(r => r.id === 'Healing')?.reqs || 0}</span>
                       </li>
                       <li className="prayer-item">
                         <div className="prayer-label-wrap"><span className="prayer-dot" style={{ backgroundColor: '#2C3E50' }}></span>Nations</div>
-                        <span>{prayerRooms.find(r => r.id === 'Nations').reqs}</span>
+                        <span>{prayerRooms.find(r => r.id === 'Nations')?.reqs || 0}</span>
                       </li>
                     </ul>
                     <div className="card-action" style={{ marginTop: '10px' }}>
@@ -5373,17 +5463,17 @@ const fetchPendingDreams = async () => {
                   <div key={post.id} className="feed-post-card">
                     <div className="post-header">
                       <div className="post-user-info" onClick={() => handleViewProfile(post.author_id)} style={{ cursor: 'pointer' }}>
-                        {post.user_profile?.avatar_url ? (
-                          <img src={post.user_profile.avatar_url} alt="" className="post-avatar" style={{ objectFit: 'cover' }} />
+                        {post.user_profiles?.avatar_url ? (
+                          <img src={post.user_profiles.avatar_url} alt="" className="post-avatar" style={{ objectFit: 'cover' }} />
                         ) : (
                           <div className="post-avatar" style={{ background: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: 'bold' }}>
-                            {post.user_profile?.username?.substring(0, 2).toUpperCase() || 'U'}
+                            {post.user_profiles?.username?.substring(0, 2).toUpperCase() || 'U'}
                           </div>
                         )}
                         <div className="post-meta">
                           <strong style={{ color: '#fff', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            {post.user_profile?.full_name || 'Kingdom User'} 
-                            {(post.user_profile?.account_type === 'Premium' || post.user_profile?.account_type === 'Apostle') && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
+                            {post.user_profiles?.username || 'Kingdom User'} 
+                            {(post.user_profiles?.account_type === 'Disciple' || post.user_profiles?.account_type === 'Apostle') && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
                           </strong>
                           <span style={{ color: '#8e9aab', fontSize: '12px' }}>{new Date(post.created_at).toLocaleDateString()}</span>
                         </div>
@@ -5417,6 +5507,9 @@ const fetchPendingDreams = async () => {
         </div>
       )}
 
+      {/* =========================================
+          STEP 8: WORLD PRAYER DISCOVERY
+          ========================================= */}
       {step === 8 && (
         <div className="feed-screen-container">
           <div className="feed-header-top" style={{ paddingBottom: '0' }}>
@@ -5433,7 +5526,7 @@ const fetchPendingDreams = async () => {
           <div className="feed-scroll-area" style={{ padding: '10px 0 120px 0' }}>
             <div className="prayer-discover-grid">
               {prayerRooms.map(room => (
-                <div key={room.id} className="prayer-tile" style={{ backgroundColor: room.bg }} onClick={() => openPrayerRoom(room)}>
+                <div key={room.id} className="prayer-tile" style={{ backgroundColor: room.bg }} onClick={() => { setActiveRoom(room); setStep(9); }}>
                   <img src={room.img} alt={room.title} className="prayer-tile-img" />
                   <span className="prayer-tile-title">{room.title}</span>
                   <span className="prayer-tile-stats">{room.reqs} requests<br />{room.lifted} prayers lifted</span>
@@ -5447,7 +5540,9 @@ const fetchPendingDreams = async () => {
         </div>
       )}
 
-      {/* STEP 9: INDIVIDUAL PRAYER ROOM */}
+      {/* =========================================
+          STEP 9: INDIVIDUAL PRAYER ROOM
+          ========================================= */}
       {step === 9 && activeRoom && (
         <div className="feed-screen-container">
           <div className="feed-header-top" style={{ paddingBottom: '0' }}>
@@ -5477,19 +5572,27 @@ const fetchPendingDreams = async () => {
               </div>
             </div>
 
-            {roomRequests.filter(req => req.roomId === activeRoom.id).map(req => (
-              <div key={req.id} className="room-request-card" style={{ borderColor: activeRoom.bg }}>
-                <div className="req-meta">
-                  <strong style={{ color: '#fff' }}>{req.author}</strong> • {req.time}
-                  {req.isUrgent && <span className="req-urgent-badge" style={{ color: activeRoom.color, background: `${activeRoom.color}20` }}>URGENT</span>}
+            {roomRequests.filter(req => req.room_id === activeRoom.id).map(req => {
+              const hasPrayed = prayedForIds.includes(req.id);
+              
+              return (
+                <div key={req.id} className="room-request-card" style={{ borderColor: activeRoom.bg }}>
+                  <div className="req-meta">
+                    <strong style={{ color: '#fff' }}>{req.author_name}</strong> • {new Date(req.created_at).toLocaleDateString()}
+                    {req.is_urgent && <span className="req-urgent-badge" style={{ color: activeRoom.color, background: `${activeRoom.color}20` }}>URGENT</span>}
+                  </div>
+                  <h3 className="req-title">{req.title}</h3>
+                  {req.content && <p className="req-detail">{req.content}</p>}
+                  <button 
+                    className={`i-prayed-btn ${hasPrayed ? 'active' : ''}`} 
+                    style={hasPrayed ? { borderColor: activeRoom.color, color: activeRoom.color } : {}} 
+                    onClick={() => handleToggleRoomPray(req)}
+                  >
+                    <HeartIcon /> I prayed • {req.prayed_count}
+                  </button>
                 </div>
-                <h3 className="req-title">{req.title}</h3>
-                {req.detail && <p className="req-detail">{req.detail}</p>}
-                <button className={`i-prayed-btn ${req.hasPrayed ? 'active' : ''}`} style={req.hasPrayed ? { borderColor: activeRoom.color, color: activeRoom.color } : {}} onClick={() => handleToggleRoomPray(req.id)}>
-                  <HeartIcon /> I prayed • {req.prayedCount}
-                </button>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           <AppBottomNav />
@@ -6939,21 +7042,54 @@ const fetchPendingDreams = async () => {
             ) : (
               <>
                 <div className="profile-identity-section">
-                  <div className="profile-avatar-overlap" onClick={() => avatarInputRef.current.click()} style={{ cursor: 'pointer', zIndex: 10 }}>
-                    {userProfile.avatar_url ? (
-                      <img src={userProfile.avatar_url} alt="Profile" className="profile-avatar-circle" style={{ objectFit: 'cover' }} />
-                    ) : (
-                      <div className="profile-avatar-circle">
-                        {userProfile.full_name ? userProfile.full_name.substring(0, 2).toUpperCase() : 'U'}
-                      </div>
-                    )}
-                    
-                    {(userProfile.account_type === 'Premium' || userProfile.account_type === 'Apostle') && (
-                      <div className="profile-verified-badge" title="Premium Account">
-                        <CheckIcon />
-                      </div>
-                    )}
-                  </div>
+  <div className="profile-avatar-overlap" onClick={() => avatarInputRef.current.click()} style={{ cursor: 'pointer', zIndex: 10, position: 'relative', display: 'inline-block' }}>
+    {userProfile.avatar_url ? (
+      <img 
+        src={userProfile.avatar_url} 
+        alt="Profile" 
+        className="profile-avatar-circle" 
+        style={{ 
+          objectFit: 'cover', 
+          border: '4px solid #29beaf', 
+          boxSizing: 'border-box'
+        }} 
+      />
+    ) : (
+      <div 
+        className="profile-avatar-circle"
+        style={{ 
+          border: '4px solid #29beaf', 
+          boxSizing: 'border-box' 
+        }}
+      >
+        {userProfile.full_name ? userProfile.full_name.substring(0, 2).toUpperCase() : 'U'}
+      </div>
+    )}
+    
+    {(userProfile.account_type === 'Premium' || userProfile.account_type === 'Apostle') && (
+      <div 
+        className="profile-verified-badge" 
+        title={`${userProfile.account_type} Account`}
+        style={{
+          position: 'absolute',
+          bottom: '4px',
+          right: '4px',
+          background: userProfile.account_type === 'Apostle' ? '#f3ca58' : '#3b82f6',
+          color: '#101926',
+          borderRadius: '50%',
+          padding: '4px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          border: '2px solid #101926',
+          width: '20px',
+          height: '20px'
+        }}
+      >
+        <CheckIcon style={{ width: '12px', height: '12px' }} />
+      </div>
+    )}
+  </div>
                   
                   <h2 className="profile-name-main">{userProfile.full_name || 'Kingdom Citizen'}</h2>
                   
@@ -7118,7 +7254,7 @@ const fetchPendingDreams = async () => {
                 {/* TAB CONTENT: POSTS */}
                 {profileTab === 'Posts' && (
                   <div className="profile-tab-content">
-                    {globalPosts.filter(post => post.user_profile?.username === userProfile?.username).length === 0 ? (
+                    {globalPosts.filter(post => post.user_profiles?.username === userProfile?.username).length === 0 ? (
                       <div className="empty-dream-state" style={{ marginTop: '0' }}>
                         <div className="empty-dream-icon"><IconBook /></div>
                         <h3>No posts yet</h3>
@@ -7126,23 +7262,23 @@ const fetchPendingDreams = async () => {
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                        {globalPosts.filter(post => post.user_profile?.username === userProfile?.username).map(post => {
+                        {globalPosts.filter(post => post.user_profiles?.username === userProfile?.username).map(post => {
                           const isVideo = post.image_url?.match(/\.(mp4|webm|ogg|mov)$/i);
                           return (
                             <div key={post.id} className="feed-post-card">
                               <div className="post-header">
                                 <div className="post-user-info">
-                                  {post.user_profile?.avatar_url ? (
-                                    <img src={post.user_profile.avatar_url} alt="" className="post-avatar" />
+                                  {post.user_profiles?.avatar_url ? (
+                                    <img src={post.user_profiles.avatar_url} alt="" className="post-avatar" />
                                   ) : (
                                     <div className="post-avatar" style={{ background: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#000', fontWeight: 'bold' }}>
-                                      {post.user_profile?.full_name?.substring(0, 2).toUpperCase() || 'U'}
+                                      {post.user_profiles?.full_name?.substring(0, 2).toUpperCase() || 'U'}
                                     </div>
                                   )}
                                   <div className="post-meta">
                                     <strong style={{ color: '#fff', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                      {post.user_profile?.full_name} 
-                                      {(post.user_profile?.account_type === 'Premium' || post.user_profile?.account_type === 'Apostle') && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
+                                      {post.user_profiles?.full_name} 
+                                      {(post.user_profiles?.account_type === 'Disciple' || post.user_profiles?.account_type === 'Apostle') && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
                                     </strong>
                                     <span style={{ color: '#8e9aab', fontSize: '11px' }}>{new Date(post.created_at).toLocaleDateString()}</span>
                                   </div>
@@ -7536,6 +7672,82 @@ const fetchPendingDreams = async () => {
                 </div>
               )}
 
+{/* FLOATING NEW CHAT BUTTON  */}
+<button 
+  onClick={() => setIsNewChatModalOpen(true)}
+  style={{ 
+    position: 'fixed', 
+    bottom: '100px', 
+    right: '20px', 
+    background: 'rgba(255, 255, 255, 0.1)', 
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    border: '1px solid rgba(255, 255, 255, 0.2)', 
+    color: '#29beaf', 
+    padding: '14px 15px', 
+    borderRadius: '30px', 
+    fontSize: '14px', 
+    fontWeight: '800', 
+    cursor: 'pointer', 
+    display: 'flex', 
+    alignItems: 'center', 
+    gap: '8px',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+    zIndex: 100 
+  }}
+>
+  <span style={{ fontSize: '18px', lineHeight: '1' }}>+</span> New Chat
+</button>
+
+{/* --- START NEW CHAT MODAL --- */}
+{isNewChatModalOpen && (
+  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+    <div style={{ background: '#101926', border: '1px solid rgba(41, 190, 175, 0.4)', borderRadius: '20px', padding: '25px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>Start New Chat</h3>
+        <button onClick={() => setIsNewChatModalOpen(false)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}>
+          <XIcon />
+        </button>
+      </div>
+
+      <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+        {friends.length === 0 ? (
+          <div style={{ textAlign: 'center', color: '#8e9aab', padding: '20px 0', fontSize: '13px' }}>
+            No friends added yet. Connect with believers in the People tab first!
+          </div>
+        ) : (
+          friends.map(friendReq => {
+            // Identify which profile belongs to the friend
+            const friendProfile = friendReq.sender_id === currentUser?.id ? friendReq.receiver : friendReq.sender;
+            
+            return (
+              <div key={friendReq.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                    {friendProfile?.full_name?.charAt(0) || 'U'}
+                  </div>
+                  <div style={{ color: '#fff', fontSize: '14px', fontWeight: '700' }}>
+                    {friendProfile?.full_name || 'Believer'}
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setIsNewChatModalOpen(false);
+                    handleInitiateDirectChat(friendProfile);
+                  }} 
+                  style={{ background: 'rgba(41, 190, 175, 0.1)', border: '1px solid #29beaf', color: '#29beaf', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}
+                >
+                  Message
+                </button>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  </div>
+)}
+
               {/* ==================== TAB 2: GROUPS ==================== */}
               {hubTab === 'GROUPS' && (
                 <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto', flex: 1, paddingBottom: '100px', width: '100%' }}>
@@ -7611,31 +7823,51 @@ const fetchPendingDreams = async () => {
                   </div>
 
                   <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', flex: 1, paddingBottom: '100px' }}>
-                    {peopleSubTab === 'GLOBAL' ? (
-                      globalUsers.length > 0 ? (
-                        globalUsers.map(user => (
-                          <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                                {user.full_name?.charAt(0) || 'U'}
-                              </div>
-                              <div>
-                                <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>{user.full_name || 'Anonymous Believer'}</div>
-                                <div style={{ color: '#8e9aab', fontSize: '11px' }}>{user.denomination || 'Kingdom Citizen'}</div>
-                              </div>
-                            </div>
-                            <button onClick={() => sendFriendRequest(user.id)} style={{ background: 'transparent', border: '1px solid #f3ca58', color: '#f3ca58', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>
-                              CONNECT
-                            </button>
-                          </div>
-                        ))
-                      ) : (
-                        <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px' }}>Loading global directory...</div>
-                      )
-                    ) : (
-                      <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '14px' }}>No one found in this category yet.</div>
-                    )}
-                  </div>
+  {peopleSubTab === 'GLOBAL' ? (
+    globalUsers.length > 0 ? (
+      globalUsers.map(user => {
+        const isFriend = friends.some(f => f.sender_id === user.id || f.receiver_id === user.id);
+        const isPending = sentRequests.some(req => req.receiver_id === user.id) || 
+                          incomingRequests.some(req => req.sender_id === user.id);
+
+        return (
+          <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                {user.full_name?.charAt(0) || 'U'}
+              </div>
+              <div>
+                <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>{user.username || 'Anonymous Believer'}</div>
+                <div style={{ color: '#8e9aab', fontSize: '11px' }}>{user.denomination || 'Kingdom Citizen'}</div>
+              </div>
+            </div>
+            
+            {isFriend ? (
+              <div style={{ background: 'rgba(46, 204, 113, 0.1)', border: '1px solid #2ecc71', color: '#2ecc71', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
+                FRIENDS
+              </div>
+            ) : isPending ? (
+              <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.2)', color: '#8e9aab', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
+                PENDING
+              </div>
+            ) : (
+              <button 
+                onClick={() => sendFriendRequest(user.id)} 
+                style={{ background: 'transparent', border: '1px solid #f3ca58', color: '#f3ca58', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}
+              >
+                CONNECT
+              </button>
+            )}
+          </div>
+        );
+      })
+    ) : (
+      <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px' }}>Loading global directory...</div>
+    )
+  ) : (
+    <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '14px' }}>No one found in this category yet.</div>
+  )}
+</div>
                 </div>
               )}
 
@@ -7708,7 +7940,7 @@ const fetchPendingDreams = async () => {
                       
                       {!isMe && activeDbChat.type === 'group' && (
                         <div style={{ fontSize: '10px', color: '#8e9aab', marginBottom: '4px', marginLeft: '12px' }}>
-                          {msg.user_profile?.full_name || 'Unknown'}
+                          {msg.user_profiles?.full_name || 'Unknown'}
                         </div>
                       )}
 
