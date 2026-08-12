@@ -1589,8 +1589,10 @@ useEffect(() => {
     if (current >= REWARD_THRESHOLD_SECONDS && !claimedVideos[activeMedia.id] && !isClaiming) {
       setIsClaiming(true);
 
+      const rewardAmount = Number(activeMedia.reward) || 5; 
+
       try {
-        const connection = new Connection('https://rpc.ankr.com/solana_devnet', 'confirmed');
+        const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
         const feePayer = Keypair.fromSecretKey(GLOBAL_TREASURY_KEY);
         const userPub = new PublicKey(generatedAddress);
         const KPC_MINT = new PublicKey(GLOBAL_KPC_MINT);
@@ -1598,14 +1600,13 @@ useEffect(() => {
         const src = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, feePayer.publicKey);
         const dest = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, userPub);
 
-        await transfer(connection, feePayer, src.address, dest.address, feePayer.publicKey, activeMedia.reward * Math.pow(10, 8));
+        await transfer(connection, feePayer, src.address, dest.address, feePayer.publicKey, rewardAmount * Math.pow(10, 8));
 
-        setKpcBalance(prev => prev + activeMedia.reward);
-        logTransaction(`Stream Reward: ${activeMedia.title}`, +activeMedia.reward, 'EARN');
+        setKpcBalance(prev => (Number(prev) || 0) + rewardAmount);
+        logTransaction(`Stream Reward: ${activeMedia.title}`, +rewardAmount, 'EARN');
         setClaimedVideos(prev => ({ ...prev, [activeMedia.id]: true }));
       } catch (error) {
-
-        setKpcBalance(prev => prev + activeMedia.reward);
+        setKpcBalance(prev => (Number(prev) || 0) + rewardAmount);
         setClaimedVideos(prev => ({ ...prev, [activeMedia.id]: true }));
       }
       setIsClaiming(false);
@@ -3706,6 +3707,22 @@ const handlePurchaseService = async (service) => {
 
       if (insertError) throw insertError;
 
+      const newPostLocal = {
+        id: Date.now(),
+        author_id: user.id,
+        content: newPostText,
+        image_url: mediaUrl,
+        created_at: new Date().toISOString(),
+        likes_count: 0,
+        comments_count: 0,
+        user_profiles: {
+          username: userProfile?.username || 'You',
+          full_name: userProfile?.full_name || 'You',
+          avatar_url: userProfile?.avatar_url
+        }
+      };
+      
+      setGlobalPosts([newPostLocal, ...globalPosts]);
       setNewPostText("");
       removePostMedia();
       fetchPosts();
@@ -4182,6 +4199,8 @@ const handlePurchaseService = async (service) => {
 
       const channelName = `notifications_${user.id}`;
       
+      await supabase.removeChannel(supabase.channel(channelName));
+      
       globalSub = supabase
         .channel(channelName)
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
@@ -4345,6 +4364,22 @@ const fetchPendingDreams = async () => {
       alert("Interpretation sent!");
       setDreamReply('');
       fetchPendingDreams();
+    }
+  };
+
+const handleJoinGroup = async (group) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      await supabase.from('chat_participants').insert([{ chat_id: group.id, user_id: user.id }]);
+
+      fetchMessengerData();
+
+      setActiveDbChat(group); 
+      setHubTab('CHATS');
+      
+    } catch (error) {
+      console.error("Error joining group:", error);
     }
   };
 
