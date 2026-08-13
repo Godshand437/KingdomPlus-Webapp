@@ -1835,7 +1835,7 @@ useEffect(() => {
         <div className="nav-icon-wrapper"><VolumeIcon /></div>
         <span className="nav-label">Media</span>
       </div>
-      <div className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => { setActiveTab('chat'); setStep(23); }}>
+      <div className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => { setActiveTab('chat'); setStep(23); setHubTab('INBOX'); }}>
         <div className="nav-icon-wrapper" style={{ position: 'relative' }}>
           <ChatIcon />
           {unreadChatCount > 0 && (
@@ -4049,6 +4049,9 @@ const handlePurchaseService = async (service) => {
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
+  const [editingMessageId, setEditingMessageId] = useState(null);
+  const [editMessageContent, setEditMessageContent] = useState("");
+
 
   const fetchMessengerData = async () => {
     try {
@@ -4098,25 +4101,71 @@ const subscription = supabase
     return () => { supabase.removeChannel(subscription); };
   }, [activeDbChat]);
 
-  const handleSendDbMessage = async (e) => {
-    e.preventDefault();
-    if (!chatInputMessage.trim() || !activeDbChat) return;
+const handleSendDbMessage = async (e) => {
+  e?.preventDefault();
+  if (!chatInputMessage.trim() || !activeDbChat) return;
 
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      await supabase.from('messages').insert([{
-        chat_id: activeDbChat.id,
-        sender_id: user.id,
-        content: chatInputMessage,
-        intent: messageIntent
-      }]);
-
-      setChatInputMessage('');
-    } catch (error) {
-      console.error("Error sending message:", error);
-    }
+  const tempId = `temp-${Date.now()}`;
+  const newMessage = {
+    id: tempId,
+    chat_id: activeDbChat.id,
+    sender_id: userProfile?.id,
+    content: chatInputMessage.trim(),
+    intent: messageIntent,
+    created_at: new Date().toISOString(),
+    user_profiles: userProfile
   };
+
+  setDbMessages(prev => [...prev, newMessage]);
+  setChatInputMessage('');
+  setMessageIntent('NORMAL');
+
+  try {
+    const { data, error } = await supabase.from('messages').insert([{
+      chat_id: activeDbChat.id,
+      sender_id: userProfile.id,
+      content: newMessage.content,
+      intent: newMessage.intent
+    }]).select();
+
+    if (error) throw error;
+    
+    if (data && data[0]) {
+      setDbMessages(prev => prev.map(msg => msg.id === tempId ? data[0] : msg));
+    }
+  } catch (error) {
+    console.error("Error sending message:", error);
+    setDbMessages(prev => prev.filter(msg => msg.id !== tempId));
+  }
+};
+
+const handleDeleteDbMessage = async (messageId) => {
+  if (!window.confirm("Delete this message?")) return;
+  
+  setDbMessages(prev => prev.filter(msg => msg.id !== messageId));
+
+  try {
+    await supabase.from('messages').delete().eq('id', messageId);
+  } catch (error) {
+    console.error("Error deleting message:", error);
+    fetchMessengerData();
+  }
+};
+
+const submitEditDbMessage = async (e, messageId) => {
+  e?.preventDefault();
+  if (!editMessageContent.trim()) return;
+
+  setDbMessages(prev => prev.map(msg => msg.id === messageId ? { ...msg, content: editMessageContent } : msg));
+  setEditingMessageId(null);
+
+  try {
+    await supabase.from('messages').update({ content: editMessageContent }).eq('id', messageId);
+  } catch (error) {
+    console.error("Error updating message:", error);
+    fetchMessengerData();
+  }
+};
 
   const handleInitiateDirectChat = async (targetUser) => {
     try {
@@ -4282,15 +4331,24 @@ useEffect(() => {
 }, [step, hubTab, peopleSubTab]);
 
 const sendFriendRequest = async (receiverId) => {
-  const { data: { user } } = await supabase.auth.getUser();
-  setSentRequests(prev => [...prev, { receiver_id: receiverId, status: 'pending' }]);
-  await supabase.from('friend_requests').insert([{ 
-    sender_id: user.id, 
-    receiver_id: receiverId, 
-    status: 'pending' 
-  }]);
-  
-  alert("Request sent!");
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+ 
+    setSentRequests(prev => [...prev, { receiver_id: receiverId, status: 'pending' }]);
+   
+    const { error } = await supabase.from('friend_requests').insert([{ 
+      sender_id: user.id, 
+      receiver_id: receiverId, 
+      status: 'pending' 
+    }]);
+
+    if (error) throw error;
+    
+  } catch (error) {
+    console.error("Error sending friend request:", error);
+    alert("Failed to send request. Please try again.");
+    fetchMessengerData(); 
+  }
 };
 
 const handleRequestAction = async (requestId, action) => {
@@ -4390,6 +4448,13 @@ const handleJoinGroup = async (group) => {
       console.error("Error joining group:", error);
     }
   };
+
+const [expandedPosts, setExpandedPosts] = useState({});
+
+const togglePostExpand = (postId) => {
+  setExpandedPosts(prev => ({ ...prev, [postId]: !prev[postId] }));
+};
+
 
 
 
@@ -5525,7 +5590,18 @@ const handleJoinGroup = async (group) => {
                     </div>
 
                     <div className="post-content">
-                      <p style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '1.5', marginBottom: '12px' }}>{post.content}</p>
+                      <p style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '1.5', marginBottom: '12px' }}>{post.content && post.content.length > 150 && !expandedPosts[post.id] 
+      ? `${post.content.substring(0, 150)}...` 
+      : post.content}
+    
+    {post.content && post.content.length > 150 && (
+      <span 
+        onClick={() => togglePostExpand(post.id)} 
+        style={{ color: '#29beaf', cursor: 'pointer', fontWeight: 'bold', marginLeft: '5px' }}
+      >
+        {expandedPosts[post.id] ? "See less" : "See more"}
+      </span>
+    )}</p>
                       
                       {post.image_url && (
                         isVideo ? (
@@ -7601,502 +7677,524 @@ const handleJoinGroup = async (group) => {
       )}
 
 {/* =========================================
-          STEP 23: KINGDOMPLUS MESSENGER
-          ========================================= */}
-      {step === 23 && (
-        <div className="feed-screen-container" style={{ width: '100vw', maxWidth: '100vw', height: '100vh', overflowX: 'hidden', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: 'radial-gradient(circle at top left, #141b2e 0%, #05080f 100%)' }}>
-          
-          <style>{`
-            .glass-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
-            .glass-scroll::-webkit-scrollbar-track { background: transparent; }
-            .glass-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
-            .glass-scroll { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.1) transparent; }
-          `}</style>
+    STEP 23: KINGDOMPLUS MESSENGER
+    ========================================= */}
+{step === 23 && (
+  <div className="feed-screen-container" style={{ width: '100vw', maxWidth: '100vw', height: '100vh', overflowX: 'hidden', display: 'flex', flexDirection: 'column', boxSizing: 'border-box', background: 'radial-gradient(circle at top left, #141b2e 0%, #05080f 100%)' }}>
+    
+    <style>{`
+      .glass-scroll::-webkit-scrollbar { width: 4px; height: 4px; }
+      .glass-scroll::-webkit-scrollbar-track { background: transparent; }
+      .glass-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.1); border-radius: 10px; }
+      .glass-scroll { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.1) transparent; }
+    `}</style>
 
-          {!activeDbChat ? (
-            <div style={{ display: 'flex', flexDirection: 'column', width: '100%', flex: 1, overflow: 'hidden' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px' }}>
-                <button onClick={() => setStep(6)} style={{ background: 'rgba(255,255,255,0.03)', border: 'none', color: '#fff', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                  <BackArrowIcon />
-                </button>
-                <div style={{ textAlign: 'center' }}>
-                  <h2 style={{ color: '#f3ca58', fontSize: '24px', fontWeight: '900', margin: 0, fontFamily: 'serif' }}>Messenger</h2>
-                  <div style={{ color: '#29beaf', fontSize: '10px', fontWeight: '800', letterSpacing: '2px', marginTop: '2px' }}>WEB3 • LIVE</div>
-                </div>
-                {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') ? (
-                  <button onClick={toggleDMLock} title={userProfile?.dms_locked ? 'Unlock DMs' : 'Lock DMs'} style={{ width: '40px', height: '40px', borderRadius: '50%', background: userProfile?.dms_locked ? 'rgba(231, 76, 60, 0.1)' : 'rgba(41, 190, 175, 0.1)', border: userProfile?.dms_locked ? '1px solid #e74c3c' : '1px solid #29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '18px' }}>
-                    {userProfile?.dms_locked ? '🔒' : '🔓'}
-                  </button>
-                ) : (
-                  <div style={{ width: '40px' }}></div>
-                )}
+    {!activeDbChat ? (
+      /* =========================================
+         INBOX
+         ========================================= */
+      <div style={{ display: 'flex', flexDirection: 'column', width: '100%', flex: 1, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px' }}>
+          <button onClick={() => setStep(6)} style={{ background: 'rgba(255,255,255,0.03)', border: 'none', color: '#fff', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+            <BackArrowIcon />
+          </button>
+          <div style={{ textAlign: 'center' }}>
+            <h2 style={{ color: '#f3ca58', fontSize: '24px', fontWeight: '900', margin: 0, fontFamily: 'serif' }}>Messenger</h2>
+            <div style={{ color: '#29beaf', fontSize: '10px', fontWeight: '800', letterSpacing: '2px', marginTop: '2px' }}>WEB3 • LIVE</div>
+          </div>
+          {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') ? (
+            <button onClick={toggleDMLock} title={userProfile?.dms_locked ? 'Unlock DMs' : 'Lock DMs'} style={{ width: '40px', height: '40px', borderRadius: '50%', background: userProfile?.dms_locked ? 'rgba(231, 76, 60, 0.1)' : 'rgba(41, 190, 175, 0.1)', border: userProfile?.dms_locked ? '1px solid #e74c3c' : '1px solid #29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '18px' }}>
+              {userProfile?.dms_locked ? '🔒' : '🔓'}
+            </button>
+          ) : (
+            <div style={{ width: '40px' }}></div>
+          )}
+        </div>
+
+        {/* --- TABS --- */}
+        <div style={{ display: 'flex', background: 'rgba(255,255,255,0.02)', borderRadius: '30px', margin: '0 20px 20px 20px', padding: '4px' }}>
+          {['INBOX', 'GROUPS', 'PEOPLE', 'REQUESTS'].map(tab => (
+            <button 
+              key={tab} 
+              onClick={() => setHubTab(tab)} 
+              style={{ 
+                flex: 1, 
+                padding: '12px 0', 
+                border: 'none', 
+                borderRadius: '26px', 
+                fontSize: '10px', 
+                fontWeight: '900', 
+                cursor: 'pointer', 
+                transition: 'all 0.2s', 
+                background: hubTab === tab ? 'rgba(243, 202, 88, 0.1)' : 'transparent', 
+                color: hubTab === tab ? '#f3ca58' : '#8e9aab', 
+                border: hubTab === tab ? '1px solid rgba(243, 202, 88, 0.3)' : '1px solid transparent' 
+              }}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        {/* ==================== TAB 1: INBOX & FRIENDS ==================== */}
+        {hubTab === 'INBOX' && (
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', width: '100%' }}>
+            
+{/* HORIZONTAL FRIENDS LIST */}
+<div style={{ padding: '0 20px', marginBottom: '10px', flexShrink: 0 }}>
+  <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '10px' }}>MY CONNECTIONS</div>
+  <div className="glass-scroll" style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '16px', paddingTop: '4px' }}>
+    {friends.length === 0 ? (
+      <span style={{ color: '#55657a', fontSize: '12px' }}>No connections yet. Head to the People tab!</span>
+    ) : (
+      friends.map(friend => {
+        const profile = friend.sender_id === userProfile?.id ? friend.receiver : friend.sender;
+        return (
+          <div key={friend.id} onClick={() => handleInitiateDirectChat(profile)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0 }}>
+            
+            {/* Outer ring to prevent clipping */}
+            <div style={{ padding: '2px', borderRadius: '50%', background: '#29beaf', display: 'flex' }}>
+              {/* Inner avatar */}
+              <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: '#1a8277', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '20px', fontWeight: '900', border: '3px solid #09101a' }}>
+                {profile?.full_name?.charAt(0) || 'U'}
               </div>
+            </div>
 
-              {/* --- TABS --- */}
-              <div style={{ display: 'flex', background: 'rgba(255,255,255,0.02)', borderRadius: '30px', margin: '0 20px 20px 20px', padding: '4px' }}>
-                {['INBOX', 'GROUPS', 'PEOPLE', 'REQUESTS'].map(tab => (
-                  <button 
-                    key={tab} 
-                    onClick={() => setHubTab(tab)} 
-                    style={{ 
-                      flex: 1, 
-                      padding: '12px 0', 
-                      border: 'none', 
-                      borderRadius: '26px', 
-                      fontSize: '10px', 
-                      fontWeight: '900', 
-                      cursor: 'pointer', 
-                      transition: 'all 0.2s', 
-                      background: hubTab === tab ? 'rgba(243, 202, 88, 0.1)' : 'transparent', 
-                      color: hubTab === tab ? '#f3ca58' : '#8e9aab', 
-                      border: hubTab === tab ? '1px solid rgba(243, 202, 88, 0.3)' : '1px solid transparent' 
-                    }}
-                  >
-                    {tab}
-                  </button>
-                ))}
-              </div>
+            <span style={{ color: '#e2e8f0', fontSize: '11px', fontWeight: '700', maxWidth: '64px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {profile?.full_name?.split(' ')[0]}
+            </span>
+          </div>
+        )
+      })
+    )}
+  </div>
+</div>
 
-              {/* ==================== TAB 1: INBOX & FRIENDS ==================== */}
-              {hubTab === 'INBOX' && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', width: '100%' }}>
-                  
-                  {/* HORIZONTAL FRIENDS LIST */}
-                  <div style={{ padding: '0 20px', marginBottom: '10px', flexShrink: 0 }}>
-                    <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '10px' }}>MY CONNECTIONS</div>
-                    <div className="glass-scroll" style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '10px' }}>
-                      {friends.length === 0 ? (
-                        <span style={{ color: '#55657a', fontSize: '12px' }}>No connections yet. Head to the People tab!</span>
-                      ) : (
-                        friends.map(friend => {
-                          const profile = friend.sender_id === userProfile?.id ? friend.receiver : friend.sender;
-                          return (
-                            <div key={friend.id} onClick={() => handleInitiateDirectChat(profile)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0 }}>
-                              <div style={{ width: '56px', height: '56px', borderRadius: '50%', background: 'linear-gradient(135deg, #29beaf, #1a8277)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '20px', fontWeight: '900', border: '2px solid #09101a', boxShadow: '0 0 0 2px rgba(41, 190, 175, 0.4)' }}>
-                                {profile?.full_name?.charAt(0) || 'U'}
-                              </div>
-                              <span style={{ color: '#e2e8f0', fontSize: '11px', fontWeight: '700', maxWidth: '64px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                {profile?.full_name?.split(' ')[0]}
-                              </span>
-                            </div>
-                          )
-                        })
-                      )}
+            <div style={{ padding: '0 20px', flexShrink: 0, marginBottom: '10px' }}>
+              <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>ACTIVE CHATS</div>
+            </div>
+
+            <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', flex: 1, paddingBottom: '100px' }}>
+              {dbChats.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', marginTop: '20px' }}>Your inbox is empty.</div>
+              ) : (
+                dbChats.map((chat) => (
+                  <div key={chat.id} onClick={() => setActiveDbChat(chat)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                      <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: chat.type === 'group' ? 'rgba(41, 190, 175, 0.1)' : 'linear-gradient(135deg, #101926, #1f3752)', border: '1px solid rgba(243, 202, 88, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px' }}>
+                        {chat.type === 'group' ? '⛪' : '👤'}
+                      </div>
+                      <div>
+                        <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>
+                          {chat.type === 'group' ? chat.name : "Private Chat"}
+                        </div>
+                        <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>
+                          Tap to open conversation
+                        </div>
+                      </div>
                     </div>
                   </div>
-
-                  <div style={{ padding: '0 20px', flexShrink: 0, marginBottom: '10px' }}>
-                    <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>ACTIVE CHATS</div>
-                  </div>
-
-                  <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', flex: 1, paddingBottom: '100px' }}>
-                    {dbChats.length === 0 ? (
-                      <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', marginTop: '20px' }}>Your inbox is empty.</div>
-                    ) : (
-                      dbChats.map((chat) => (
-                        <div key={chat.id} onClick={() => setActiveDbChat(chat)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                            <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: chat.type === 'group' ? 'rgba(41, 190, 175, 0.1)' : 'linear-gradient(135deg, #101926, #1f3752)', border: '1px solid rgba(243, 202, 88, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px' }}>
-                              {chat.type === 'group' ? '⛪' : '👤'}
-                            </div>
-                            <div>
-                              <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>
-                                {chat.type === 'group' ? chat.name : "Private Chat"}
-                              </div>
-                              <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>
-                                Tap to open conversation
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+                ))
               )}
-
-{/* FLOATING NEW CHAT BUTTON  */}
-<button 
-  onClick={() => setIsNewChatModalOpen(true)}
-  style={{ 
-    position: 'fixed', 
-    bottom: '100px', 
-    right: '20px', 
-    background: 'rgba(255, 255, 255, 0.1)', 
-    backdropFilter: 'blur(12px)',
-    WebkitBackdropFilter: 'blur(12px)',
-    border: '1px solid rgba(255, 255, 255, 0.2)', 
-    color: '#29beaf', 
-    padding: '14px 15px', 
-    borderRadius: '30px', 
-    fontSize: '14px', 
-    fontWeight: '800', 
-    cursor: 'pointer', 
-    display: 'flex', 
-    alignItems: 'center', 
-    gap: '8px',
-    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
-    zIndex: 100 
-  }}
->
-  <span style={{ fontSize: '18px', lineHeight: '1' }}>+</span> New Chat
-</button>
-
-{/* --- START NEW CHAT MODAL --- */}
-{isNewChatModalOpen && (
-  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-    <div style={{ background: '#101926', border: '1px solid rgba(41, 190, 175, 0.4)', borderRadius: '20px', padding: '25px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>Start New Chat</h3>
-        <button onClick={() => setIsNewChatModalOpen(false)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}>
-          <XIcon />
-        </button>
-      </div>
-
-      <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-        {friends.length === 0 ? (
-          <div style={{ textAlign: 'center', color: '#8e9aab', padding: '20px 0', fontSize: '13px' }}>
-            No friends added yet. Connect with believers in the People tab first!
+            </div>
           </div>
-        ) : (
-          friends.map(friendReq => {
-            // Identify which profile belongs to the friend
-            const friendProfile = friendReq.sender_id === currentUser?.id ? friendReq.receiver : friendReq.sender;
-            
+        )}
+
+     {/* ==================== TAB 2: GROUPS ==================== */}
+{hubTab === 'GROUPS' && (
+  <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto', flex: 1, paddingBottom: '100px', width: '100%' }}>
+    
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+      <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>DISCOVER COMMUNITIES</div>
+      {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') && (
+        <button onClick={() => setIsCreateGroupModalOpen(true)} style={{ background: 'transparent', border: '1px solid #29beaf', color: '#29beaf', padding: '4px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>+ Create Group</button>
+      )}
+    </div>
+
+    {/* SUB-SECTION: LOCAL CHURCH GROUPS */}
+    {publicGroups.some(g => g.category === 'Local' || g.name.includes(userProfile?.local_church)) && (
+      <div style={{ marginBottom: '10px' }}>
+        <h4 style={{ color: '#f3ca58', fontSize: '12px', margin: '0 0 10px 0', borderBottom: '1px solid rgba(243, 202, 88, 0.2)', paddingBottom: '4px' }}>
+          {userProfile?.local_church || 'Your Local'} Assemblies
+        </h4>
+        {publicGroups
+          .filter(g => g.category === 'Local' || g.name.includes(userProfile?.local_church))
+          .map(group => {
+            const isAlreadyJoined = dbChats.some(chat => chat.id === group.id);
             return (
-              <div key={friendReq.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                    {friendProfile?.full_name?.charAt(0) || 'U'}
-                  </div>
-                  <div style={{ color: '#fff', fontSize: '14px', fontWeight: '700' }}>
-                    {friendProfile?.full_name || 'Believer'}
+              <div key={group.id} onClick={() => { if (isAlreadyJoined) { setActiveDbChat(group); setHubTab('INBOX'); } }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(243, 202, 88, 0.05)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(243, 202, 88, 0.1)', width: '100%', boxSizing: 'border-box', marginBottom: '10px', cursor: isAlreadyJoined ? 'pointer' : 'default' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(243, 202, 88, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px' }}>⛪</div>
+                  <div>
+                    <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>{group.name}</div>
+                    <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>{isAlreadyJoined ? 'Tap to open chat' : (group.description || 'Connect with your local assembly')}</div>
                   </div>
                 </div>
-                <button 
-                  onClick={() => {
-                    setIsNewChatModalOpen(false);
-                    handleInitiateDirectChat(friendProfile);
-                  }} 
-                  style={{ background: 'rgba(41, 190, 175, 0.1)', border: '1px solid #29beaf', color: '#29beaf', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}
-                >
-                  Message
-                </button>
+                {!isAlreadyJoined && (
+                  <button 
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        await supabase.from('chat_participants').insert([{ chat_id: group.id, user_id: user.id }]);
+                        fetchMessengerData();
+                        setActiveDbChat(group);
+                        setHubTab('INBOX');
+                      } catch (error) {
+                        console.error("Error joining group:", error);
+                        alert("Failed to join the group. Please try again.");
+                      }
+                    }}
+                    style={{ color: '#101926', background: '#f3ca58', padding: '8px 16px', borderRadius: '12px', fontSize: '10px', fontWeight: '900', border: 'none', cursor: 'pointer' }}
+                  >
+                    JOIN
+                  </button>
+                )}
               </div>
             );
-          })
-        )}
+        })}
       </div>
+    )}
+
+    {/* SUB-SECTION: GLOBAL GROUPS */}
+    <div>
+      <h4 style={{ color: '#fff', fontSize: '12px', margin: '0 0 10px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
+        Global Rooms
+      </h4>
+      {publicGroups
+        .filter(g => g.category !== 'Local' && !g.name.includes(userProfile?.local_church))
+        .map(group => {
+          const isAlreadyJoined = dbChats.some(chat => chat.id === group.id);
+          return (
+            <div key={group.id} onClick={() => { if (isAlreadyJoined) { setActiveDbChat(group); setHubTab('INBOX'); } }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box', marginBottom: '10px', cursor: isAlreadyJoined ? 'pointer' : 'default' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#29beaf', fontSize: '20px' }}>🌍</div>
+                <div>
+                  <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>{group.name}</div>
+                  <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>
+                    {isAlreadyJoined ? 'Tap to open chat' : (group.description || 'Public Kingdom Chat')}
+                  </div>
+                </div>
+              </div>
+              
+              {!isAlreadyJoined && (
+                <button 
+                  onClick={async (e) => {
+                    e.stopPropagation();
+                    try {
+                      const { data: { user } } = await supabase.auth.getUser();
+                      await supabase.from('chat_participants').insert([{ chat_id: group.id, user_id: user.id }]);
+                      fetchMessengerData();
+                      setActiveDbChat(group);
+                      setHubTab('INBOX');
+                    } catch (error) {
+                      console.error("Error joining group:", error);
+                      alert("Failed to join the group. Please try again.");
+                    }
+                  }}
+                  style={{ color: '#101926', background: '#29beaf', padding: '8px 16px', borderRadius: '12px', fontSize: '10px', fontWeight: '900', border: 'none', cursor: 'pointer' }}
+                >
+                  JOIN
+                </button>
+              )}
+            </div>
+          );
+        })}
     </div>
+
+    {publicGroups.length === 0 && <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px' }}>No public groups available.</div>}
   </div>
 )}
 
-              {/* ==================== TAB 2: GROUPS ==================== */}
-              {/* ==================== TAB 2: GROUPS ==================== */}
-              {hubTab === 'GROUPS' && (
-                <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto', flex: 1, paddingBottom: '100px', width: '100%' }}>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>DISCOVER COMMUNITIES</div>
-                    {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') && (
-                      <button onClick={() => setIsCreateGroupModalOpen(true)} style={{ background: 'transparent', border: '1px solid #29beaf', color: '#29beaf', padding: '4px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>+ Create Group</button>
-                    )}
-                  </div>
+        {/* ==================== CREATE GROUP MODAL ==================== */}
+        {isCreateGroupModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(9, 16, 26, 0.95)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ width: '100%', maxWidth: '400px', background: '#101926', padding: '24px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
+                <h3 style={{ color: '#fff', margin: 0 }}>Create Public Group</h3>
+                <button onClick={() => setIsCreateGroupModalOpen(false)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}><XIcon /></button>
+              </div>
+              <input type="text" placeholder="Group Name" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} style={{ width: '100%', padding: '14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', marginBottom: '12px', outline: 'none', boxSizing: 'border-box' }} />
+              <textarea placeholder="Description" value={newGroupDesc} onChange={(e) => setNewGroupDesc(e.target.value)} style={{ width: '100%', padding: '14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', marginBottom: '20px', outline: 'none', height: '80px', resize: 'none', boxSizing: 'border-box' }} />
+              <button onClick={handleCreateGroup} style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '12px', color: '#101926', fontWeight: '900', cursor: 'pointer' }}>Create Group</button>
+            </div>
+          </div>
+        )}
 
-                  {/* SUB-SECTION: LOCAL CHURCH GROUPS */}
-                  {publicGroups.some(g => g.category === 'Local' || g.name.includes(userProfile?.local_church)) && (
-                    <div style={{ marginBottom: '10px' }}>
-                      <h4 style={{ color: '#f3ca58', fontSize: '12px', margin: '0 0 10px 0', borderBottom: '1px solid rgba(243, 202, 88, 0.2)', paddingBottom: '4px' }}>
-                        {userProfile?.local_church || 'Your Local'} Assemblies
-                      </h4>
-                      {publicGroups
-                        .filter(g => g.category === 'Local' || g.name.includes(userProfile?.local_church))
-                        .map(group => (
-                          <div key={group.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(243, 202, 88, 0.05)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(243, 202, 88, 0.1)', width: '100%', boxSizing: 'border-box', marginBottom: '10px' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                              <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(243, 202, 88, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px' }}>⛪</div>
-                              <div>
-                                <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>{group.name}</div>
-                                <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>{group.description || 'Connect with your local assembly'}</div>
-                              </div>
-                            </div>
-                            <button 
-                              onClick={async () => {
-                                try {
-                                  const { data: { user } } = await supabase.auth.getUser();
-                                  await supabase.from('chat_participants').insert([{ chat_id: group.id, user_id: user.id }]);
-                                  fetchMessengerData();
-                                  setActiveDbChat(group);
-                                  setHubTab('INBOX'); // Fixed from 'CHATS' to match your tabs
-                                  
-                                  alert("Joined group successfully!");
-                                } catch (error) {
-                                  console.error("Error joining group:", error);
-                                  alert("Failed to join the group. Please try again.");
-                                }
-                              }}
-                              style={{ color: '#101926', background: '#f3ca58', padding: '8px 16px', borderRadius: '12px', fontSize: '10px', fontWeight: '900', border: 'none', cursor: 'pointer' }}
-                            >
-                              JOIN
-                            </button>
-                          </div>
-                      ))}
-                    </div>
-                  )}
+        {/* ==================== TAB 3: PEOPLE ==================== */}
+        {hubTab === 'PEOPLE' && (
+          <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', width: '100%' }}>
+            <div style={{ padding: '0 20px', flexShrink: 0 }}>
+              <div className="glass-scroll" style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px', overflowX: 'auto' }}>
+                {['MY CHURCH', 'DENOMINATION', 'NEARBY', 'GLOBAL'].map(sub => (
+                  <button 
+                    key={sub}
+                    onClick={() => setPeopleSubTab(sub)}
+                    style={{ padding: '10px 14px', borderRadius: '12px', border: peopleSubTab === sub ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', background: peopleSubTab === sub ? 'rgba(41, 190, 175, 0.1)' : 'transparent', color: peopleSubTab === sub ? '#29beaf' : '#8e9aab', fontSize: '10px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
+                  >
+                    {sub}
+                  </button>
+                ))}
+              </div>
+              
+              <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '24px', width: '100%', boxSizing: 'border-box' }}>
+                <SearchIcon />
+                <input type="text" placeholder="Search believers..." value={peopleSearch} onChange={(e) => setPeopleSearch(e.target.value)} style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', width: '100%', fontSize: '14px' }} />
+              </div>
+            </div>
 
-                  {/* SUB-SECTION: GLOBAL GROUPS */}
-                  <div>
-                    <h4 style={{ color: '#fff', fontSize: '12px', margin: '0 0 10px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
-                      Global Rooms
-                    </h4>
-                    {publicGroups
-                      .filter(g => g.category !== 'Local' && !g.name.includes(userProfile?.local_church))
-                      .map(group => (
-                        <div key={group.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box', marginBottom: '10px' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                            <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#29beaf', fontSize: '20px' }}>🌍</div>
-                            <div>
-                              <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>{group.name}</div>
-                              <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>{group.description || 'Public Kingdom Chat'}</div>
-                            </div>
+            <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', flex: 1, paddingBottom: '100px' }}>
+              {peopleSubTab === 'GLOBAL' ? (
+                globalUsers.length > 0 ? (
+                  globalUsers.map(user => {
+                    const isFriend = friends.some(f => f.sender_id === user.id || f.receiver_id === user.id);
+                    const isPending = sentRequests.some(req => req.receiver_id === user.id) || 
+                                      incomingRequests.some(req => req.sender_id === user.id);
+
+                    return (
+                      <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                            {user.full_name?.charAt(0) || 'U'}
                           </div>
-                          <button 
-                            onClick={async () => {
-                              try {
-                                const { data: { user } } = await supabase.auth.getUser();
-                                await supabase.from('chat_participants').insert([{ chat_id: group.id, user_id: user.id }]);
-                                fetchMessengerData();
-                                setActiveDbChat(group);
-                                setHubTab('INBOX'); // Fixed from 'CHATS' to match your tabs
-                                
-                                alert("Joined group successfully!");
-                              } catch (error) {
-                                console.error("Error joining group:", error);
-                                alert("Failed to join the group. Please try again.");
-                              }
-                            }}
-                            style={{ color: '#101926', background: '#29beaf', padding: '8px 16px', borderRadius: '12px', fontSize: '10px', fontWeight: '900', border: 'none', cursor: 'pointer' }}
-                          >
-                            JOIN
-                          </button>
+                          <div>
+                            <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>{user.username || 'Anonymous Believer'}</div>
+                            <div style={{ color: '#8e9aab', fontSize: '11px' }}>{user.denomination || 'Kingdom Citizen'}</div>
+                          </div>
                         </div>
-                    ))}
-                  </div>
-
-                  {publicGroups.length === 0 && <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px' }}>No public groups available.</div>}
-                </div>
+                        
+                        {isFriend ? (
+                          <div style={{ background: 'rgba(46, 204, 113, 0.1)', border: '1px solid #2ecc71', color: '#2ecc71', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
+                            FRIENDS
+                          </div>
+                        ) : isPending ? (
+                          <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.2)', color: '#8e9aab', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
+                            PENDING
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => sendFriendRequest(user.id)} 
+                            style={{ background: 'transparent', border: '1px solid #f3ca58', color: '#f3ca58', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}
+                          >
+                            CONNECT
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })
+                ) : (
+                  <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px' }}>Loading global directory...</div>
+                )
+              ) : (
+                <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '14px' }}>No one found in this category yet.</div>
               )}
-   
-              {/* ==================== CREATE GROUP MODAL ==================== */}
-              {isCreateGroupModalOpen && (
-                <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(9, 16, 26, 0.95)', zIndex: 10000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-                  <div style={{ width: '100%', maxWidth: '400px', background: '#101926', padding: '24px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.1)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px' }}>
-                      <h3 style={{ color: '#fff', margin: 0 }}>Create Public Group</h3>
-                      <button onClick={() => setIsCreateGroupModalOpen(false)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}><XIcon /></button>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== TAB 4: REQUESTS ==================== */}
+        {hubTab === 'REQUESTS' && (
+          <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '30px', overflowY: 'auto', flex: 1, paddingBottom: '100px', width: '100%' }}>
+            
+            {/* INCOMING REQUESTS */}
+            <div style={{ width: '100%' }}>
+              <div style={{ color: '#f3ca58', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '16px' }}>INCOMING ({incomingRequests.length})</div>
+              {incomingRequests.length === 0 ? (
+                <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '16px' }}>No new requests.</div>
+              ) : (
+                incomingRequests.map(req => (
+                  <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ color: '#fff', fontSize: '14px' }}>{req.sender?.full_name}</div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => handleRequestAction(req.id, 'accepted')} style={{ background: '#29beaf', color: '#101926', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>ACCEPT</button>
+                      <button onClick={() => handleRequestAction(req.id, 'rejected')} style={{ background: 'rgba(231, 76, 60, 0.2)', color: '#e74c3c', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>DECLINE</button>
                     </div>
-                    <input type="text" placeholder="Group Name" value={newGroupName} onChange={(e) => setNewGroupName(e.target.value)} style={{ width: '100%', padding: '14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', marginBottom: '12px', outline: 'none', boxSizing: 'border-box' }} />
-                    <textarea placeholder="Description" value={newGroupDesc} onChange={(e) => setNewGroupDesc(e.target.value)} style={{ width: '100%', padding: '14px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '12px', color: '#fff', marginBottom: '20px', outline: 'none', height: '80px', resize: 'none', boxSizing: 'border-box' }} />
-                    <button onClick={handleCreateGroup} style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '12px', color: '#101926', fontWeight: '900', cursor: 'pointer' }}>Create Group</button>
                   </div>
-                </div>
+                ))
               )}
-
-              {/* ==================== TAB 3: PEOPLE ==================== */}
-              {hubTab === 'PEOPLE' && (
-                <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', width: '100%' }}>
-                  <div style={{ padding: '0 20px', flexShrink: 0 }}>
-                    <div className="glass-scroll" style={{ display: 'flex', gap: '8px', marginBottom: '20px', borderBottom: '1px solid rgba(255,255,255,0.05)', paddingBottom: '16px', overflowX: 'auto' }}>
-                      {['MY CHURCH', 'DENOMINATION', 'NEARBY', 'GLOBAL'].map(sub => (
-                        <button 
-                          key={sub}
-                          onClick={() => setPeopleSubTab(sub)}
-                          style={{ padding: '10px 14px', borderRadius: '12px', border: peopleSubTab === sub ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', background: peopleSubTab === sub ? 'rgba(41, 190, 175, 0.1)' : 'transparent', color: peopleSubTab === sub ? '#29beaf' : '#8e9aab', fontSize: '10px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s' }}
-                        >
-                          {sub}
-                        </button>
-                      ))}
-                    </div>
-                    
-                    <div style={{ background: 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '12px 16px', display: 'flex', alignItems: 'center', gap: '10px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '24px', width: '100%', boxSizing: 'border-box' }}>
-                      <SearchIcon />
-                      <input type="text" placeholder="Search believers..." value={peopleSearch} onChange={(e) => setPeopleSearch(e.target.value)} style={{ background: 'transparent', border: 'none', color: '#fff', outline: 'none', width: '100%', fontSize: '14px' }} />
-                    </div>
-                  </div>
-
-                  <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '12px', overflowY: 'auto', flex: 1, paddingBottom: '100px' }}>
-  {peopleSubTab === 'GLOBAL' ? (
-    globalUsers.length > 0 ? (
-      globalUsers.map(user => {
-        const isFriend = friends.some(f => f.sender_id === user.id || f.receiver_id === user.id);
-        const isPending = sentRequests.some(req => req.receiver_id === user.id) || 
-                          incomingRequests.some(req => req.sender_id === user.id);
-
-        return (
-          <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-              <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                {user.full_name?.charAt(0) || 'U'}
-              </div>
-              <div>
-                <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>{user.username || 'Anonymous Believer'}</div>
-                <div style={{ color: '#8e9aab', fontSize: '11px' }}>{user.denomination || 'Kingdom Citizen'}</div>
-              </div>
             </div>
             
-            {isFriend ? (
-              <div style={{ background: 'rgba(46, 204, 113, 0.1)', border: '1px solid #2ecc71', color: '#2ecc71', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
-                FRIENDS
-              </div>
-            ) : isPending ? (
-              <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.2)', color: '#8e9aab', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
-                PENDING
-              </div>
-            ) : (
-              <button 
-                onClick={() => sendFriendRequest(user.id)} 
-                style={{ background: 'transparent', border: '1px solid #f3ca58', color: '#f3ca58', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}
-              >
-                CONNECT
-              </button>
-            )}
-          </div>
-        );
-      })
-    ) : (
-      <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px' }}>Loading global directory...</div>
-    )
-  ) : (
-    <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '14px' }}>No one found in this category yet.</div>
-  )}
-</div>
-                </div>
+            <div style={{ width: '100%' }}>
+              <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '16px' }}>SENT ({sentRequests.length})</div>
+              {sentRequests.length === 0 ? (
+                 <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '16px' }}>No pending sent requests.</div>
+              ) : (
+                sentRequests.map(req => (
+                  <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                    <div style={{ color: '#fff', fontSize: '14px' }}>{req.receiver?.full_name}</div>
+                    <div style={{ color: '#8e9aab', fontSize: '10px', fontWeight: 'bold' }}>PENDING</div>
+                  </div>
+                ))
               )}
+            </div>
+          </div>
+        )}
 
-              {/* ==================== TAB 4: REQUESTS ==================== */}
-              {hubTab === 'REQUESTS' && (
-                <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '30px', overflowY: 'auto', flex: 1, paddingBottom: '100px', width: '100%' }}>
-                  
-                  {/* INCOMING REQUESTS */}
-                  <div style={{ width: '100%' }}>
-                    <div style={{ color: '#f3ca58', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '16px' }}>INCOMING ({incomingRequests.length})</div>
-                    {incomingRequests.length === 0 ? (
-                      <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '16px' }}>No new requests.</div>
-                    ) : (
-                      incomingRequests.map(req => (
-                        <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <div style={{ color: '#fff', fontSize: '14px' }}>{req.sender?.full_name}</div>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button onClick={() => handleRequestAction(req.id, 'accepted')} style={{ background: '#29beaf', color: '#101926', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>ACCEPT</button>
-                            <button onClick={() => handleRequestAction(req.id, 'rejected')} style={{ background: 'rgba(231, 76, 60, 0.2)', color: '#e74c3c', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>DECLINE</button>
+        {/* FLOATING NEW CHAT BUTTON */}
+        <button 
+          onClick={() => setIsNewChatModalOpen(true)}
+          style={{ 
+            position: 'fixed', 
+            bottom: '100px', 
+            right: '20px', 
+            background: 'rgba(255, 255, 255, 0.1)', 
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            border: '1px solid rgba(255, 255, 255, 0.2)', 
+            color: '#29beaf', 
+            padding: '14px 15px', 
+            borderRadius: '30px', 
+            fontSize: '14px', 
+            fontWeight: '800', 
+            cursor: 'pointer', 
+            display: 'flex', 
+            alignItems: 'center', 
+            gap: '8px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)',
+            zIndex: 100 
+          }}
+        >
+          <span style={{ fontSize: '18px', lineHeight: '1' }}>+</span> New Chat
+        </button>
+
+        {/* --- START NEW CHAT MODAL --- */}
+        {isNewChatModalOpen && (
+          <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+            <div style={{ background: '#101926', border: '1px solid rgba(41, 190, 175, 0.4)', borderRadius: '20px', padding: '25px', width: '100%', maxWidth: '400px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>Start New Chat</h3>
+                <button onClick={() => setIsNewChatModalOpen(false)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}>
+                  <XIcon />
+                </button>
+              </div>
+
+              <div style={{ maxHeight: '300px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {friends.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: '#8e9aab', padding: '20px 0', fontSize: '13px' }}>
+                    No friends added yet. Connect with believers in the People tab first!
+                  </div>
+                ) : (
+                  friends.map(friendReq => {
+                    const friendProfile = friendReq.sender_id === currentUser?.id ? friendReq.receiver : friendReq.sender;
+                    
+                    return (
+                      <div key={friendReq.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
+                            {friendProfile?.full_name?.charAt(0) || 'U'}
+                          </div>
+                          <div style={{ color: '#fff', fontSize: '14px', fontWeight: '700' }}>
+                            {friendProfile?.full_name || 'Believer'}
                           </div>
                         </div>
-                      ))
-                    )}
-                  </div>
-                  <div style={{ width: '100%' }}>
-                    <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '16px' }}>SENT ({sentRequests.length})</div>
-                    {sentRequests.length === 0 ? (
-                       <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '16px' }}>No pending sent requests.</div>
-                    ) : (
-                      sentRequests.map(req => (
-                        <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                          <div style={{ color: '#fff', fontSize: '14px' }}>{req.receiver?.full_name}</div>
-                          <div style={{ color: '#8e9aab', fontSize: '10px', fontWeight: 'bold' }}>PENDING</div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-
-                </div>
-              )}
+                        <button 
+                          onClick={() => {
+                            setIsNewChatModalOpen(false);
+                            handleInitiateDirectChat(friendProfile);
+                          }} 
+                          style={{ background: 'rgba(41, 190, 175, 0.1)', border: '1px solid #29beaf', color: '#29beaf', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}
+                        >
+                          Message
+                        </button>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          ) : (
+          </div>
+        )}
+        
+        {/* Navigation is rendered here when Hub is active */}
+        <AppBottomNav />
 
-            <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', background: 'transparent', overflow: 'hidden', position: 'relative', zIndex: 1000 }}>
-              
-              <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'rgba(9, 16, 26, 0.4)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(255,255,255,0.05)', zIndex: 20 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <button onClick={() => setActiveDbChat(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
-                    <BackArrowIcon />
-                  </button>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '800', margin: 0 }}>
-                      {activeDbChat.type === 'group' ? activeDbChat.name : "Private Message"}
-                    </h3>
-                    <span style={{ color: '#2ecc71', fontSize: '11px', fontWeight: '700' }}>Live Chat Sync</span>
+      </div>
+    ) : (
+
+      /* =========================================
+         ACTIVE CHAT ROOM VIEW
+         ========================================= */
+      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', background: 'transparent', overflow: 'hidden', position: 'relative', zIndex: 1000 }}>
+        
+        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'rgba(9, 16, 26, 0.4)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(255,255,255,0.05)', zIndex: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <button onClick={() => setActiveDbChat(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+              <BackArrowIcon />
+            </button>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '800', margin: 0 }}>
+                {activeDbChat.type === 'group' ? activeDbChat.name : "Private Message"}
+              </h3>
+              <span style={{ color: '#2ecc71', fontSize: '11px', fontWeight: '700' }}>Live Chat Sync</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="glass-scroll" style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ textAlign: 'center', color: '#55657a', fontSize: '11px', fontWeight: '700', marginBottom: '10px' }}>
+            🔒 Encrypted Web3 Chat
+          </div>
+
+          {dbMessages.map((msg) => {
+            const isMe = userProfile?.id === msg.sender_id; 
+            
+            return (
+              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                
+                {!isMe && activeDbChat.type === 'group' && (
+                  <div style={{ fontSize: '10px', color: '#8e9aab', marginBottom: '4px', marginLeft: '12px' }}>
+                    {msg.user_profiles?.full_name || 'Unknown'}
                   </div>
-                </div>
-              </div>
+                )}
 
-              <div className="glass-scroll" style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ textAlign: 'center', color: '#55657a', fontSize: '11px', fontWeight: '700', marginBottom: '10px' }}>
-                  🔒 Encrypted Web3 Chat
-                </div>
-
-                {dbMessages.map((msg) => {
-                  const isMe = userProfile?.id === msg.sender_id; 
-                  
-                  return (
-                    <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
-                      
-                      {!isMe && activeDbChat.type === 'group' && (
-                        <div style={{ fontSize: '10px', color: '#8e9aab', marginBottom: '4px', marginLeft: '12px' }}>
-                          {msg.user_profiles?.full_name || 'Unknown'}
-                        </div>
-                      )}
-
-                      {msg.intent && msg.intent !== 'NORMAL' && (
-                        <span style={{ fontSize: '9px', fontWeight: '900', padding: '2px 8px', borderRadius: '6px', background: msg.intent === 'URGENT PRAYER' ? 'rgba(231, 76, 60, 0.2)' : 'rgba(243, 202, 88, 0.2)', color: msg.intent === 'URGENT PRAYER' ? '#e74c3c' : '#f3ca58', marginBottom: '4px', letterSpacing: '0.5px' }}>
-                          {msg.intent}
-                        </span>
-                      )}
-                      
-                      <div style={{ background: isMe ? 'rgba(41, 190, 175, 0.15)' : 'rgba(255,255,255,0.05)', color: isMe ? '#29beaf' : '#fff', padding: '12px 16px', borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px', maxWidth: '75%', fontSize: '14px', lineHeight: '1.4', border: isMe ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', wordBreak: 'break-word', backdropFilter: 'blur(5px)' }}>
-                        {msg.content}
-                      </div>
-                      
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', color: '#55657a', fontSize: '10px', fontWeight: '700' }}>
-                        {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {isMe && <ChatDoubleCheckIcon />}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div style={{ flexShrink: 0, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,0.2)' }}>
-                <div className="glass-scroll" style={{ display: 'flex', gap: '8px', marginBottom: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
-                  {['URGENT PRAYER', 'COUNSELING', 'TESTIMONY'].map(intent => (
-                    <span 
-                      key={intent} onClick={() => setMessageIntent(intent)} 
-                      style={{ padding: '6px 12px', borderRadius: '14px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', background: messageIntent === intent ? '#f3ca58' : 'rgba(255,255,255,0.05)', color: messageIntent === intent ? '#101926' : '#8e9aab' }}
-                    >
-                      {intent}
-                    </span>
-                  ))}
+                {msg.intent && msg.intent !== 'NORMAL' && (
+                  <span style={{ fontSize: '9px', fontWeight: '900', padding: '2px 8px', borderRadius: '6px', background: msg.intent === 'URGENT PRAYER' ? 'rgba(231, 76, 60, 0.2)' : 'rgba(243, 202, 88, 0.2)', color: msg.intent === 'URGENT PRAYER' ? '#e74c3c' : '#f3ca58', marginBottom: '4px', letterSpacing: '0.5px' }}>
+                    {msg.intent}
+                  </span>
+                )}
+                
+                <div style={{ background: isMe ? 'rgba(41, 190, 175, 0.15)' : 'rgba(255,255,255,0.05)', color: isMe ? '#29beaf' : '#fff', padding: '12px 16px', borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px', maxWidth: '75%', fontSize: '14px', lineHeight: '1.4', border: isMe ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', wordBreak: 'break-word', backdropFilter: 'blur(5px)' }}>
+                  {msg.content}
                 </div>
                 
-                <form onSubmit={handleSendDbMessage} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '24px', padding: '6px 6px 6px 16px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                  <span style={{ color: '#8e9aab', cursor: 'pointer', display: 'flex', transform: 'rotate(-45deg)' }} onClick={() => alert("Select a document or image to attach.")}>
-                    <AttachIcon />
-                  </span>
-                  <input 
-                    type="text" placeholder={messageIntent === 'NORMAL' ? "Message..." : `Draft your ${messageIntent.toLowerCase()}...`}
-                    value={chatInputMessage} onChange={(e) => setChatInputMessage(e.target.value)} 
-                    style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '14px', padding: '0 8px' }} 
-                  />
-                  <button type="submit" style={{ background: chatInputMessage ? 'linear-gradient(90deg, #f3ca58, #29beaf)' : 'rgba(255,255,255,0.05)', border: 'none', width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: chatInputMessage ? '#101926' : '#8e9aab', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>
-                    <SendIcon />
-                  </button>
-                </form>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', color: '#55657a', fontSize: '10px', fontWeight: '700' }}>
+                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {isMe && <ChatDoubleCheckIcon />}
+                </div>
               </div>
-            </div>
-          )}
-
-          {!activeDbChat && <AppBottomNav />}
+            );
+          })}
         </div>
-      )}
+
+        <div style={{ flexShrink: 0, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,0.2)' }}>
+          <div className="glass-scroll" style={{ display: 'flex', gap: '8px', marginBottom: '10px', overflowX: 'auto', paddingBottom: '4px' }}>
+            {['URGENT PRAYER', 'COUNSELING', 'TESTIMONY'].map(intent => (
+              <span 
+                key={intent} onClick={() => setMessageIntent(intent)} 
+                style={{ padding: '6px 12px', borderRadius: '14px', fontSize: '10px', fontWeight: '800', cursor: 'pointer', whiteSpace: 'nowrap', transition: 'all 0.2s', background: messageIntent === intent ? '#f3ca58' : 'rgba(255,255,255,0.05)', color: messageIntent === intent ? '#101926' : '#8e9aab' }}
+              >
+                {intent}
+              </span>
+            ))}
+          </div>
           
+          <form onSubmit={handleSendDbMessage} style={{ display: 'flex', alignItems: 'center', gap: '10px', background: 'rgba(255,255,255,0.03)', borderRadius: '24px', padding: '6px 6px 6px 16px', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <span style={{ color: '#8e9aab', cursor: 'pointer', display: 'flex', transform: 'rotate(-45deg)' }} onClick={() => alert("Select a document or image to attach.")}>
+              <AttachIcon />
+            </span>
+            <input 
+              type="text" placeholder={messageIntent === 'NORMAL' ? "Message..." : `Draft your ${messageIntent.toLowerCase()}...`}
+              value={chatInputMessage} onChange={(e) => setChatInputMessage(e.target.value)} 
+              style={{ flex: 1, background: 'transparent', border: 'none', color: '#fff', outline: 'none', fontSize: '14px', padding: '0 8px' }} 
+            />
+            <button type="submit" style={{ background: chatInputMessage ? 'linear-gradient(90deg, #f3ca58, #29beaf)' : 'rgba(255,255,255,0.05)', border: 'none', width: '38px', height: '38px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: chatInputMessage ? '#101926' : '#8e9aab', cursor: 'pointer', flexShrink: 0, transition: 'all 0.2s' }}>
+              <SendIcon />
+            </button>
+          </form>
+        </div>
+      </div>
+    )}
+  </div>
+)}          
 
 {/* =========================================
           STEP 24: ADMIN DESK
