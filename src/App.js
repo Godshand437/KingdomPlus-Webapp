@@ -2202,33 +2202,33 @@ useEffect(() => {
 
 // --- SAFE AUTO-SYNC ENGINE ---
   useEffect(() => {
-    if (!currentUser || !currentUser.email || step < 6) return;
+  if (!currentUser || !currentUser.email || step < 6) return;
 
-    const updatedProfile = {
-      ...currentUser,
-      formData: formData,
-      kpcBalance: kpcBalance,
-      generatedAddress: generatedAddress,
-      userTier: userTier,
-      claimedVideos: claimedVideos,
-      claimedArticles: claimedArticles,
-      txHistory: txHistory
-    };
+  const savedUser = {
+    ...currentUser,
+    formData,
+    kpcBalance,
+    generatedAddress,
+    userTier,
+    claimedVideos,
+    claimedArticles,
+    txHistory
+  };
 
-    localStorage.setItem('kp_current_user', JSON.stringify(updatedProfile));
-
- const syncToSupabase = async () => {
-      const userId = currentUser.id;
-      if (userId) {
-        const tableName = currentUser.account_type === 'Church' ? 'church_profiles' : 'user_profiles';
-        await supabase.from(tableName).update({
-          wallet_address: generatedAddress,
-          wallet_balance: kpcBalance
-        }).eq('id', userId);
-      }
-    };
-    syncToSupabase();
-  }, [kpcBalance, generatedAddress, userTier, formData, txHistory, currentUser?.id]);
+  localStorage.setItem(
+    'kp_current_user',
+    JSON.stringify(savedUser)
+  );
+}, [
+  kpcBalance,
+  generatedAddress,
+  userTier,
+  formData,
+  claimedVideos,
+  claimedArticles,
+  txHistory,
+  currentUser?.id
+]);
 
 
 // --- TREASURY MODALS & WEB3 ECONOMY ENGINE ---
@@ -3646,10 +3646,7 @@ const handlePurchaseService = async (service) => {
     try {
       const { data, error } = await supabase
         .from('posts')
-        .select(`
-          *,
-          user_profiles:author_id (full_name, avatar_url, account_type, local_church)
-        `)
+        .select(` *, user_profiles:author_id (full_name, username, avatar_url, account_type, local_church) `)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
@@ -3797,7 +3794,7 @@ const handlePurchaseService = async (service) => {
       }
 
       setProfileTab('All'); 
-      setStep(19);
+      setStep(25);
 
     } catch (error) {
       console.error("Error loading public profile:", error);
@@ -4061,7 +4058,13 @@ const handlePurchaseService = async (service) => {
       const { data: myParticipants } = await supabase.from('chat_participants').select('chat_id').eq('user_id', user.id);
       if (myParticipants?.length > 0) {
         const chatIds = myParticipants.map(p => p.chat_id);
-        const { data: myChats } = await supabase.from('chats').select('*, chat_participants(user_id)').in('id', chatIds).order('created_at', { ascending: false });
+        const { data: myChats } = await supabase.from('chats').select(`
+  *, 
+  chat_participants(
+    user_id, 
+    user_profiles(full_name, username, avatar_url)
+  )
+`).in('id', chatIds).order('created_at', { ascending: false });
         setDbChats(myChats || []);
       }
 
@@ -4079,27 +4082,29 @@ const handlePurchaseService = async (service) => {
   }, [step]);
 
   useEffect(() => {
-    if (!activeDbChat) return;
+  if (!activeDbChat) return;
 
-    const fetchMessages = async () => {
-      const { data } = await supabase.from('messages').select('*, user_profiles:sender_id(username, avatar_url)').eq('chat_id', activeDbChat.id).order('created_at', { ascending: true });
-      setDbMessages(data || []);
-    };
-    fetchMessages();
+  const fetchMessages = async () => {
+    const { data } = await supabase.from('messages').select('*, user_profiles:sender_id(username, avatar_url)').eq('chat_id', activeDbChat.id).order('created_at', { ascending: true });
+    setDbMessages(data || []);
+  };
+  fetchMessages();
 
-const subscription = supabase
-  .channel(`chat_${activeDbChat.id}_${Date.now()}`)
-  .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${activeDbChat.id}` }, 
-    async (payload) => {
-      const { data: profile } = await supabase.from('user_profiles').select('full_name, avatar_url').eq('id', payload.new.sender_id).single();
-      const newMsg = { ...payload.new, user_profiles: profile };
-      setDbMessages(prev => [...prev, newMsg]);
-    }
-  )
-  .subscribe();
+  const subscription = supabase
+    .channel(`chat_${activeDbChat.id}_${Date.now()}`)
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${activeDbChat.id}` }, 
+      async (payload) => {
+        if (payload.new.sender_id === userProfile?.id) return;
 
-    return () => { supabase.removeChannel(subscription); };
-  }, [activeDbChat]);
+        const { data: profile } = await supabase.from('user_profiles').select('full_name, avatar_url').eq('id', payload.new.sender_id).single();
+        const newMsg = { ...payload.new, user_profiles: profile };
+        setDbMessages(prev => [...prev, newMsg]);
+      }
+    )
+    .subscribe();
+
+  return () => { supabase.removeChannel(subscription); };
+}, [activeDbChat, userProfile?.id]);
 
 const handleSendDbMessage = async (e) => {
   e?.preventDefault();
@@ -4123,7 +4128,7 @@ const handleSendDbMessage = async (e) => {
   try {
     const { data, error } = await supabase.from('messages').insert([{
       chat_id: activeDbChat.id,
-      sender_id: userProfile.id,
+      sender_id: userProfile?.id,
       content: newMessage.content,
       intent: newMessage.intent
     }]).select();
@@ -4136,6 +4141,7 @@ const handleSendDbMessage = async (e) => {
   } catch (error) {
     console.error("Error sending message:", error);
     setDbMessages(prev => prev.filter(msg => msg.id !== tempId));
+    alert("Failed to send message. Please check your connection.");
   }
 };
 
@@ -4236,6 +4242,14 @@ const submitEditDbMessage = async (e, messageId) => {
       console.error("Error toggling DM lock:", error);
     }
   };
+
+useEffect(() => {
+  if (step === 23) {
+    fetchMessengerData();
+    fetchGlobalUsers();
+    fetchConnections();
+  }
+}, [step]);
 
 // ==========================================
   // NOTIFICATION STATES
@@ -4361,25 +4375,63 @@ const handleRequestAction = async (requestId, action) => {
   const [isPlaying, setIsPlaying] = useState(false);
 
 const rewardStreamKPC = async (amount) => {
-  const numericAmount = Number(amount) || 0;
-  
   try {
-    const KPC_MINT = new PublicKey(GLOBAL_KPC_MINT);
-    const feePayer = Keypair.fromSecretKey(GLOBAL_TREASURY_KEY);
-    const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
-    const userPub = new PublicKey(generatedAddress);
+    const { data: { user } } = await supabase.auth.getUser();
 
-    const dest = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, userPub);
-    const src = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, feePayer.publicKey);
+    if (!user) {
+      console.error("No authenticated user found.");
+      return;
+    }
 
-    await transfer(connection, feePayer, src.address, dest.address, feePayer.publicKey, numericAmount * Math.pow(10, 8));
-    
-    setKpcBalance(prev => (Number(prev) || 0) + numericAmount);
-    console.log(`Earned ${numericAmount} KPC for streaming!`);
-    
+    // Get the latest balance directly from Supabase
+    const { data: profile, error: fetchError } = await supabase
+      .from('user_profiles')
+      .select('wallet_balance')
+      .eq('id', user.id)
+      .single();
+
+    if (fetchError) throw fetchError;
+
+    const currentBalance = Number(profile?.wallet_balance || 0);
+    const newBalance = currentBalance + Number(amount);
+
+    // Update database FIRST
+    const { error: updateError } = await supabase
+      .from('user_profiles')
+      .update({
+        wallet_balance: newBalance
+      })
+      .eq('id', user.id);
+
+    if (updateError) throw updateError;
+
+    setKpcBalance(newBalance);
+
+    const savedUser = localStorage.getItem('kp_current_user');
+
+    if (savedUser) {
+      const parsedUser = JSON.parse(savedUser);
+
+      localStorage.setItem(
+        'kp_current_user',
+        JSON.stringify({
+          ...parsedUser,
+          kpcBalance: newBalance,
+          wallet_balance: newBalance
+        })
+      );
+    }
+
+    logTransaction(
+      `Streaming Reward`,
+      Number(amount),
+      'EARN'
+    );
+
+    console.log(`Earned ${amount} KPC. New balance: ${newBalance}`);
+
   } catch (error) {
-    setKpcBalance(prev => (Number(prev) || 0) + numericAmount);
-    console.log(`Simulated Mode: Earned ${numericAmount} KPC for streaming.`);
+    console.error("Failed to save streaming reward:", error);
   }
 };
 
@@ -7665,7 +7717,7 @@ const togglePostExpand = (postId) => {
             <button 
               onClick={() => {
                 if (!formData.isAuthorized) { alert("Please confirm authorization to proceed."); return; }
-                setStep(4); // Route directly back to Wallet Generation to finalize the account!
+                setStep(4);
               }} 
               className="action-button" 
               style={{ background: 'linear-gradient(90deg, #e5c158, #29beaf)', color: '#101926' }}
@@ -7740,35 +7792,31 @@ const togglePostExpand = (postId) => {
         {hubTab === 'INBOX' && (
           <div style={{ display: 'flex', flexDirection: 'column', flex: 1, overflow: 'hidden', width: '100%' }}>
             
-{/* HORIZONTAL FRIENDS LIST */}
-<div style={{ padding: '0 20px', marginBottom: '10px', flexShrink: 0 }}>
-  <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '10px' }}>MY CONNECTIONS</div>
-  <div className="glass-scroll" style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '16px', paddingTop: '4px' }}>
-    {friends.length === 0 ? (
-      <span style={{ color: '#55657a', fontSize: '12px' }}>No connections yet. Head to the People tab!</span>
-    ) : (
-      friends.map(friend => {
-        const profile = friend.sender_id === userProfile?.id ? friend.receiver : friend.sender;
-        return (
-          <div key={friend.id} onClick={() => handleInitiateDirectChat(profile)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0 }}>
-            
-            {/* Outer ring to prevent clipping */}
-            <div style={{ padding: '2px', borderRadius: '50%', background: '#29beaf', display: 'flex' }}>
-              {/* Inner avatar */}
-              <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: '#1a8277', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '20px', fontWeight: '900', border: '3px solid #09101a' }}>
-                {profile?.full_name?.charAt(0) || 'U'}
+            {/* HORIZONTAL FRIENDS LIST */}
+            <div style={{ padding: '0 20px', marginBottom: '10px', flexShrink: 0 }}>
+              <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '10px' }}>MY CONNECTIONS</div>
+              <div className="glass-scroll" style={{ display: 'flex', gap: '16px', overflowX: 'auto', paddingBottom: '16px', paddingTop: '4px' }}>
+                {friends.length === 0 ? (
+                  <span style={{ color: '#55657a', fontSize: '12px' }}>No connections yet. Head to the People tab!</span>
+                ) : (
+                  friends.map(friend => {
+                    const profile = friend.sender_id === userProfile?.id ? friend.receiver : friend.sender;
+                    return (
+                      <div key={friend.id} onClick={() => handleInitiateDirectChat(profile)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0 }}>
+                        <div style={{ padding: '2px', borderRadius: '50%', background: '#29beaf', display: 'flex' }}>
+                          <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: '#1a8277', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '20px', fontWeight: '900', border: '3px solid #09101a' }}>
+                            {profile?.full_name?.charAt(0) || 'U'}
+                          </div>
+                        </div>
+                        <span style={{ color: '#e2e8f0', fontSize: '11px', fontWeight: '700', maxWidth: '64px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {profile?.full_name?.split(' ')[0]}
+                        </span>
+                      </div>
+                    )
+                  })
+                )}
               </div>
             </div>
-
-            <span style={{ color: '#e2e8f0', fontSize: '11px', fontWeight: '700', maxWidth: '64px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {profile?.full_name?.split(' ')[0]}
-            </span>
-          </div>
-        )
-      })
-    )}
-  </div>
-</div>
 
             <div style={{ padding: '0 20px', flexShrink: 0, marginBottom: '10px' }}>
               <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>ACTIVE CHATS</div>
@@ -7778,133 +7826,150 @@ const togglePostExpand = (postId) => {
               {dbChats.length === 0 ? (
                 <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', marginTop: '20px' }}>Your inbox is empty.</div>
               ) : (
-                dbChats.map((chat) => (
-                  <div key={chat.id} onClick={() => setActiveDbChat(chat)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                      <div style={{ width: '46px', height: '46px', borderRadius: '50%', background: chat.type === 'group' ? 'rgba(41, 190, 175, 0.1)' : 'linear-gradient(135deg, #101926, #1f3752)', border: '1px solid rgba(243, 202, 88, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px' }}>
-                        {chat.type === 'group' ? '⛪' : '👤'}
-                      </div>
-                      <div>
-                        <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>
-                          {chat.type === 'group' ? chat.name : "Private Chat"}
+                dbChats.map((chat) => {
+                  const otherParticipant = chat.type !== 'group' 
+                    ? chat.chat_participants?.find(p => p.user_id !== userProfile?.id)?.user_profiles 
+                    : null;
+                  const displayName = chat.type === 'group' ? chat.name : (otherParticipant?.full_name || "Private Chat");
+                  const avatarLetter = chat.type === 'group' ? '⛪' : (otherParticipant?.full_name?.charAt(0) || '👤');
+
+                  return (
+                    <div key={chat.id} onClick={() => setActiveDbChat(chat)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div 
+                          onClick={(e) => {
+                            if (chat.type !== 'group' && otherParticipant?.id) {
+                              e.stopPropagation();
+                              handleViewProfile(otherParticipant.id);
+                            }
+                          }}
+                          style={{ width: '46px', height: '46px', borderRadius: '50%', background: chat.type === 'group' ? 'rgba(41, 190, 175, 0.1)' : 'linear-gradient(135deg, #101926, #1f3752)', border: '1px solid rgba(243, 202, 88, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px', cursor: chat.type !== 'group' ? 'pointer' : 'default' }}
+                          title={chat.type !== 'group' ? "View Public Profile" : ""}
+                        >
+                          {avatarLetter}
                         </div>
-                        <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>
-                          Tap to open conversation
+                        <div>
+                          <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>
+                            {displayName}
+                          </div>
+                          <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>
+                            Tap to open conversation
+                          </div>
                         </div>
                       </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           </div>
         )}
 
-     {/* ==================== TAB 2: GROUPS ==================== */}
-{hubTab === 'GROUPS' && (
-  <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto', flex: 1, paddingBottom: '100px', width: '100%' }}>
-    
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-      <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>DISCOVER COMMUNITIES</div>
-      {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') && (
-        <button onClick={() => setIsCreateGroupModalOpen(true)} style={{ background: 'transparent', border: '1px solid #29beaf', color: '#29beaf', padding: '4px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>+ Create Group</button>
-      )}
-    </div>
-
-    {/* SUB-SECTION: LOCAL CHURCH GROUPS */}
-    {publicGroups.some(g => g.category === 'Local' || g.name.includes(userProfile?.local_church)) && (
-      <div style={{ marginBottom: '10px' }}>
-        <h4 style={{ color: '#f3ca58', fontSize: '12px', margin: '0 0 10px 0', borderBottom: '1px solid rgba(243, 202, 88, 0.2)', paddingBottom: '4px' }}>
-          {userProfile?.local_church || 'Your Local'} Assemblies
-        </h4>
-        {publicGroups
-          .filter(g => g.category === 'Local' || g.name.includes(userProfile?.local_church))
-          .map(group => {
-            const isAlreadyJoined = dbChats.some(chat => chat.id === group.id);
-            return (
-              <div key={group.id} onClick={() => { if (isAlreadyJoined) { setActiveDbChat(group); setHubTab('INBOX'); } }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(243, 202, 88, 0.05)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(243, 202, 88, 0.1)', width: '100%', boxSizing: 'border-box', marginBottom: '10px', cursor: isAlreadyJoined ? 'pointer' : 'default' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(243, 202, 88, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px' }}>⛪</div>
-                  <div>
-                    <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>{group.name}</div>
-                    <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>{isAlreadyJoined ? 'Tap to open chat' : (group.description || 'Connect with your local assembly')}</div>
-                  </div>
-                </div>
-                {!isAlreadyJoined && (
-                  <button 
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      try {
-                        const { data: { user } } = await supabase.auth.getUser();
-                        await supabase.from('chat_participants').insert([{ chat_id: group.id, user_id: user.id }]);
-                        fetchMessengerData();
-                        setActiveDbChat(group);
-                        setHubTab('INBOX');
-                      } catch (error) {
-                        console.error("Error joining group:", error);
-                        alert("Failed to join the group. Please try again.");
-                      }
-                    }}
-                    style={{ color: '#101926', background: '#f3ca58', padding: '8px 16px', borderRadius: '12px', fontSize: '10px', fontWeight: '900', border: 'none', cursor: 'pointer' }}
-                  >
-                    JOIN
-                  </button>
-                )}
-              </div>
-            );
-        })}
-      </div>
-    )}
-
-    {/* SUB-SECTION: GLOBAL GROUPS */}
-    <div>
-      <h4 style={{ color: '#fff', fontSize: '12px', margin: '0 0 10px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
-        Global Rooms
-      </h4>
-      {publicGroups
-        .filter(g => g.category !== 'Local' && !g.name.includes(userProfile?.local_church))
-        .map(group => {
-          const isAlreadyJoined = dbChats.some(chat => chat.id === group.id);
-          return (
-            <div key={group.id} onClick={() => { if (isAlreadyJoined) { setActiveDbChat(group); setHubTab('INBOX'); } }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box', marginBottom: '10px', cursor: isAlreadyJoined ? 'pointer' : 'default' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#29beaf', fontSize: '20px' }}>🌍</div>
-                <div>
-                  <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>{group.name}</div>
-                  <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>
-                    {isAlreadyJoined ? 'Tap to open chat' : (group.description || 'Public Kingdom Chat')}
-                  </div>
-                </div>
-              </div>
-              
-              {!isAlreadyJoined && (
-                <button 
-                  onClick={async (e) => {
-                    e.stopPropagation();
-                    try {
-                      const { data: { user } } = await supabase.auth.getUser();
-                      await supabase.from('chat_participants').insert([{ chat_id: group.id, user_id: user.id }]);
-                      fetchMessengerData();
-                      setActiveDbChat(group);
-                      setHubTab('INBOX');
-                    } catch (error) {
-                      console.error("Error joining group:", error);
-                      alert("Failed to join the group. Please try again.");
-                    }
-                  }}
-                  style={{ color: '#101926', background: '#29beaf', padding: '8px 16px', borderRadius: '12px', fontSize: '10px', fontWeight: '900', border: 'none', cursor: 'pointer' }}
-                >
-                  JOIN
-                </button>
+        {/* ==================== TAB 2: GROUPS ==================== */}
+        {hubTab === 'GROUPS' && (
+          <div className="glass-scroll" style={{ padding: '0 20px', display: 'flex', flexDirection: 'column', gap: '15px', overflowY: 'auto', flex: 1, paddingBottom: '100px', width: '100%' }}>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>DISCOVER COMMUNITIES</div>
+              {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') && (
+                <button onClick={() => setIsCreateGroupModalOpen(true)} style={{ background: 'transparent', border: '1px solid #29beaf', color: '#29beaf', padding: '4px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>+ Create Group</button>
               )}
             </div>
-          );
-        })}
-    </div>
 
-    {publicGroups.length === 0 && <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px' }}>No public groups available.</div>}
-  </div>
-)}
+            {/* SUB-SECTION: LOCAL CHURCH GROUPS */}
+            {publicGroups.some(g => g.category === 'Local' || g.name.includes(userProfile?.local_church)) && (
+              <div style={{ marginBottom: '10px' }}>
+                <h4 style={{ color: '#f3ca58', fontSize: '12px', margin: '0 0 10px 0', borderBottom: '1px solid rgba(243, 202, 88, 0.2)', paddingBottom: '4px' }}>
+                  {userProfile?.local_church || 'Your Local'} Assemblies
+                </h4>
+                {publicGroups
+                  .filter(g => g.category === 'Local' || g.name.includes(userProfile?.local_church))
+                  .map(group => {
+                    const isAlreadyJoined = dbChats.some(chat => chat.id === group.id);
+                    return (
+                      <div key={group.id} onClick={() => { if (isAlreadyJoined) { setActiveDbChat(group); setHubTab('INBOX'); } }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(243, 202, 88, 0.05)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(243, 202, 88, 0.1)', width: '100%', boxSizing: 'border-box', marginBottom: '10px', cursor: isAlreadyJoined ? 'pointer' : 'default' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(243, 202, 88, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px' }}>⛪</div>
+                          <div>
+                            <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>{group.name}</div>
+                            <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>{isAlreadyJoined ? 'Tap to open chat' : (group.description || 'Connect with your local assembly')}</div>
+                          </div>
+                        </div>
+                        {!isAlreadyJoined && (
+                          <button 
+                            onClick={async (e) => {
+                              e.stopPropagation();
+                              try {
+                                const { data: { user } } = await supabase.auth.getUser();
+                                await supabase.from('chat_participants').insert([{ chat_id: group.id, user_id: user.id }]);
+                                fetchMessengerData();
+                                setActiveDbChat(group);
+                                setHubTab('INBOX');
+                              } catch (error) {
+                                console.error("Error joining group:", error);
+                                alert("Failed to join the group. Please try again.");
+                              }
+                            }}
+                            style={{ color: '#101926', background: '#f3ca58', padding: '8px 16px', borderRadius: '12px', fontSize: '10px', fontWeight: '900', border: 'none', cursor: 'pointer' }}
+                          >
+                            JOIN
+                          </button>
+                        )}
+                      </div>
+                    );
+                })}
+              </div>
+            )}
+
+            {/* SUB-SECTION: GLOBAL GROUPS */}
+            <div>
+              <h4 style={{ color: '#fff', fontSize: '12px', margin: '0 0 10px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>
+                Global Rooms
+              </h4>
+              {publicGroups
+                .filter(g => g.category !== 'Local' && !g.name.includes(userProfile?.local_church))
+                .map(group => {
+                  const isAlreadyJoined = dbChats.some(chat => chat.id === group.id);
+                  return (
+                    <div key={group.id} onClick={() => { if (isAlreadyJoined) { setActiveDbChat(group); setHubTab('INBOX'); } }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box', marginBottom: '10px', cursor: isAlreadyJoined ? 'pointer' : 'default' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#29beaf', fontSize: '20px' }}>🌍</div>
+                        <div>
+                          <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>{group.name}</div>
+                          <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>
+                            {isAlreadyJoined ? 'Tap to open chat' : (group.description || 'Public Kingdom Chat')}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {!isAlreadyJoined && (
+                        <button 
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            try {
+                              const { data: { user } } = await supabase.auth.getUser();
+                              await supabase.from('chat_participants').insert([{ chat_id: group.id, user_id: user.id }]);
+                              fetchMessengerData();
+                              setActiveDbChat(group);
+                              setHubTab('INBOX');
+                            } catch (error) {
+                              console.error("Error joining group:", error);
+                              alert("Failed to join the group. Please try again.");
+                            }
+                          }}
+                          style={{ color: '#101926', background: '#29beaf', padding: '8px 16px', borderRadius: '12px', fontSize: '10px', fontWeight: '900', border: 'none', cursor: 'pointer' }}
+                        >
+                          JOIN
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+
+            {publicGroups.length === 0 && <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px' }}>No public groups available.</div>}
+          </div>
+        )}
 
         {/* ==================== CREATE GROUP MODAL ==================== */}
         {isCreateGroupModalOpen && (
@@ -7953,7 +8018,11 @@ const togglePostExpand = (postId) => {
 
                     return (
                       <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                        <div 
+                          onClick={() => handleViewProfile(user.id)} 
+                          style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}
+                          title="View Public Profile"
+                        >
                           <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
                             {user.full_name?.charAt(0) || 'U'}
                           </div>
@@ -8004,7 +8073,14 @@ const togglePostExpand = (postId) => {
               ) : (
                 incomingRequests.map(req => (
                   <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ color: '#fff', fontSize: '14px' }}>{req.sender?.full_name}</div>
+                    <div 
+                      onClick={() => handleViewProfile(req.sender_id)}
+                      style={{ color: '#fff', fontSize: '14px', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.2s' }}
+                      onMouseEnter={(e) => e.target.style.textDecorationColor = '#fff'}
+                      onMouseLeave={(e) => e.target.style.textDecorationColor = 'transparent'}
+                    >
+                      {req.sender?.full_name}
+                    </div>
                     <div style={{ display: 'flex', gap: '8px' }}>
                       <button onClick={() => handleRequestAction(req.id, 'accepted')} style={{ background: '#29beaf', color: '#101926', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>ACCEPT</button>
                       <button onClick={() => handleRequestAction(req.id, 'rejected')} style={{ background: 'rgba(231, 76, 60, 0.2)', color: '#e74c3c', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>DECLINE</button>
@@ -8021,7 +8097,14 @@ const togglePostExpand = (postId) => {
               ) : (
                 sentRequests.map(req => (
                   <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div style={{ color: '#fff', fontSize: '14px' }}>{req.receiver?.full_name}</div>
+                    <div 
+                      onClick={() => handleViewProfile(req.receiver_id)}
+                      style={{ color: '#fff', fontSize: '14px', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.2s' }}
+                      onMouseEnter={(e) => e.target.style.textDecorationColor = '#fff'}
+                      onMouseLeave={(e) => e.target.style.textDecorationColor = 'transparent'}
+                    >
+                      {req.receiver?.full_name}
+                    </div>
                     <div style={{ color: '#8e9aab', fontSize: '10px', fontWeight: 'bold' }}>PENDING</div>
                   </div>
                 ))
@@ -8075,7 +8158,7 @@ const togglePostExpand = (postId) => {
                   </div>
                 ) : (
                   friends.map(friendReq => {
-                    const friendProfile = friendReq.sender_id === currentUser?.id ? friendReq.receiver : friendReq.sender;
+                    const friendProfile = friendReq.sender_id === userProfile?.id ? friendReq.receiver : friendReq.sender;
                     
                     return (
                       <div key={friendReq.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
@@ -8121,12 +8204,52 @@ const togglePostExpand = (postId) => {
             <button onClick={() => setActiveDbChat(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
               <BackArrowIcon />
             </button>
-            <div style={{ display: 'flex', flexDirection: 'column' }}>
-              <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '800', margin: 0 }}>
-                {activeDbChat.type === 'group' ? activeDbChat.name : "Private Message"}
-              </h3>
-              <span style={{ color: '#2ecc71', fontSize: '11px', fontWeight: '700' }}>Live Chat Sync</span>
-            </div>
+
+            {(() => {
+              let targetName = activeDbChat.name || "Private Message";
+              let targetAvatarUrl = null;
+              let targetLetter = 'KP';
+              const isGroup = activeDbChat.type === 'group';
+              const activeOtherParticipant = !isGroup ? activeDbChat.chat_participants?.find(p => p.user_id !== userProfile?.id)?.user_profiles : null;
+
+              if (!isGroup) {
+                if (activeOtherParticipant) {
+                  targetName = activeOtherParticipant.full_name || activeOtherParticipant.username || targetName;
+                  targetAvatarUrl = activeOtherParticipant.avatar_url;
+                }
+    
+                targetLetter = targetName !== "Private Message" ? targetName.charAt(0).toUpperCase() : 'KP';
+              } else {
+                targetLetter = '⛪';
+              }
+
+              return (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <div 
+                    onClick={(e) => {
+                      if (!isGroup && activeOtherParticipant?.id) {
+                        handleViewProfile(activeOtherParticipant.id);
+                      }
+                    }}
+                    style={{ width: '36px', height: '36px', borderRadius: '50%', background: isGroup ? 'rgba(41, 190, 175, 0.1)' : '#1a8277', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '16px', fontWeight: 'bold', cursor: !isGroup ? 'pointer' : 'default', border: !isGroup ? '2px solid #09101a' : 'none', overflow: 'hidden' }}
+                    title={!isGroup ? "View Public Profile" : ""}
+                  >
+                    {targetAvatarUrl ? (
+                      <img src={targetAvatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ) : (
+                      targetLetter
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '800', margin: 0 }}>
+                      {targetName}
+                    </h3>
+                    <span style={{ color: '#2ecc71', fontSize: '11px', fontWeight: '700' }}>Live Chat Sync</span>
+                  </div>
+                </div>
+              );
+            })()}
+
           </div>
         </div>
 
@@ -8137,12 +8260,16 @@ const togglePostExpand = (postId) => {
 
           {dbMessages.map((msg) => {
             const isMe = userProfile?.id === msg.sender_id; 
+            const isEditing = editingMessageId === msg.id;
             
             return (
-              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+              <div key={msg.id} style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', marginBottom: '8px' }}>
                 
                 {!isMe && activeDbChat.type === 'group' && (
-                  <div style={{ fontSize: '10px', color: '#8e9aab', marginBottom: '4px', marginLeft: '12px' }}>
+                  <div 
+                    style={{ fontSize: '10px', color: '#8e9aab', marginBottom: '4px', marginLeft: '12px', cursor: 'pointer' }} 
+                    onClick={() => handleViewProfile(msg.sender_id)}
+                  >
                     {msg.user_profiles?.full_name || 'Unknown'}
                   </div>
                 )}
@@ -8153,12 +8280,46 @@ const togglePostExpand = (postId) => {
                   </span>
                 )}
                 
-                <div style={{ background: isMe ? 'rgba(41, 190, 175, 0.15)' : 'rgba(255,255,255,0.05)', color: isMe ? '#29beaf' : '#fff', padding: '12px 16px', borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px', maxWidth: '75%', fontSize: '14px', lineHeight: '1.4', border: isMe ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', wordBreak: 'break-word', backdropFilter: 'blur(5px)' }}>
-                  {msg.content}
-                </div>
+                {isEditing ? (
+                  <form onSubmit={submitEditDbMessage} style={{ display: 'flex', gap: '8px', width: '100%', maxWidth: '75%', justifyContent: 'flex-end' }}>
+                    <input 
+                      type="text" 
+                      value={editMessageContent} 
+                      onChange={(e) => setEditMessageContent(e.target.value)}
+                      style={{ flex: 1, background: 'rgba(0,0,0,0.3)', border: '1px solid #f3ca58', borderRadius: '12px', color: '#fff', padding: '8px 12px', outline: 'none' }}
+                      autoFocus
+                    />
+                    <button type="submit" style={{ background: '#f3ca58', color: '#101926', border: 'none', borderRadius: '8px', padding: '0 12px', fontWeight: 'bold', cursor: 'pointer' }}>Save</button>
+                    <button type="button" onClick={() => setEditingMessageId(null)} style={{ background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: '8px', padding: '0 12px', cursor: 'pointer' }}>Cancel</button>
+                  </form>
+                ) : (
+                  <div style={{ background: isMe ? 'rgba(41, 190, 175, 0.15)' : 'rgba(255,255,255,0.05)', color: isMe ? '#29beaf' : '#fff', padding: '12px 16px', borderRadius: isMe ? '20px 20px 4px 20px' : '20px 20px 20px 4px', maxWidth: '75%', fontSize: '14px', lineHeight: '1.4', border: isMe ? '1px solid rgba(41, 190, 175, 0.3)' : '1px solid rgba(255,255,255,0.05)', wordBreak: 'break-word', backdropFilter: 'blur(5px)' }}>
+                    {msg.content}
+                  </div>
+                )}
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '4px', color: '#55657a', fontSize: '10px', fontWeight: '700' }}>
-                  {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {isMe && <ChatDoubleCheckIcon />}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <span style={{ color: '#55657a', fontSize: '10px', fontWeight: '700' }}>
+                    {new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} {isMe && <ChatDoubleCheckIcon />}
+                  </span>
+                  
+                  {isMe && !isEditing && (
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button 
+                        onClick={() => { setEditingMessageId(msg.id); setEditMessageContent(msg.content); }}
+                        style={{ background: 'none', border: 'none', color: '#f3ca58', fontSize: '10px', cursor: 'pointer', padding: 0 }}
+                      >
+                        Edit
+                      </button>
+                      <span style={{ color: '#55657a', fontSize: '10px' }}>•</span>
+                      <button 
+                        onClick={() => handleDeleteDbMessage(msg.id)}
+                        style={{ background: 'none', border: 'none', color: '#e74c3c', fontSize: '10px', cursor: 'pointer', padding: 0 }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             );
@@ -8194,7 +8355,7 @@ const togglePostExpand = (postId) => {
       </div>
     )}
   </div>
-)}          
+)}
 
 {/* =========================================
           STEP 24: ADMIN DESK
