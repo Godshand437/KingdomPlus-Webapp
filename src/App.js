@@ -372,15 +372,8 @@ export default function App() {
   });
 
   const [walletKeypair, setWalletKeypair] = useState(null);
- const [kpcBalance, setKpcBalance] = useState(() => {
-    const saved = localStorage.getItem('kp_current_user');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed.wallet_balance || parsed.kpcBalance || 0;
-    }
-    return 0;
-  });
-
+  const [kpcBalance, setKpcBalance] = useState(0);
+  const [balanceLoaded, setBalanceLoaded] = useState(false);
   const [isGenerating, setIsGenerating] = useState(true);
   const [isAirdropping, setIsAirdropping] = useState(false);
 
@@ -757,6 +750,8 @@ const uploadNewTestimony = async (e) => {
   const [formData, setFormData] = useState({
     fullName: '', username: '', email: '', password: '', dob: '', country: '', phone: '', denomination: '', customDenomination: '', churchName: '', isCustomChurch: false
   });
+const [availableChurches, setAvailableChurches] = useState([]);
+const [isLoadingChurches, setIsLoadingChurches] = useState(false);
 
 // --- LIVE ANNOUNCEMENT BROADCAST STATE ---
   const [announcements, setAnnouncements] = useState([
@@ -795,9 +790,60 @@ const uploadNewTestimony = async (e) => {
 
   const handleNextSlide = () => setCurrentSlide((prev) => (prev + 1) % announcements.length);
   const handlePrevSlide = () => setCurrentSlide((prev) => (prev - 1 + announcements.length) % announcements.length);
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+  const { name, value } = e.target;
+
+  setFormData(prev => ({
+    ...prev,
+    [name]: value
+  }));
+  if (name === 'denomination') {
+    setFormData(prev => ({
+      ...prev,
+      denomination: value,
+      churchName: '',
+      isCustomChurch: false
+    }));
+
+    if (value && value !== 'Other') {
+      loadChurchesByDenomination(value);
+    } else {
+      setAvailableChurches([]);
+    }
+  }
+};
   const handleNext = () => setStep(prev => prev + 1);
   const handleBack = () => setStep(prev => prev - 1);
+  const loadChurchesByDenomination = async (denomination) => {
+  if (!denomination) {
+    setAvailableChurches([]);
+    return;
+  }
+
+  setIsLoadingChurches(true);
+
+  try {
+    const { data, error } = await supabase
+      .from('church_profiles')
+      .select('id, church_name, denomination')
+      .eq('denomination', denomination)
+      .order('church_name', { ascending: true });
+
+    if (error) {
+      console.error('Failed to load churches:', error);
+      setAvailableChurches([]);
+      return;
+    }
+
+    setAvailableChurches(data || []);
+
+  } catch (error) {
+    console.error('Church loading error:', error);
+    setAvailableChurches([]);
+  } finally {
+    setIsLoadingChurches(false);
+  }
+};
  
  // --- STEP 1 VALIDATION ---
   const handleStep1Validation = (e) => {
@@ -1294,7 +1340,19 @@ useEffect(() => {
           full_name: formData.fullName,
           username: formData.username,
           account_type: formData.accountType,
-          denomination: formData.denomination || formData.customDenomination,
+          denomination:
+  formData.accountType === 'Church' ||
+  formData.accountType === 'Minister'
+    ? (
+        formData.churchDenomination === 'Other'
+          ? formData.customDenomination
+          : formData.churchDenomination
+      )
+    : (
+        formData.denomination === 'Other'
+          ? formData.customDenomination
+          : formData.denomination
+      ),
           phone_number: formData.phone,
           wallet_address: generatedAddress,
           wallet_balance: finalBalance,
@@ -2200,14 +2258,19 @@ useEffect(() => {
     setTxHistory(prev => [newTx, ...prev]);
   };
 
-// --- SAFE AUTO-SYNC ENGINE ---
-  useEffect(() => {
-  if (!currentUser || !currentUser.email || step < 6) return;
+  // ==========================================
+// SAFE LOCAL STORAGE AUTO-SYNC
+// ==========================================
+
+useEffect(() => {
+  if (!currentUser || !currentUser.email) return;
+  if (!balanceLoaded) return;
 
   const savedUser = {
     ...currentUser,
     formData,
     kpcBalance,
+    wallet_balance: kpcBalance,
     generatedAddress,
     userTier,
     claimedVideos,
@@ -2219,7 +2282,9 @@ useEffect(() => {
     'kp_current_user',
     JSON.stringify(savedUser)
   );
+
 }, [
+  balanceLoaded,
   kpcBalance,
   generatedAddress,
   userTier,
@@ -2227,7 +2292,8 @@ useEffect(() => {
   claimedVideos,
   claimedArticles,
   txHistory,
-  currentUser?.id
+  currentUser?.id,
+  currentUser?.email
 ]);
 
 
@@ -3805,6 +3871,111 @@ const handlePurchaseService = async (service) => {
   
   const videoRef = useRef(null);
 
+const loadKpcBalanceFromSupabase = async () => {
+  try {
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      console.error("Auth error while loading KPC balance:", authError);
+      return;
+    }
+
+    if (!user) {
+      console.log("No authenticated user found.");
+      return;
+    }
+
+    let profile = null;
+    const { data: userProfile, error: userProfileError } = await supabase
+      .from('user_profiles')
+      .select('wallet_balance')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (userProfileError) {
+      console.error(
+        "Error checking user_profiles:",
+        userProfileError
+      );
+    }
+
+    if (userProfile) {
+      profile = userProfile;
+    } else {
+      const { data: churchProfile, error: churchProfileError } =
+        await supabase
+          .from('church_profiles')
+          .select('wallet_balance')
+          .eq('id', user.id)
+          .maybeSingle();
+
+      if (churchProfileError) {
+        console.error(
+          "Error checking church_profiles:",
+          churchProfileError
+        );
+      }
+
+      if (churchProfile) {
+        profile = churchProfile;
+      }
+    }
+
+    if (!profile) {
+      console.warn(
+        "No profile found for authenticated user:",
+        user.id
+      );
+      return;
+    }
+
+    const databaseBalance = Number(profile.wallet_balance || 0);
+
+    console.log(
+      "KPC balance loaded from Supabase:",
+      databaseBalance
+    );
+
+    setKpcBalance(databaseBalance);
+    const savedUser = localStorage.getItem('kp_current_user');
+
+    if (savedUser) {
+      try {
+        const parsedUser = JSON.parse(savedUser);
+
+        localStorage.setItem(
+          'kp_current_user',
+          JSON.stringify({
+            ...parsedUser,
+            wallet_balance: databaseBalance,
+            kpcBalance: databaseBalance
+          })
+        );
+      } catch (storageError) {
+        console.error(
+          "Could not update localStorage:",
+          storageError
+        );
+      }
+    }
+
+    setBalanceLoaded(true);
+
+  } catch (error) {
+    console.error(
+      "Failed to load KPC balance from Supabase:",
+      error
+    );
+  }
+};
+
+useEffect(() => {
+  loadKpcBalanceFromSupabase();
+}, []);
+
   const fetchWalletData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -4632,20 +4803,173 @@ const togglePostExpand = (postId) => {
       )}
 
       {step === 3 && (
-        <div className="inner-pad">
-          {renderTopNav(3)}
-          <div className="form-scroll-area">
-            <h1 className="onboarding-title">Your local church</h1>
-            <p className="onboarding-subtitle">Choose your home church or add a new one to connect locally.</p>
-            {!formData.isCustomChurch ? (
-              <><div className="input-group"><label className="input-label">LOCAL CHURCH</label><select name="churchName" value={formData.churchName} onChange={handleChange} className="app-select"><option value="">No churches yet — add yours</option><option value="Grace Sanctuary">Grace Sanctuary</option><option value="Winners Chapel">Winners Chapel</option></select></div><button className="add-link" onClick={() => setFormData({ ...formData, isCustomChurch: true })}>+ My church isn't listed</button></>
-            ) : (
-              <><div className="input-group"><label className="input-label">CHURCH NAME</label><input type="text" name="churchName" placeholder="e.g. Grace Chapel International" value={formData.churchName} onChange={handleChange} className="app-input" /></div><p style={{ color: '#8e9aab', fontSize: '13px', textDecoration: 'underline', cursor: 'pointer', marginTop: '5px', textAlign: 'center' }} onClick={() => setFormData({ ...formData, isCustomChurch: false })}>Pick from the list instead</p></>
-            )}
-          </div>
-          <div className="footer-lock"><button onClick={handleNext} className="action-button">Continue</button></div>
+  <div className="inner-pad">
+    {renderTopNav(3)}
+
+    <div className="form-scroll-area">
+
+      <h1 className="onboarding-title">
+        Your local church
+      </h1>
+
+      <p className="onboarding-subtitle">
+        Choose your home church or add a new one to connect locally.
+      </p>
+
+      {/* SHOW SELECTED DENOMINATION */}
+      {formData.denomination && (
+        <div
+          style={{
+            background: 'rgba(41,190,175,0.08)',
+            border: '1px solid rgba(41,190,175,0.2)',
+            borderRadius: '12px',
+            padding: '12px 14px',
+            marginBottom: '18px',
+            color: '#29beaf',
+            fontSize: '13px'
+          }}
+        >
+          Showing churches for:
+
+          <strong style={{ marginLeft: '5px', color: '#fff' }}>
+            {formData.denomination === 'Other'
+              ? formData.customDenomination || 'Other'
+              : formData.denomination}
+          </strong>
         </div>
       )}
+
+      {!formData.isCustomChurch ? (
+
+        <>
+          <div className="input-group">
+
+            <label className="input-label">
+              LOCAL CHURCH
+            </label>
+
+            <select
+              name="churchName"
+              value={formData.churchName}
+              onChange={handleChange}
+              className="app-select"
+              disabled={isLoadingChurches}
+            >
+
+              <option value="">
+                {isLoadingChurches
+                  ? 'Loading churches...'
+                  : availableChurches.length > 0
+                    ? 'Select your church'
+                    : 'No registered churches found'}
+              </option>
+
+              {availableChurches.map((church) => (
+                <option
+                  key={church.id}
+                  value={church.church_name}
+                >
+                  {church.church_name}
+                </option>
+              ))}
+
+            </select>
+
+          </div>
+
+          {!isLoadingChurches &&
+            availableChurches.length === 0 && (
+              <p
+                style={{
+                  color: '#8e9aab',
+                  fontSize: '12px',
+                  textAlign: 'center',
+                  marginTop: '-5px',
+                  marginBottom: '15px'
+                }}
+              >
+                No churches have registered under this denomination yet.
+              </p>
+            )
+          }
+
+          <button
+            className="add-link"
+            onClick={() =>
+              setFormData(prev => ({
+                ...prev,
+                churchName: '',
+                isCustomChurch: true
+              }))
+            }
+          >
+            + My church isn't listed
+          </button>
+        </>
+
+      ) : (
+
+        <>
+          <div className="input-group">
+
+            <label className="input-label">
+              CHURCH NAME
+            </label>
+
+            <input
+              type="text"
+              name="churchName"
+              placeholder="e.g. Grace Chapel International"
+              value={formData.churchName}
+              onChange={handleChange}
+              className="app-input"
+            />
+
+          </div>
+
+          <p
+            style={{
+              color: '#8e9aab',
+              fontSize: '13px',
+              textDecoration: 'underline',
+              cursor: 'pointer',
+              marginTop: '5px',
+              textAlign: 'center'
+            }}
+            onClick={() =>
+              setFormData(prev => ({
+                ...prev,
+                churchName: '',
+                isCustomChurch: false
+              }))
+            }
+          >
+            Pick from the list instead
+          </p>
+
+        </>
+
+      )}
+
+    </div>
+
+    <div className="footer-lock">
+
+      <button
+        onClick={handleNext}
+        className="action-button"
+        disabled={
+          !formData.churchName &&
+          !formData.isCustomChurch
+        }
+      >
+        Continue
+      </button>
+
+    </div>
+
+  </div>
+)}
 
       {step === 4 && (
         <div className="inner-pad">
