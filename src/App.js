@@ -1353,7 +1353,10 @@ useEffect(() => {
           ? formData.customDenomination
           : formData.denomination
       ),
+          local_church: formData.churchName || null,
           phone_number: formData.phone,
+          date_of_birth: formData.dob || null,
+          country: formData.country || null,
           wallet_address: generatedAddress,
           wallet_balance: finalBalance,
           created_at: new Date().toISOString()
@@ -4221,100 +4224,287 @@ useEffect(() => {
   const [editMessageContent, setEditMessageContent] = useState("");
 
 
-  const fetchMessengerData = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+const fetchMessengerData = async () => {
+  try {
+    const { data: { user }, error: authError } =
+      await supabase.auth.getUser();
 
-      const { data: myParticipants } = await supabase.from('chat_participants').select('chat_id').eq('user_id', user.id);
-      if (myParticipants?.length > 0) {
-        const chatIds = myParticipants.map(p => p.chat_id);
-        const { data: myChats } = await supabase.from('chats').select(`
-  *, 
-  chat_participants(
-    user_id, 
-    user_profiles(full_name, username, avatar_url)
-  )
-`).in('id', chatIds).order('created_at', { ascending: false });
-        setDbChats(myChats || []);
-      }
+    if (authError) throw authError;
+    if (!user) return;
 
+    const {
+      data: myParticipants,
+      error: participantError
+    } = await supabase
+      .from('chat_participants')
+      .select('chat_id')
+      .eq('user_id', user.id);
 
-      const { data: groups } = await supabase.from('chats').select('*').eq('type', 'group').order('created_at', { ascending: false });
-      setPublicGroups(groups || []);
-      
-    } catch (error) {
-      console.error("Error fetching messenger data:", error);
+    if (participantError) throw participantError;
+
+    const chatIds = (myParticipants || []).map(
+      participant => participant.chat_id
+    );
+
+    if (chatIds.length === 0) {
+      setDbChats([]);
+    } else {
+
+      const {
+        data: myChats,
+        error: chatError
+      } = await supabase
+        .from('chats')
+        .select(`
+          *,
+          chat_participants(
+            user_id,
+            user_profiles(
+              id,
+              full_name,
+              username,
+              avatar_url
+            )
+          )
+        `)
+        .in('id', chatIds)
+        .order('created_at', {
+          ascending: false
+        });
+
+      if (chatError) throw chatError;
+
+      setDbChats(myChats || []);
     }
-  };
+
+    const {
+      data: groups,
+      error: groupsError
+    } = await supabase
+      .from('chats')
+      .select('*')
+      .eq('type', 'group')
+      .order('created_at', {
+        ascending: false
+      });
+
+    if (groupsError) throw groupsError;
+
+    setPublicGroups(groups || []);
+
+  } catch (error) {
+    console.error(
+      'Error fetching messenger data:',
+      error
+    );
+  }
+};
 
   useEffect(() => {
     if (step === 23) fetchMessengerData();
   }, [step]);
 
-  useEffect(() => {
-  if (!activeDbChat) return;
+useEffect(() => {
+  if (!activeDbChat) {
+    setDbMessages([]);
+    return;
+  }
+
+  let isMounted = true;
 
   const fetchMessages = async () => {
-    const { data } = await supabase.from('messages').select('*, user_profiles:sender_id(username, avatar_url)').eq('chat_id', activeDbChat.id).order('created_at', { ascending: true });
-    setDbMessages(data || []);
+    try {
+
+      const {
+        data,
+        error
+      } = await supabase
+        .from('messages')
+        .select(`
+          *,
+          sender:sender_id(
+            id,
+            full_name,
+            username,
+            avatar_url
+          )
+        `)
+        .eq('chat_id', activeDbChat.id)
+        .order('created_at', {
+          ascending: true
+        });
+
+      if (error) throw error;
+
+      if (isMounted) {
+        setDbMessages(data || []);
+      }
+
+    } catch (error) {
+      console.error(
+        'Error loading chat messages:',
+        error
+      );
+
+      if (isMounted) {
+        setDbMessages([]);
+      }
+    }
   };
+
   fetchMessages();
 
-  const subscription = supabase
-    .channel(`chat_${activeDbChat.id}_${Date.now()}`)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: `chat_id=eq.${activeDbChat.id}` }, 
+  const channel = supabase
+    .channel(`chat_${activeDbChat.id}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'messages',
+        filter: `chat_id=eq.${activeDbChat.id}`
+      },
       async (payload) => {
-        if (payload.new.sender_id === userProfile?.id) return;
 
-        const { data: profile } = await supabase.from('user_profiles').select('full_name, avatar_url').eq('id', payload.new.sender_id).single();
-        const newMsg = { ...payload.new, user_profiles: profile };
-        setDbMessages(prev => [...prev, newMsg]);
+        try {
+
+          const {
+            data: senderProfile
+          } = await supabase
+            .from('user_profiles')
+            .select(`
+              id,
+              full_name,
+              username,
+              avatar_url
+            `)
+            .eq('id', payload.new.sender_id)
+            .single();
+
+          const newMessage = {
+            ...payload.new,
+            sender: senderProfile || null
+          };
+
+          if (!isMounted) return;
+
+          setDbMessages(prev => {
+
+            // Prevent duplicate messages
+            if (
+              prev.some(
+                msg => msg.id === newMessage.id
+              )
+            ) {
+              return prev;
+            }
+
+            return [...prev, newMessage];
+          });
+
+        } catch (error) {
+          console.error(
+            'Realtime message profile error:',
+            error
+          );
+        }
       }
     )
     .subscribe();
 
-  return () => { supabase.removeChannel(subscription); };
-}, [activeDbChat, userProfile?.id]);
+  return () => {
+    isMounted = false;
+    supabase.removeChannel(channel);
+  };
+
+}, [activeDbChat?.id]);
 
 const handleSendDbMessage = async (e) => {
   e?.preventDefault();
-  if (!chatInputMessage.trim() || !activeDbChat) return;
 
-  const tempId = `temp-${Date.now()}`;
-  const newMessage = {
-    id: tempId,
-    chat_id: activeDbChat.id,
-    sender_id: userProfile?.id,
-    content: chatInputMessage.trim(),
-    intent: messageIntent,
-    created_at: new Date().toISOString(),
-    user_profiles: userProfile
-  };
+  const messageText = chatInputMessage.trim();
 
-  setDbMessages(prev => [...prev, newMessage]);
-  setChatInputMessage('');
-  setMessageIntent('NORMAL');
+  if (!messageText || !activeDbChat) return;
 
   try {
-    const { data, error } = await supabase.from('messages').insert([{
-      chat_id: activeDbChat.id,
-      sender_id: userProfile?.id,
-      content: newMessage.content,
-      intent: newMessage.intent
-    }]).select();
+
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser();
+
+    if (authError) throw authError;
+
+    if (!user) {
+      alert('You must be logged in to send messages.');
+      return;
+    }
+
+    const {
+      data: insertedMessage,
+      error
+    } = await supabase
+      .from('messages')
+      .insert([{
+        chat_id: activeDbChat.id,
+        sender_id: user.id,
+        content: messageText,
+        intent: messageIntent
+      }])
+      .select('*')
+      .single();
 
     if (error) throw error;
-    
-    if (data && data[0]) {
-      setDbMessages(prev => prev.map(msg => msg.id === tempId ? data[0] : msg));
-    }
+
+    const {
+      data: senderProfile
+    } = await supabase
+      .from('user_profiles')
+      .select(`
+        id,
+        full_name,
+        username,
+        avatar_url
+      `)
+      .eq('id', user.id)
+      .single();
+
+    const completeMessage = {
+      ...insertedMessage,
+      sender: senderProfile || userProfile || null
+    };
+
+    setDbMessages(prev => {
+
+      if (
+        prev.some(
+          msg => msg.id === completeMessage.id
+        )
+      ) {
+        return prev;
+      }
+
+      return [...prev, completeMessage];
+    });
+
+    setChatInputMessage('');
+    setMessageIntent('NORMAL');
+
   } catch (error) {
-    console.error("Error sending message:", error);
-    setDbMessages(prev => prev.filter(msg => msg.id !== tempId));
-    alert("Failed to send message. Please check your connection.");
+
+    console.error(
+      'Error sending message:',
+      error
+    );
+
+    alert(
+      `Failed to send message: ${
+        error.message || 'Unknown error'
+      }`
+    );
   }
 };
+
 
 const handleDeleteDbMessage = async (messageId) => {
   if (!window.confirm("Delete this message?")) return;
@@ -7908,9 +8098,27 @@ const togglePostExpand = (postId) => {
             <div className="input-group"><label className="input-label">CHURCH / MINISTRY NAME</label><input type="text" name="churchName" placeholder="e.g. Grace Fellowship Assembly" value={formData.churchName || ''} onChange={handleChange} className="app-input" /></div>
             <div className="input-group">
               <label className="input-label">DENOMINATION</label>
-              <select name="churchDenomination" value={formData.churchDenomination || ''} onChange={handleChange} className="app-select">
-                <option value="">Select a denomination</option><option value="Pentecostal">Pentecostal</option><option value="Baptist">Baptist</option><option value="Catholic">Catholic</option><option value="Non-denominational">Non-denominational</option><option value="Other">Other</option>
-              </select>
+              <select
+  name="churchDenomination"
+  value={formData.churchDenomination || ''}
+  onChange={handleChange}
+  className="app-select"
+>
+  <option value="">Select a denomination</option>
+  <option value="Anglican / Episcopal">Anglican / Episcopal</option>
+  <option value="Assemblies of God">Assemblies of God</option>
+  <option value="Baptist">Baptist</option>
+  <option value="Catholic">Catholic</option>
+  <option value="Evangelical">Evangelical</option>
+  <option value="Lutheran">Lutheran</option>
+  <option value="Methodist">Methodist</option>
+  <option value="Non-denominational">Non-denominational</option>
+  <option value="Orthodox">Orthodox</option>
+  <option value="Pentecostal">Pentecostal</option>
+  <option value="Presbyterian">Presbyterian</option>
+  <option value="Seventh-day Adventist">Seventh-day Adventist</option>
+  <option value="Other">Other</option>
+</select>
             </div>
             <div className="input-group"><label className="input-label">YEAR FOUNDED (OPTIONAL)</label><input type="number" name="yearFounded" placeholder="1998" value={formData.yearFounded || ''} onChange={handleChange} className="app-input" /></div>
             <div className="input-group"><label className="input-label">MISSION STATEMENT (OPTIONAL)</label><textarea name="missionStatement" placeholder="A short sentence about your church's mission and community." value={formData.missionStatement || ''} onChange={handleChange} className="app-input" style={{ minHeight: '80px', resize: 'none' }}></textarea><div style={{ textAlign: 'right', color: '#8e9aab', fontSize: '11px', marginTop: '4px' }}>0/300</div></div>
@@ -8151,27 +8359,83 @@ const togglePostExpand = (postId) => {
                 <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', marginTop: '20px' }}>Your inbox is empty.</div>
               ) : (
                 dbChats.map((chat) => {
-                  const otherParticipant = chat.type !== 'group' 
-                    ? chat.chat_participants?.find(p => p.user_id !== userProfile?.id)?.user_profiles 
-                    : null;
-                  const displayName = chat.type === 'group' ? chat.name : (otherParticipant?.full_name || "Private Chat");
+                  const otherParticipant =
+  chat.type !== 'group'
+    ? chat.chat_participants?.find(
+        participant =>
+          participant.user_id !== userProfile?.id
+      )?.user_profiles
+    : null;
+
+const displayName =
+  chat.type === 'group'
+    ? chat.name
+    : (
+        otherParticipant?.full_name ||
+        otherParticipant?.username ||
+        'Private Chat'
+      );
                   const avatarLetter = chat.type === 'group' ? '⛪' : (otherParticipant?.full_name?.charAt(0) || '👤');
 
                   return (
                     <div key={chat.id} onClick={() => setActiveDbChat(chat)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                        <div 
-                          onClick={(e) => {
-                            if (chat.type !== 'group' && otherParticipant?.id) {
-                              e.stopPropagation();
-                              handleViewProfile(otherParticipant.id);
-                            }
-                          }}
-                          style={{ width: '46px', height: '46px', borderRadius: '50%', background: chat.type === 'group' ? 'rgba(41, 190, 175, 0.1)' : 'linear-gradient(135deg, #101926, #1f3752)', border: '1px solid rgba(243, 202, 88, 0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px', cursor: chat.type !== 'group' ? 'pointer' : 'default' }}
-                          title={chat.type !== 'group' ? "View Public Profile" : ""}
-                        >
-                          {avatarLetter}
-                        </div>
+                       <div
+  onClick={(e) => {
+    if (
+      chat.type !== 'group' &&
+      otherParticipant?.id
+    ) {
+      e.stopPropagation();
+      handleViewProfile(
+        otherParticipant.id
+      );
+    }
+  }}
+  style={{
+    width: '46px',
+    height: '46px',
+    borderRadius: '50%',
+    overflow: 'hidden',
+    background:
+      chat.type === 'group'
+        ? 'rgba(41,190,175,0.1)'
+        : 'linear-gradient(135deg,#101926,#1f3752)',
+    border:
+      '1px solid rgba(243,202,88,0.3)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#f3ca58',
+    fontSize: '20px',
+    cursor:
+      chat.type !== 'group'
+        ? 'pointer'
+        : 'default'
+  }}
+>
+  {chat.type === 'group' ? (
+    '⛪'
+  ) : otherParticipant?.avatar_url ? (
+    <img
+      src={otherParticipant.avatar_url}
+      alt={
+        otherParticipant.full_name ||
+        otherParticipant.username ||
+        'User'
+      }
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover'
+      }}
+    />
+  ) : (
+    otherParticipant?.full_name?.charAt(0) ||
+    otherParticipant?.username?.charAt(0) ||
+    '👤'
+  )}
+</div>
                         <div>
                           <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>
                             {displayName}
@@ -8594,7 +8858,7 @@ const togglePostExpand = (postId) => {
                     style={{ fontSize: '10px', color: '#8e9aab', marginBottom: '4px', marginLeft: '12px', cursor: 'pointer' }} 
                     onClick={() => handleViewProfile(msg.sender_id)}
                   >
-                    {msg.user_profiles?.full_name || 'Unknown'}
+                    {msg.sender?.full_name || msg.sender?.username || 'Unknown'}
                   </div>
                 )}
 
