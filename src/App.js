@@ -853,11 +853,11 @@ const [isLoadingChurches, setIsLoadingChurches] = useState(false);
       return;
     }
 
-    if (formData.accountType === 'Church') {
-      setStep(19);
-    } else {
-      setStep(2);
-    }
+   if (formData.accountType === 'Ministry') {
+  setStep(19);
+} else {
+  setStep(2);
+}
   };
 
   // Status/Testimony Upload Handler
@@ -5204,22 +5204,51 @@ const togglePostExpand = (postId) => {
             
             <div className="input-group" style={{ marginBottom: '15px' }}>
               <label className="input-label">I AM REGISTERING AS A</label>
-              <div style={{ display: 'flex', gap: '10px', marginTop: '5px' }}>
-                {['Believer', 'Church'].map(type => (
-                  <button
-                    key={type} type="button"
-                    onClick={() => handleChange({ target: { name: 'accountType', value: type } })}
-                    style={{
-                      flex: 1, padding: '10px', borderRadius: '10px', fontWeight: '800', fontSize: '13px', cursor: 'pointer', transition: 'all 0.2s',
-                      background: (formData.accountType || 'Believer') === type ? 'linear-gradient(135deg, #f3ca58, #29beaf)' : 'rgba(255,255,255,0.05)',
-                      color: (formData.accountType || 'Believer') === type ? '#101926' : '#8e9aab',
-                      border: '1px solid rgba(255,255,255,0.1)'
-                    }}
-                  >
-                    {type === 'Church' ? 'Church / Ministry' : 'Individual'}
-                  </button>
-                ))}
-              </div>
+             <div
+  style={{
+    display: 'flex',
+    gap: '10px',
+    marginTop: '5px'
+  }}
+>
+  {['User', 'Ministry'].map(type => (
+    <button
+      key={type}
+      type="button"
+      onClick={() =>
+        handleChange({
+          target: {
+            name: 'accountType',
+            value: type
+          }
+        })
+      }
+      style={{
+        flex: 1,
+        padding: '12px 10px',
+        borderRadius: '10px',
+        fontWeight: '800',
+        fontSize: '13px',
+        cursor: 'pointer',
+        transition: 'all 0.2s',
+        background:
+          (formData.accountType || 'User') === type
+            ? 'linear-gradient(135deg, #f3ca58, #29beaf)'
+            : 'rgba(255,255,255,0.05)',
+        color:
+          (formData.accountType || 'User') === type
+            ? '#101926'
+            : '#8e9aab',
+        border:
+          '1px solid rgba(255,255,255,0.1)'
+      }}
+    >
+      {type === 'Ministry'
+        ? 'Church / Ministry'
+        : 'Individual / Believer'}
+    </button>
+  ))}
+</div>
             </div>
 
             <div className="input-group"><label className="input-label">FULL NAME</label><input type="text" name="fullName" placeholder="Mary Johnson" value={formData.fullName} onChange={handleChange} className="app-input" /></div>
