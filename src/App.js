@@ -728,6 +728,205 @@ const uploadNewTestimony = async (e) => {
   const [sendRecipient, setSendRecipient] = useState('');
   const [sendAmount, setSendAmount] = useState('');
   const [sendMemo, setSendMemo] = useState('');
+  const [swapFromToken, setSwapFromToken] =
+  useState('KPC');
+
+  const [swapToToken, setSwapToToken] =
+  useState('USDC');
+
+  const [swapAmount, setSwapAmount] =
+  useState('');
+
+  const [demoUsdcBalance, setDemoUsdcBalance] =
+  useState(() => {
+    const saved =
+      localStorage.getItem(
+        'kp_demo_usdc_balance'
+      );
+
+    return saved
+      ? Number(saved)
+      : 0;
+  });
+
+const [isSwapping, setIsSwapping] =
+  useState(false);
+
+const handleDemoSwap = async () => {
+  const amount =
+    Number(swapAmount);
+
+  if (!amount || amount <= 0) {
+    alert(
+      'Enter a valid amount to swap.'
+    );
+    return;
+  }
+
+  if (
+    swapFromToken ===
+    swapToToken
+  ) {
+    alert(
+      'Choose two different tokens.'
+    );
+    return;
+  }
+
+  const KPC_TO_USDC = 0.25;
+
+  let receivedAmount = 0;
+
+  if (
+    swapFromToken === 'KPC' &&
+    swapToToken === 'USDC'
+  ) {
+    if (
+      Number(kpcBalance) <
+      amount
+    ) {
+      alert(
+        'Insufficient KPC balance.'
+      );
+      return;
+    }
+
+    receivedAmount =
+      amount * KPC_TO_USDC;
+
+  } else if (
+    swapFromToken === 'USDC' &&
+    swapToToken === 'KPC'
+  ) {
+    if (
+      Number(demoUsdcBalance) <
+      amount
+    ) {
+      alert(
+        'Insufficient Demo USDC balance.'
+      );
+      return;
+    }
+
+    receivedAmount =
+      amount / KPC_TO_USDC;
+
+  } else {
+    alert(
+      'Unsupported prototype swap.'
+    );
+    return;
+  }
+
+  setIsSwapping(true);
+
+  try {
+    await new Promise(resolve =>
+      setTimeout(resolve, 1200)
+    );
+
+    let newKpcBalance =
+      Number(kpcBalance);
+
+    let newUsdcBalance =
+      Number(demoUsdcBalance);
+
+    if (
+      swapFromToken === 'KPC'
+    ) {
+      newKpcBalance -= amount;
+      newUsdcBalance += receivedAmount;
+    } else {
+      newUsdcBalance -= amount;
+      newKpcBalance += receivedAmount;
+    }
+
+    if (userProfile?.id) {
+      const {
+        error
+      } = await supabase
+        .from('user_profiles')
+        .update({
+          wallet_balance:
+            newKpcBalance
+        })
+        .eq(
+          'id',
+          userProfile.id
+        );
+
+      if (error) {
+        throw error;
+      }
+    }
+
+    setKpcBalance(
+      newKpcBalance
+    );
+
+    setDemoUsdcBalance(
+      newUsdcBalance
+    );
+
+    localStorage.setItem(
+      'kp_demo_usdc_balance',
+      String(newUsdcBalance)
+    );
+
+    const savedUser =
+      localStorage.getItem(
+        'kp_current_user'
+      );
+
+    if (savedUser) {
+      const parsed =
+        JSON.parse(savedUser);
+
+      localStorage.setItem(
+        'kp_current_user',
+        JSON.stringify({
+          ...parsed,
+          wallet_balance:
+            newKpcBalance,
+          kpcBalance:
+            newKpcBalance
+        })
+      );
+    }
+
+    logTransaction(
+      `Demo Swap: ${amount} ${swapFromToken} → ${receivedAmount.toFixed(2)} ${swapToToken}`,
+      swapFromToken === 'KPC'
+        ? -amount
+        : receivedAmount,
+      swapFromToken === 'KPC'
+        ? 'SPEND'
+        : 'EARN'
+    );
+
+    alert(
+      `🔄 Swap completed!\n\n${amount} ${swapFromToken} → ${receivedAmount.toFixed(2)} ${swapToToken}\n\nPrototype rate: 1 KPC = $0.25`
+    );
+
+    setSwapAmount('');
+
+  } catch (error) {
+    console.error(
+      'Demo swap failed:',
+      error
+    );
+
+    alert(
+      `Swap failed: ${
+        error?.message ||
+        'Please try again.'
+      }`
+    );
+
+  } finally {
+    setIsSwapping(false);
+  }
+};
 
   // Media Hub State
   const [mediaTab, setMediaTab] = useState('Music'); 
@@ -1334,15 +1533,30 @@ useEffect(() => {
       const userId = authData?.user?.id;
       
       if (userId) {
-        const profileData = {
-          id: userId,
-          email: formData.email,
-          full_name: formData.fullName,
-          username: formData.username,
-          account_type: formData.accountType,
-          denomination:
-  formData.accountType === 'Church' ||
-  formData.accountType === 'Minister'
+        const isMinistry =
+  formData.accountType === 'Ministry';
+
+const profileData = {
+  id: userId,
+  email: formData.email,
+  full_name: formData.fullName,
+  username: formData.username,
+  account_type: isMinistry
+    ? 'Ministry'
+    : 'User',
+
+  membership_tier: isMinistry
+    ? 'Disciple'
+    : 'Standard',
+
+  ministry_type: isMinistry
+    ? 'Church'
+    : null,
+
+  membership_updated_at:
+    new Date().toISOString(),
+
+  denomination: isMinistry
     ? (
         formData.churchDenomination === 'Other'
           ? formData.customDenomination
@@ -1353,24 +1567,171 @@ useEffect(() => {
           ? formData.customDenomination
           : formData.denomination
       ),
-          local_church: formData.churchName || null,
-          phone_number: formData.phone,
-          date_of_birth: formData.dob || null,
-          country: formData.country || null,
-          wallet_address: generatedAddress,
-          wallet_balance: finalBalance,
-          created_at: new Date().toISOString()
-        };
 
-const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance };
+  local_church:
+    formData.churchName || null,
+
+  phone_number:
+    formData.phone,
+
+  date_of_birth:
+    formData.dob || null,
+
+  country:
+    formData.country || null,
+
+  wallet_address:
+    generatedAddress,
+
+  wallet_balance:
+    finalBalance,
+
+  created_at:
+    new Date().toISOString()
+};
+
+const today = new Date();
+
+const todayDate =
+  today.toISOString().slice(0, 10);
+
+const lastLoginDate =
+  profileData.last_login_date || null;
+
+let newLoginStreak =
+  Number(profileData.login_streak || 0);
+
+if (!lastLoginDate) {
+  newLoginStreak = 1;
+
+} else if (lastLoginDate === todayDate) {
+  newLoginStreak =
+    Number(profileData.login_streak || 1);
+
+} else {
+  const previousDate =
+    new Date(`${lastLoginDate}T00:00:00`);
+
+  const currentDate =
+    new Date(`${todayDate}T00:00:00`);
+
+  const differenceInDays =
+    Math.floor(
+      (
+        currentDate -
+        previousDate
+      ) /
+      (1000 * 60 * 60 * 24)
+    );
+
+  if (differenceInDays === 1) {
+    newLoginStreak =
+      Number(profileData.login_streak || 0) + 1;
+  } else {
+    newLoginStreak = 1;
+  }
+}
+
+const {
+  error: streakUpdateError
+} = await supabase
+  .from('user_profiles')
+  .update({
+    login_streak:
+      newLoginStreak,
+    last_login_date:
+      todayDate
+  })
+  .eq('id', userId);
+
+if (streakUpdateError) {
+  console.error(
+    'Failed to update login streak:',
+    streakUpdateError
+  );
+}
+
+profileData.login_streak =
+  newLoginStreak;
+
+profileData.last_login_date =
+  todayDate;
+
+const sessionRecord = {
+  ...formData,
+  accountType:
+    profileData.account_type,
+  membership_tier:
+    profileData.membership_tier,
+  ministry_type:
+    profileData.ministry_type,
+  generatedAddress,
+  kpcBalance: finalBalance
+};
+
+setUserTier(
+  profileData.account_type === 'Ministry'
+    ? (
+        profileData.membership_tier ||
+        'Disciple'
+      )
+    : (
+        profileData.membership_tier ||
+        'Standard'
+      )
+);
+
       setCurrentUser(sessionRecord);
       localStorage.setItem('kp_current_user', JSON.stringify(sessionRecord));
 
-        if (formData.accountType === 'Church' || formData.accountType === 'Minister') {
-          await supabase.from('church_profiles').insert([{ ...profileData, church_name: formData.churchName || formData.fullName }]);
-        } else {
-          await supabase.from('user_profiles').insert([profileData]);
-        }
+const {
+  error: userProfileError
+} = await supabase
+  .from('user_profiles')
+  .insert([profileData]);
+
+if (userProfileError) {
+  throw userProfileError;
+}
+
+if (isMinistry) {
+  const {
+    error: ministryProfileError
+  } = await supabase
+    .from('church_profiles')
+    .insert([
+      {
+        ...profileData,
+
+        account_type: 'Ministry',
+        membership_tier: 'Disciple',
+        ministry_type:
+          profileData.ministry_type,
+
+        church_name:
+          formData.churchName ||
+          formData.fullName,
+
+        denomination:
+          profileData.denomination,
+
+        year_founded:
+          formData.yearFounded
+            ? Number(formData.yearFounded)
+            : null,
+
+        mission_statement:
+          formData.missionStatement || null
+      }
+    ]);
+
+  if (ministryProfileError) {
+    console.error(
+      'Ministry profile creation failed:',
+      ministryProfileError
+    );
+  }
+}
       }
 
       
@@ -1430,36 +1791,159 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
       const userId = authData.user.id;
 
       let profileData = null;
-      let { data: fullUserProfile } = await supabase.from('user_profiles').select('*').eq('id', userId).single();
 
-      if (fullUserProfile) {
-        profileData = fullUserProfile;
-      } else {
-        let { data: fullChurchProfile } = await supabase.from('church_profiles').select('*').eq('id', userId).single();
-        profileData = fullChurchProfile;
-      }
+const {
+  data: fullUserProfile,
+  error: profileError
+} = await supabase
+  .from('user_profiles')
+  .select('*')
+  .eq('id', userId)
+  .maybeSingle();
+
+if (profileError) {
+  throw profileError;
+}
+
+if (!fullUserProfile) {
+  throw new Error(
+    'Your KingdomPlus profile could not be found.'
+  );
+}
+
+profileData = fullUserProfile;
 
       if (profileData) {
         if (profileData.wallet_address) setGeneratedAddress(profileData.wallet_address);
         if (profileData.wallet_balance !== undefined && profileData.wallet_balance !== null) setKpcBalance(Number(profileData.wallet_balance));
         setFormData(prev => ({
-          ...prev,
-          fullName: profileData.full_name || profileData.church_name || '',
-          username: profileData.username || '',
-          email: profileData.email || '',
-          accountType: profileData.account_type || 'Believer',
-          denomination: profileData.denomination || '',
-          churchName: profileData.church_name || profileData.local_church || ''
-        }));
+  ...prev,
+
+  fullName:
+    profileData.full_name ||
+    profileData.church_name ||
+    '',
+
+  username:
+    profileData.username || '',
+
+  email:
+    profileData.email || '',
+
+  accountType:
+    profileData.account_type === 'Ministry'
+      ? 'Ministry'
+      : 'User',
+
+  denomination:
+    profileData.denomination || '',
+
+  churchName:
+    profileData.church_name ||
+    profileData.local_church ||
+    ''
+}));
       }
 
       alert(`Welcome back, ${profileData?.full_name || profileData?.church_name || 'Believer'}!`);
+
+const today = new Date();
+
+const todayDate =
+  `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+const lastLoginDate =
+  profileData.last_login_date || null;
+
+let newLoginStreak =
+  Number(profileData.login_streak || 0);
+
+if (!lastLoginDate) {
+
+  newLoginStreak = 1;
+
+} else if (lastLoginDate === todayDate) {
+
+    Number(profileData.login_streak || 1);
+
+} else {
+
+  const previousDate =
+    new Date(`${lastLoginDate}T00:00:00`);
+
+  const currentDate =
+    new Date(`${todayDate}T00:00:00`);
+
+  const differenceInDays =
+    Math.round(
+      (
+        currentDate -
+        previousDate
+      ) /
+      (1000 * 60 * 60 * 24)
+    );
+
+  if (differenceInDays === 1) {
+
+    newLoginStreak =
+      Number(profileData.login_streak || 0) + 1;
+
+  } else {
+
+    newLoginStreak = 1;
+  }
+}
+
+const {
+  error: streakUpdateError
+} = await supabase
+  .from('user_profiles')
+  .update({
+    login_streak: newLoginStreak,
+    last_login_date: todayDate
+  })
+  .eq('id', userId);
+
+if (streakUpdateError) {
+  console.error(
+    'Login streak update failed:',
+    streakUpdateError
+  );
+}
+
+profileData.login_streak =
+  newLoginStreak;
+
+profileData.last_login_date =
+  todayDate;
       
-      const sessionRecord = {
-        ...profileData,
-        wallet_address: profileData?.wallet_address || '',
-        wallet_balance: Number(profileData?.wallet_balance || 0)
-      };
+     const sessionRecord = {
+  ...profileData,
+
+  account_type:
+    profileData.account_type === 'Ministry'
+      ? 'Ministry'
+      : 'User',
+
+  membership_tier:
+    profileData.account_type === 'Ministry'
+      ? (
+          profileData.membership_tier ||
+          'Disciple'
+        )
+      : (
+          profileData.membership_tier ||
+          'Standard'
+        ),
+
+  wallet_address:
+    profileData?.wallet_address || '',
+
+  wallet_balance:
+    Number(
+      profileData?.wallet_balance || 0
+    )
+};
       setCurrentUser(sessionRecord);
       localStorage.setItem('kp_current_user', JSON.stringify(sessionRecord));
       
@@ -1486,72 +1970,216 @@ const sessionRecord = { ...formData, generatedAddress, kpcBalance: finalBalance 
     }
   };
 
-  const [userTier, setUserTier] = useState('Seeker');
+  const [userTier, setUserTier] = useState('Standard');
   const [selectedUpgrade, setSelectedUpgrade] = useState('Disciple');
   const [isUpgrading, setIsUpgrading] = useState(false);
 
   const upgradeTiers = {
-    'Seeker': { price: 0 },
-    'Disciple': { price: 250 },
-    'Apostle': { price: 900 }
+  Standard: {
+    price: 0
+  },
+  Disciple: {
+    price: 250
+  },
+  Apostle: {
+    price: 900
+  }
+};
+
+const handleUpgradeSubscription = async () => {
+  if (!selectedUpgrade) {
+    alert('Please select a membership plan.');
+    return;
+  }
+
+  const currentTier =
+    userProfile?.membership_tier ||
+    userTier ||
+    (
+      userProfile?.account_type === 'Ministry'
+        ? 'Disciple'
+        : 'Standard'
+    );
+
+  const isMinistry =
+    userProfile?.account_type === 'Ministry';
+
+  const tierRank = {
+    Standard: 0,
+    Disciple: 1,
+    Apostle: 2
   };
 
-  const handleUpgradeSubscription = async () => {
-    const cost = upgradeTiers[selectedUpgrade].price;
-
-    if (userTier === selectedUpgrade) {
-      alert(`You are already on the ${selectedUpgrade} plan!`);
-      return;
-    }
-
-    if (kpcBalance < cost) {
-      alert(`Insufficient funds. You need ${cost} KPC for the ${selectedUpgrade} monthly plan.`);
-      return;
-    }
-
-    setIsUpgrading(true);
-
-    try {
-      const KPC_MINT_ADDRESS = new PublicKey(GLOBAL_KPC_MINT);
-      const feePayerKeypair = Keypair.fromSecretKey(GLOBAL_TREASURY_KEY);
-      const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
-
-      const treasuryVaultPubKey = feePayerKeypair.publicKey;
-      const userPubKey = new PublicKey(generatedAddress);
-
-      const sourceTokenAccount = await getOrCreateAssociatedTokenAccount(
-        connection, feePayerKeypair, KPC_MINT_ADDRESS, userPubKey
-      );
-      const destinationTokenAccount = await getOrCreateAssociatedTokenAccount(
-        connection, feePayerKeypair, KPC_MINT_ADDRESS, treasuryVaultPubKey
-      );
-
-      const paymentValue = cost * Math.pow(10, 8);
-
-      const txSignature = await transfer(
-        connection,
-        feePayerKeypair,
-        sourceTokenAccount.address,
-        destinationTokenAccount.address,
-        feePayerKeypair.publicKey,
-        paymentValue
-      );
-
-      setKpcBalance(prev => prev - cost);
-      logTransaction(`Upgraded Vault to ${selectedUpgrade}`, -cost, 'SPEND');
-      setUserTier(selectedUpgrade);
-      alert(`Hallelujah! You are now a Kingdom ${selectedUpgrade}.\nTransaction ID: ${txSignature}`);
-      setStep(11);
-    } catch (error) {
-      console.error("Upgrade transaction failed:", error);
-      alert("Network timeout. Simulating successful upgrade for app demonstration!");
-      setKpcBalance(prev => prev - cost);
-      setUserTier(selectedUpgrade);
-      setStep(11);
-    } finally {
-      setIsUpgrading(false);
-    }
+  const upgradeCosts = {
+    Disciple: 250,
+    Apostle: 900
   };
+
+  // Ministry accounts start at Disciple.
+  if (
+    isMinistry &&
+    currentTier === 'Disciple' &&
+    selectedUpgrade === 'Disciple'
+  ) {
+    alert(
+      'Your Ministry account already includes Disciple membership.'
+    );
+    return;
+  }
+
+  // Prevent downgrades / duplicate purchases.
+  if (
+    tierRank[selectedUpgrade] <=
+    tierRank[currentTier]
+  ) {
+    alert(
+      `You are already on the ${currentTier} plan or above.`
+    );
+    return;
+  }
+
+  const cost =
+    upgradeCosts[selectedUpgrade];
+
+  if (!cost) {
+    alert('Invalid membership upgrade.');
+    return;
+  }
+
+  if (
+    Number(kpcBalance) < cost
+  ) {
+    alert(
+      `Insufficient KPC. You need ${cost} KPC to upgrade to ${selectedUpgrade}.`
+    );
+    return;
+  }
+
+  if (!userProfile?.id) {
+    alert('Your account could not be identified.');
+    return;
+  }
+
+  setIsUpgrading(true);
+
+  try {
+    // Small delay so testers see a real processing state.
+    await new Promise(resolve =>
+      setTimeout(resolve, 1200)
+    );
+
+    const newBalance =
+      Number(kpcBalance) - cost;
+
+    // Update membership in Supabase.
+    const {
+      error: membershipError
+    } = await supabase
+      .from('user_profiles')
+      .update({
+        membership_tier:
+          selectedUpgrade,
+        membership_updated_at:
+          new Date().toISOString(),
+        wallet_balance:
+          newBalance
+      })
+      .eq('id', userProfile.id);
+
+    if (membershipError) {
+      throw membershipError;
+    }
+
+    // Keep Ministry record synchronized.
+    if (isMinistry) {
+      await supabase
+        .from('church_profiles')
+        .update({
+          membership_tier:
+            selectedUpgrade,
+          membership_updated_at:
+            new Date().toISOString(),
+          wallet_balance:
+            newBalance
+        })
+        .eq('id', userProfile.id);
+    }
+
+    // Update the live application.
+    setKpcBalance(newBalance);
+    setUserTier(selectedUpgrade);
+
+    setUserProfile(prev => ({
+      ...prev,
+      membership_tier:
+        selectedUpgrade,
+      membership_updated_at:
+        new Date().toISOString(),
+      wallet_balance:
+        newBalance
+    }));
+
+    setCurrentUser(prev => ({
+      ...prev,
+      membership_tier:
+        selectedUpgrade,
+      wallet_balance:
+        newBalance
+    }));
+
+    // Keep local session synchronized.
+    const savedUser =
+      localStorage.getItem(
+        'kp_current_user'
+      );
+
+    if (savedUser) {
+      const parsed =
+        JSON.parse(savedUser);
+
+      localStorage.setItem(
+        'kp_current_user',
+        JSON.stringify({
+          ...parsed,
+          membership_tier:
+            selectedUpgrade,
+          wallet_balance:
+            newBalance,
+          kpcBalance:
+            newBalance
+        })
+      );
+    }
+
+    logTransaction(
+      `Upgraded to ${selectedUpgrade}`,
+      -cost,
+      'SPEND'
+    );
+
+    alert(
+      `🎉 Congratulations!\n\nYou are now a Kingdom ${selectedUpgrade}.\n\n${cost} KPC has been used for your upgrade.`
+    );
+
+    setStep(11);
+
+  } catch (error) {
+    console.error(
+      'Prototype upgrade failed:',
+      error
+    );
+
+    alert(
+      `Upgrade failed: ${
+        error?.message ||
+        'Please try again.'
+      }`
+    );
+
+  } finally {
+    setIsUpgrading(false);
+  }
+};
 
   const [claimedVideos, setClaimedVideos] = useState({});
   const [isClaiming, setIsClaiming] = useState(false);
@@ -3516,7 +4144,20 @@ const [profileTab, setProfileTab] = useState('All');
   // ==========================================
   
   const [userProfile, setUserProfile] = useState(null);
+
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
+  const hasDiscipleAccess = (profile) => {
+  return (
+    profile?.membership_tier === 'Disciple' ||
+    profile?.membership_tier === 'Apostle'
+  );
+};
+
+  const hasApostleAccess = (profile) => {
+  return (
+    profile?.membership_tier === 'Apostle'
+  );
+};
 
   useEffect(() => {
     const fetchUserProfile = async () => {
@@ -3527,15 +4168,46 @@ const [profileTab, setProfileTab] = useState('All');
         if (authError) throw authError;
 
         if (user) {
-          const { data: profileData, error: profileError } = await supabase
-            .from('user_profiles')
-            .select('*')
-            .eq('id', user.id)
-            .single();
+          const {
+  data: profileData,
+  error: profileError
+} = await supabase
+  .from('user_profiles')
+  .select('*')
+  .eq('id', user.id)
+  .maybeSingle();
 
-          if (profileError) throw profileError;
+if (profileError) {
+  throw profileError;
+}
 
-          setUserProfile(profileData);
+if (!profileData) {
+  throw new Error(
+    'KingdomPlus profile not found.'
+  );
+}
+
+const normalizedProfile = {
+  ...profileData,
+
+  account_type:
+    profileData.account_type === 'Ministry'
+      ? 'Ministry'
+      : 'User',
+
+  membership_tier:
+    profileData.account_type === 'Ministry'
+      ? (
+          profileData.membership_tier ||
+          'Disciple'
+        )
+      : (
+          profileData.membership_tier ||
+          'Standard'
+        )
+};
+
+setUserProfile(normalizedProfile);
         }
       } catch (error) {
         console.error("Error fetching real profile data:", error.message);
@@ -7251,25 +7923,90 @@ const togglePostExpand = (postId) => {
 
           <div className="feed-scroll-area" style={{ padding: '0 20px' }}>
 
-            {/* Seeker (Free) */}
-            <div className="upgrade-card" onClick={() => { if (userTier === 'Seeker') setSelectedUpgrade('Seeker'); }}>
-              <div className="tier-header-top">
-                <div className="tier-icon-box" style={{ borderColor: 'rgba(255,255,255,0.2)', color: '#8e9aab' }}><ShieldIcon /></div>
-                <div className="tier-title-wrap">
-                  <span className="tier-title">Seeker</span>
-                  <span className="tier-desc">Begin the journey</span>
-                </div>
-              </div>
-              <div className="tier-pricing">
-                <span className="tier-price" style={{ color: '#fff' }}>Free</span>
-                <span className="tier-period">— Free forever</span>
-              </div>
-              <div className="tier-features">
-                <div className="feature-item"><div className="feature-check"><CheckIcon /></div>Daily devotionals & Sanctuary feed</div>
-                <div className="feature-item"><div className="feature-check"><CheckIcon /></div>Earn KPC for engagement</div>
-                <div className="feature-item"><div className="feature-check"><CheckIcon /></div>Publish free e-books to Bookstore</div>
-              </div>
-            </div>
+            {/* STANDARD */}
+{userProfile?.account_type !== 'Ministry' && (
+  <div
+    className="upgrade-card"
+    onClick={() =>
+      setSelectedUpgrade('Standard')
+    }
+    style={{
+      border:
+        (
+          userProfile?.membership_tier ||
+          userTier
+        ) === 'Standard'
+          ? '1px solid #29beaf'
+          : undefined
+    }}
+  >
+    <div className="tier-header-top">
+
+      <div
+        className="tier-icon-box"
+        style={{
+          borderColor:
+            'rgba(255,255,255,0.2)',
+          color: '#8e9aab'
+        }}
+      >
+        <ShieldIcon />
+      </div>
+
+      <div className="tier-title-wrap">
+        <span className="tier-title">
+          Standard
+        </span>
+
+        <span className="tier-desc">
+          Begin your Kingdom journey
+        </span>
+      </div>
+
+    </div>
+
+    <div className="tier-pricing">
+      <span
+        className="tier-price"
+        style={{
+          color: '#fff'
+        }}
+      >
+        Free
+      </span>
+
+      <span className="tier-period">
+        — Free forever
+      </span>
+    </div>
+
+    <div className="tier-features">
+
+      <div className="feature-item">
+        <div className="feature-check">
+          <CheckIcon />
+        </div>
+        Daily devotionals & Sanctuary feed
+      </div>
+
+      <div className="feature-item">
+        <div className="feature-check">
+          <CheckIcon />
+        </div>
+        Earn KPC through engagement
+      </div>
+
+      <div className="feature-item">
+        <div className="feature-check">
+          <CheckIcon />
+        </div>
+        Basic Kingdom community access
+      </div>
+
+    </div>
+
+  </div>
+)}
 
             {/* Disciple (250 KPC) */}
             <div
@@ -7325,19 +8062,37 @@ const togglePostExpand = (postId) => {
 
           <div className="footer-lock">
             <button
-              className="action-button"
-              style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
-              onClick={handleUpgradeSubscription}
-              disabled={isUpgrading || userTier === selectedUpgrade || selectedUpgrade === 'Seeker'}
-            >
-              <LightningIcon />
-              {isUpgrading
-                ? 'Processing...'
-                : userTier === selectedUpgrade
-                  ? 'Current Plan'
-                  : `Upgrade to ${selectedUpgrade}`
-              }
-            </button>
+  className="action-button"
+  style={{
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '8px'
+  }}
+  onClick={handleUpgradeSubscription}
+  disabled={
+    isUpgrading ||
+    !selectedUpgrade ||
+    selectedUpgrade ===
+      (
+        userProfile?.membership_tier ||
+        userTier
+      )
+  }
+>
+  <LightningIcon />
+
+  {isUpgrading
+    ? 'Processing...'
+    : selectedUpgrade ===
+      (
+        userProfile?.membership_tier ||
+        userTier
+      )
+      ? 'Current Plan'
+      : `Upgrade to ${selectedUpgrade}`
+  }
+</button>
           </div>
 
         </div>
@@ -7748,11 +8503,272 @@ const togglePostExpand = (postId) => {
             )}
 
             {sendSwapTab === 'Swap' && (
-              <div style={{ padding: '60px 20px', textAlign: 'center', color: '#8e9aab' }}>
-                <SwapIcon />
-                <p style={{ marginTop: '15px', fontSize: '15px' }}>Token swapping is coming soon.</p>
-              </div>
-            )}
+  <div
+    style={{
+      padding: '20px',
+      color: '#fff'
+    }}
+  >
+
+    {/* DEMO NOTICE */}
+    <div
+      style={{
+        padding: '12px 14px',
+        borderRadius: '14px',
+        background:
+          'rgba(243,202,88,0.08)',
+        border:
+          '1px solid rgba(243,202,88,0.2)',
+        marginBottom: '20px',
+        color: '#f3ca58',
+        fontSize: '11px',
+        lineHeight: '1.5'
+      }}
+    >
+      🧪 <strong>Prototype Swap</strong>
+      <br />
+      This is a simulated swap for
+      KingdomPlus testers.
+    </div>
+
+    {/* FROM */}
+    <label
+      className="form-label"
+    >
+      FROM
+    </label>
+
+    <select
+      value={swapFromToken}
+      onChange={(e) =>
+        setSwapFromToken(
+          e.target.value
+        )
+      }
+      className="login-input"
+      style={{
+        width: '100%',
+        marginBottom: '16px'
+      }}
+    >
+      <option value="KPC">
+        KPC
+      </option>
+
+      <option value="USDC">
+        Demo USDC
+      </option>
+    </select>
+
+    {/* AMOUNT */}
+    <label
+      className="form-label"
+    >
+      AMOUNT
+    </label>
+
+    <input
+      type="number"
+      min="0"
+      step="0.01"
+      value={swapAmount}
+      onChange={(e) =>
+        setSwapAmount(
+          e.target.value
+        )
+      }
+      placeholder="0.00"
+      className="amount-input-field"
+      style={{
+        width: '100%',
+        marginBottom: '18px'
+      }}
+    />
+
+    {/* SWITCH */}
+    <button
+      type="button"
+      onClick={() => {
+        const oldFrom =
+          swapFromToken;
+
+        setSwapFromToken(
+          swapToToken
+        );
+
+        setSwapToToken(
+          oldFrom
+        );
+
+        setSwapAmount('');
+      }}
+      style={{
+        width: '42px',
+        height: '42px',
+        borderRadius: '50%',
+        border:
+          '1px solid rgba(41,190,175,0.35)',
+        background:
+          'rgba(41,190,175,0.1)',
+        color: '#29beaf',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        margin: '0 auto 18px'
+      }}
+      title="Switch tokens"
+    >
+      ⇅
+    </button>
+
+    {/* TO */}
+    <label
+      className="form-label"
+    >
+      TO
+    </label>
+
+    <select
+      value={swapToToken}
+      onChange={(e) =>
+        setSwapToToken(
+          e.target.value
+        )
+      }
+      className="login-input"
+      style={{
+        width: '100%',
+        marginBottom: '20px'
+      }}
+    >
+      <option value="USDC">
+        Demo USDC
+      </option>
+
+      <option value="KPC">
+        KPC
+      </option>
+    </select>
+
+    {/* PREVIEW */}
+    <div
+      style={{
+        padding: '16px',
+        borderRadius: '16px',
+        background:
+          'rgba(255,255,255,0.03)',
+        border:
+          '1px solid rgba(255,255,255,0.07)',
+        marginBottom: '20px'
+      }}
+    >
+      <div
+        style={{
+          color: '#8e9aab',
+          fontSize: '10px',
+          marginBottom: '8px'
+        }}
+      >
+        ESTIMATED RECEIVE
+      </div>
+
+      <div
+        style={{
+          color: '#fff',
+          fontSize: '25px',
+          fontWeight: '900'
+        }}
+      >
+        {(() => {
+          const amount =
+            Number(swapAmount) || 0;
+
+          if (
+            swapFromToken ===
+              'KPC' &&
+            swapToToken ===
+              'USDC'
+          ) {
+            return `${(
+              amount * 0.25
+            ).toFixed(2)} USDC`;
+          }
+
+          if (
+            swapFromToken ===
+              'USDC' &&
+            swapToToken ===
+              'KPC'
+          ) {
+            return `${(
+              amount / 0.25
+            ).toFixed(2)} KPC`;
+          }
+
+          return '0.00';
+        })()}
+      </div>
+
+      <div
+        style={{
+          color: '#64748b',
+          fontSize: '10px',
+          marginTop: '7px'
+        }}
+      >
+        Prototype rate:
+        {' '}1 KPC = $0.25
+      </div>
+
+      <div
+        style={{
+          color: '#64748b',
+          fontSize: '10px',
+          marginTop: '5px'
+        }}
+      >
+        Demo USDC balance:
+        {' '}
+        {Number(
+          demoUsdcBalance
+        ).toFixed(2)}
+      </div>
+    </div>
+
+    {/* SWAP BUTTON */}
+    <button
+      type="button"
+      className="action-button"
+      onClick={
+        handleDemoSwap
+      }
+      disabled={
+        isSwapping ||
+        !swapAmount
+      }
+      style={{
+        width: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        opacity:
+          isSwapping ||
+          !swapAmount
+            ? 0.6
+            : 1
+      }}
+    >
+      <SwapIcon />
+
+      {isSwapping
+        ? 'Swapping...'
+        : 'Swap Tokens'}
+    </button>
+
+  </div>
+)}
 
           </div>
           {sendSwapTab === 'Send' && (
