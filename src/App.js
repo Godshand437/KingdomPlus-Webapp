@@ -4227,6 +4227,7 @@ useEffect(() => {
   const [groupEditName, setGroupEditName] = useState('');
   const [groupEditDesc, setGroupEditDesc] = useState('');
   const [groupEditAvatar, setGroupEditAvatar] = useState('');
+  const [isUploadingGroupAvatar, setIsUploadingGroupAvatar] = useState(false);
 
   const [groupMembers, setGroupMembers] = useState([]);
 
@@ -4671,6 +4672,102 @@ const openGroupSettings = () => {
   setGroupEditAvatar(activeDbChat.avatar_url || '');
 
   setIsGroupSettingsOpen(true);
+};
+
+
+const handleGroupAvatarUpload = async (event) => {
+  const file = event.target.files?.[0];
+
+  if (!file) return;
+
+  if (!activeDbChat || activeDbChat.type !== 'group') {
+    alert('No active group selected.');
+    return;
+  }
+
+  if (activeDbChat.created_by !== userProfile?.id) {
+    alert('Only the group creator can change the group photo.');
+    return;
+  }
+
+  if (!file.type.startsWith('image/')) {
+    alert('Please select an image file.');
+    return;
+  }
+
+  if (file.size > 15 * 1024 * 1024) {
+    alert('Please choose an image smaller than 15 MB.');
+    return;
+  }
+
+  setIsUploadingGroupAvatar(true);
+
+  try {
+    const localPreviewUrl = URL.createObjectURL(file);
+    setGroupEditAvatar(localPreviewUrl);
+
+    const fileExt =
+      file.name.split('.').pop()?.toLowerCase() || 'jpg';
+
+    const fileName =
+      `group-${activeDbChat.id}-${Date.now()}.${fileExt}`;
+
+    const filePath = `group-avatars/${fileName}`;
+
+    const { error: uploadError } = await supabase
+      .storage
+      .from('status_media')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+
+    if (uploadError) {
+      throw uploadError;
+    }
+
+    const { data: publicUrlData } = supabase
+      .storage
+      .from('status_media')
+      .getPublicUrl(filePath);
+
+    const publicUrl =
+      publicUrlData?.publicUrl;
+
+    if (!publicUrl) {
+      throw new Error(
+        'Supabase did not return a public image URL.'
+      );
+    }
+
+    setGroupEditAvatar(publicUrl);
+
+    console.log(
+      'Group avatar uploaded:',
+      publicUrl
+    );
+
+  } catch (error) {
+    console.error(
+      'Error uploading group avatar:',
+      error
+    );
+
+    setGroupEditAvatar(
+      activeDbChat?.avatar_url || ''
+    );
+
+    alert(
+      `Group photo upload failed: ${
+        error?.message || 'Unknown error'
+      }`
+    );
+
+  } finally {
+    setIsUploadingGroupAvatar(false);
+
+    event.target.value = '';
+  }
 };
 
 const saveGroupSettings = async () => {
@@ -8915,9 +9012,39 @@ const displayName =
                           style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}
                           title="View Public Profile"
                         >
-                          <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                            {user.full_name?.charAt(0) || 'U'}
-                          </div>
+                          <div
+  style={{
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    background: 'rgba(41,190,175,0.1)',
+    border: '2px solid rgba(41,190,175,0.35)',
+    color: '#29beaf',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 'bold',
+    overflow: 'hidden',
+    flexShrink: 0
+  }}
+>
+  {user.avatar_url ? (
+    <img
+      src={user.avatar_url}
+      alt={user.full_name || user.username || 'User'}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block'
+      }}
+    />
+  ) : (
+    user.full_name?.charAt(0) ||
+    user.username?.charAt(0) ||
+    'U'
+  )}
+</div>
                           <div>
                             <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>{user.username || 'Anonymous Believer'}</div>
                             <div style={{ color: '#8e9aab', fontSize: '11px' }}>{user.denomination || 'Kingdom Citizen'}</div>
@@ -8964,21 +9091,145 @@ const displayName =
                 <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '16px' }}>No new requests.</div>
               ) : (
                 incomingRequests.map(req => (
-                  <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div 
-                      onClick={() => handleViewProfile(req.sender_id)}
-                      style={{ color: '#fff', fontSize: '14px', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.2s' }}
-                      onMouseEnter={(e) => e.target.style.textDecorationColor = '#fff'}
-                      onMouseLeave={(e) => e.target.style.textDecorationColor = 'transparent'}
-                    >
-                      {req.sender?.full_name}
-                    </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => handleRequestAction(req.id, 'accepted')} style={{ background: '#29beaf', color: '#101926', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>ACCEPT</button>
-                      <button onClick={() => handleRequestAction(req.id, 'rejected')} style={{ background: 'rgba(231, 76, 60, 0.2)', color: '#e74c3c', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '10px', fontWeight: 'bold', cursor: 'pointer' }}>DECLINE</button>
-                    </div>
-                  </div>
-                ))
+  <div
+    key={req.id}
+    style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      background: 'rgba(255,255,255,0.02)',
+      padding: '12px',
+      borderRadius: '16px',
+      marginBottom: '8px',
+      border: '1px solid rgba(255,255,255,0.05)',
+      gap: '10px'
+    }}
+  >
+
+    {/* REQUESTER */}
+    <div
+      onClick={() => handleViewProfile(req.sender_id)}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        minWidth: 0,
+        flex: 1,
+        cursor: 'pointer'
+      }}
+    >
+
+      {/* AVATAR */}
+      <div
+        style={{
+          width: '42px',
+          height: '42px',
+          borderRadius: '50%',
+          overflow: 'hidden',
+          flexShrink: 0,
+          background: 'rgba(41,190,175,0.1)',
+          border: '2px solid rgba(41,190,175,0.35)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#29beaf',
+          fontWeight: '900',
+          fontSize: '16px'
+        }}
+      >
+        {req.sender?.avatar_url ? (
+          <img
+            src={req.sender.avatar_url}
+            alt={
+              req.sender?.full_name ||
+              req.sender?.username ||
+              'User'
+            }
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block'
+            }}
+          />
+        ) : (
+          req.sender?.full_name?.charAt(0) ||
+          req.sender?.username?.charAt(0) ||
+          'U'
+        )}
+      </div>
+
+      {/* NAME */}
+      <div
+        style={{
+          color: '#fff',
+          fontSize: '14px',
+          fontWeight: '700',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}
+      >
+        {req.sender?.full_name ||
+          req.sender?.username ||
+          'Kingdom Citizen'}
+      </div>
+
+    </div>
+
+    {/* ACTIONS */}
+    <div
+      style={{
+        display: 'flex',
+        gap: '8px',
+        flexShrink: 0
+      }}
+    >
+      <button
+        onClick={() =>
+          handleRequestAction(
+            req.id,
+            'accepted'
+          )
+        }
+        style={{
+          background: '#29beaf',
+          color: '#101926',
+          border: 'none',
+          padding: '6px 12px',
+          borderRadius: '8px',
+          fontSize: '10px',
+          fontWeight: 'bold',
+          cursor: 'pointer'
+        }}
+      >
+        ACCEPT
+      </button>
+
+      <button
+        onClick={() =>
+          handleRequestAction(
+            req.id,
+            'rejected'
+          )
+        }
+        style={{
+          background: 'rgba(231,76,60,0.2)',
+          color: '#e74c3c',
+          border: 'none',
+          padding: '6px 12px',
+          borderRadius: '8px',
+          fontSize: '10px',
+          fontWeight: 'bold',
+          cursor: 'pointer'
+        }}
+      >
+        DECLINE
+      </button>
+    </div>
+
+  </div>
+))
               )}
             </div>
             
@@ -8988,18 +9239,108 @@ const displayName =
                  <div style={{ textAlign: 'center', color: '#8e9aab', fontSize: '13px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '16px' }}>No pending sent requests.</div>
               ) : (
                 sentRequests.map(req => (
-                  <div key={req.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '16px', marginBottom: '8px', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <div 
-                      onClick={() => handleViewProfile(req.receiver_id)}
-                      style={{ color: '#fff', fontSize: '14px', cursor: 'pointer', textDecoration: 'underline', textDecorationColor: 'transparent', transition: 'text-decoration-color 0.2s' }}
-                      onMouseEnter={(e) => e.target.style.textDecorationColor = '#fff'}
-                      onMouseLeave={(e) => e.target.style.textDecorationColor = 'transparent'}
-                    >
-                      {req.receiver?.full_name}
-                    </div>
-                    <div style={{ color: '#8e9aab', fontSize: '10px', fontWeight: 'bold' }}>PENDING</div>
-                  </div>
-                ))
+  <div
+    key={req.id}
+    style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      background: 'rgba(255,255,255,0.02)',
+      padding: '12px',
+      borderRadius: '16px',
+      marginBottom: '8px',
+      border: '1px solid rgba(255,255,255,0.05)',
+      gap: '10px'
+    }}
+  >
+
+    {/* RECIPIENT */}
+    <div
+      onClick={() =>
+        handleViewProfile(req.receiver_id)
+      }
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '10px',
+        minWidth: 0,
+        flex: 1,
+        cursor: 'pointer'
+      }}
+    >
+
+      {/* AVATAR */}
+      <div
+        style={{
+          width: '42px',
+          height: '42px',
+          borderRadius: '50%',
+          overflow: 'hidden',
+          flexShrink: 0,
+          background: 'rgba(41,190,175,0.1)',
+          border: '2px solid rgba(41,190,175,0.35)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#29beaf',
+          fontWeight: '900',
+          fontSize: '16px'
+        }}
+      >
+        {req.receiver?.avatar_url ? (
+          <img
+            src={req.receiver.avatar_url}
+            alt={
+              req.receiver?.full_name ||
+              req.receiver?.username ||
+              'User'
+            }
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block'
+            }}
+          />
+        ) : (
+          req.receiver?.full_name?.charAt(0) ||
+          req.receiver?.username?.charAt(0) ||
+          'U'
+        )}
+      </div>
+
+      {/* NAME */}
+      <div
+        style={{
+          color: '#fff',
+          fontSize: '14px',
+          fontWeight: '700',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
+        }}
+      >
+        {req.receiver?.full_name ||
+          req.receiver?.username ||
+          'Kingdom Citizen'}
+      </div>
+
+    </div>
+
+    {/* STATUS */}
+    <div
+      style={{
+        color: '#8e9aab',
+        fontSize: '10px',
+        fontWeight: '800',
+        flexShrink: 0
+      }}
+    >
+      PENDING
+    </div>
+
+  </div>
+))
               )}
             </div>
           </div>
@@ -9614,39 +9955,124 @@ const displayName =
         placeholder="Describe this group..."
       />
 
-      {/* GROUP IMAGE URL */}
+{/* GROUP PROFILE PHOTO */}
+<div
+  style={{
+    marginBottom: '20px'
+  }}
+>
+  <label
+    style={{
+      display: 'block',
+      color: '#cbd5e1',
+      fontSize: '10px',
+      fontWeight: '900',
+      marginBottom: '8px'
+    }}
+  >
+    GROUP PROFILE PHOTO
+  </label>
+
+  {/* PHOTO PREVIEW */}
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '14px',
+      marginBottom: '12px'
+    }}
+  >
+    <div
+      style={{
+        width: '72px',
+        height: '72px',
+        borderRadius: '50%',
+        overflow: 'hidden',
+        flexShrink: 0,
+        background: 'rgba(41,190,175,0.1)',
+        border:
+          '2px solid rgba(41,190,175,0.35)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#f3ca58',
+        fontSize: '26px',
+        fontWeight: '900'
+      }}
+    >
+      {groupEditAvatar ? (
+        <img
+          src={groupEditAvatar}
+          alt="Group preview"
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+            display: 'block'
+          }}
+        />
+      ) : (
+        '⛪'
+      )}
+    </div>
+
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '7px'
+      }}
+    >
       <label
+        htmlFor="groupAvatarFile"
         style={{
-          display: 'block',
-          color: '#cbd5e1',
-          fontSize: '10px',
-          fontWeight: '900',
-          marginBottom: '6px'
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '9px 13px',
+          borderRadius: '10px',
+          background:
+            'rgba(41,190,175,0.12)',
+          border:
+            '1px solid rgba(41,190,175,0.35)',
+          color: '#29beaf',
+          fontSize: '11px',
+          fontWeight: '800',
+          cursor: isUploadingGroupAvatar
+            ? 'wait'
+            : 'pointer',
+          opacity: isUploadingGroupAvatar
+            ? 0.6
+            : 1
         }}
       >
-        GROUP PROFILE IMAGE URL
+        {isUploadingGroupAvatar
+          ? 'Uploading...'
+          : 'Choose Photo'}
+
+        <input
+          id="groupAvatarFile"
+          type="file"
+          accept="image/*"
+          onChange={handleGroupAvatarUpload}
+          disabled={isUploadingGroupAvatar}
+          style={{
+            display: 'none'
+          }}
+        />
       </label>
 
-      <input
-        type="text"
-        value={groupEditAvatar}
-        onChange={e =>
-          setGroupEditAvatar(e.target.value)
-        }
+      <div
         style={{
-          width: '100%',
-          boxSizing: 'border-box',
-          padding: '13px',
-          marginBottom: '20px',
-          background: 'rgba(0,0,0,0.3)',
-          border:
-            '1px solid rgba(255,255,255,0.1)',
-          borderRadius: '12px',
-          color: '#fff',
-          outline: 'none'
+          color: '#64748b',
+          fontSize: '10px'
         }}
-        placeholder="Paste image URL"
-      />
+      >
+        JPG, PNG or WEBP • Max 15 MB
+      </div>
+    </div>
+  </div>
+</div>
 
       {/* SAVE */}
       <button
