@@ -4222,12 +4222,21 @@ useEffect(() => {
   const [newGroupDesc, setNewGroupDesc] = useState('');
   const [editingMessageId, setEditingMessageId] = useState(null);
   const [editMessageContent, setEditMessageContent] = useState("");
+  const [isGroupSettingsOpen, setIsGroupSettingsOpen] = useState(false);
+  const [isGroupMembersOpen, setIsGroupMembersOpen] = useState(false);
+  const [groupEditName, setGroupEditName] = useState('');
+  const [groupEditDesc, setGroupEditDesc] = useState('');
+  const [groupEditAvatar, setGroupEditAvatar] = useState('');
+
+  const [groupMembers, setGroupMembers] = useState([]);
 
 
 const fetchMessengerData = async () => {
   try {
-    const { data: { user }, error: authError } =
-      await supabase.auth.getUser();
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser();
 
     if (authError) throw authError;
     if (!user) return;
@@ -4242,16 +4251,19 @@ const fetchMessengerData = async () => {
 
     if (participantError) throw participantError;
 
-    const chatIds = (myParticipants || []).map(
-      participant => participant.chat_id
-    );
+    const chatIds = [
+      ...new Set(
+        (myParticipants || []).map(
+          participant => participant.chat_id
+        )
+      )
+    ];
 
-    if (chatIds.length === 0) {
-      setDbChats([]);
-    } else {
+    let myChats = [];
 
+    if (chatIds.length > 0) {
       const {
-        data: myChats,
+        data,
         error: chatError
       } = await supabase
         .from('chats')
@@ -4274,8 +4286,53 @@ const fetchMessengerData = async () => {
 
       if (chatError) throw chatError;
 
-      setDbChats(myChats || []);
+      myChats = data || [];
     }
+
+    const uniqueChats = new Map();
+
+    for (const chat of myChats) {
+
+      if (chat.type === 'group') {
+
+        // Groups are unique by their chat ID
+        uniqueChats.set(
+          `group:${chat.id}`,
+          chat
+        );
+
+      } else {
+
+        const otherParticipant =
+          chat.chat_participants?.find(
+            participant =>
+              participant.user_id !== user.id
+          );
+
+        const otherUserId =
+          otherParticipant?.user_id;
+
+        if (otherUserId) {
+
+          const key = `private:${otherUserId}`;
+
+          if (!uniqueChats.has(key)) {
+            uniqueChats.set(key, chat);
+          }
+
+        } else {
+
+          uniqueChats.set(
+            `chat:${chat.id}`,
+            chat
+          );
+        }
+      }
+    }
+
+    setDbChats(
+      Array.from(uniqueChats.values())
+    );
 
     const {
       data: groups,
@@ -4590,6 +4647,116 @@ const submitEditDbMessage = async (e, messageId) => {
       console.error("Error creating group:", error);
     }
   };
+
+const openGroupSettings = () => {
+  console.log('GROUP SETTINGS BUTTON CLICKED');
+
+  if (!activeDbChat) {
+    alert('No active group is selected.');
+    return;
+  }
+
+  if (activeDbChat.type !== 'group') {
+    alert('This is not a group chat.');
+    return;
+  }
+
+  if (activeDbChat.created_by !== userProfile?.id) {
+    alert('Only the group creator can edit this group.');
+    return;
+  }
+
+  setGroupEditName(activeDbChat.name || '');
+  setGroupEditDesc(activeDbChat.description || '');
+  setGroupEditAvatar(activeDbChat.avatar_url || '');
+
+  setIsGroupSettingsOpen(true);
+};
+
+const saveGroupSettings = async () => {
+  if (!activeDbChat || activeDbChat.type !== 'group') return;
+
+  if (activeDbChat.created_by !== userProfile?.id) {
+    alert("Only the group creator can edit this group.");
+    return;
+  }
+
+  if (!groupEditName.trim()) {
+    alert("Please enter a group name.");
+    return;
+  }
+
+  try {
+    const { data: updatedGroup, error } = await supabase
+      .from('chats')
+      .update({
+        name: groupEditName.trim(),
+        description: groupEditDesc.trim(),
+        avatar_url: groupEditAvatar.trim() || null
+      })
+      .eq('id', activeDbChat.id)
+      .eq('created_by', userProfile.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    setActiveDbChat(updatedGroup);
+
+    setDbChats(prev =>
+      prev.map(chat =>
+        chat.id === updatedGroup.id
+          ? { ...chat, ...updatedGroup }
+          : chat
+      )
+    );
+
+    setPublicGroups(prev =>
+      prev.map(group =>
+        group.id === updatedGroup.id
+          ? { ...group, ...updatedGroup }
+          : group
+      )
+    );
+
+    setIsGroupSettingsOpen(false);
+
+    alert("Group updated successfully.");
+  } catch (error) {
+    console.error("Error updating group:", error);
+    alert("Failed to update group.");
+  }
+};
+
+const openGroupMembers = () => {
+  console.log('GROUP MEMBERS BUTTON CLICKED');
+
+  if (!activeDbChat) {
+    alert('No active group is selected.');
+    return;
+  }
+
+  if (activeDbChat.type !== 'group') {
+    alert('This is not a group chat.');
+    return;
+  }
+
+  /*
+   * The messenger data already loads chat participants
+   * together with their user profiles.
+   *
+   * Find the fully loaded version of this chat from dbChats.
+   */
+  const loadedChat = dbChats.find(
+    chat => chat.id === activeDbChat.id
+  );
+
+  const participants =
+    loadedChat?.chat_participants || [];
+
+  setGroupMembers(participants);
+  setIsGroupMembersOpen(true);
+};
 
   const toggleDMLock = async () => {
     try {
@@ -8336,9 +8503,43 @@ const togglePostExpand = (postId) => {
                     return (
                       <div key={friend.id} onClick={() => handleInitiateDirectChat(profile)} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer', flexShrink: 0 }}>
                         <div style={{ padding: '2px', borderRadius: '50%', background: '#29beaf', display: 'flex' }}>
-                          <div style={{ width: '50px', height: '50px', borderRadius: '50%', background: '#1a8277', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '20px', fontWeight: '900', border: '3px solid #09101a' }}>
-                            {profile?.full_name?.charAt(0) || 'U'}
-                          </div>
+                          <div
+  style={{
+    width: '50px',
+    height: '50px',
+    borderRadius: '50%',
+    background: '#1a8277',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#fff',
+    fontSize: '20px',
+    fontWeight: '900',
+    border: '3px solid #09101a',
+    overflow: 'hidden'
+  }}
+>
+  {profile?.avatar_url ? (
+    <img
+      src={profile.avatar_url}
+      alt={
+        profile.full_name ||
+        profile.username ||
+        'User'
+      }
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block'
+      }}
+    />
+  ) : (
+    profile?.full_name?.charAt(0) ||
+    profile?.username?.charAt(0) ||
+    'U'
+  )}
+</div>
                         </div>
                         <span style={{ color: '#e2e8f0', fontSize: '11px', fontWeight: '700', maxWidth: '64px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {profile?.full_name?.split(' ')[0]}
@@ -8375,8 +8576,14 @@ const displayName =
         otherParticipant?.username ||
         'Private Chat'
       );
-                  const avatarLetter = chat.type === 'group' ? '⛪' : (otherParticipant?.full_name?.charAt(0) || '👤');
-
+                  const avatarLetter =
+  chat.type === 'group'
+    ? '⛪'
+    : (
+        otherParticipant?.full_name?.charAt(0) ||
+        otherParticipant?.username?.charAt(0) ||
+        '👤'
+      );
                   return (
                     <div key={chat.id} onClick={() => setActiveDbChat(chat)} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', background: 'rgba(255,255,255,0.02)', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', cursor: 'pointer', width: '100%', boxSizing: 'border-box' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
@@ -8399,10 +8606,12 @@ const displayName =
     overflow: 'hidden',
     background:
       chat.type === 'group'
-        ? 'rgba(41,190,175,0.1)'
-        : 'linear-gradient(135deg,#101926,#1f3752)',
+        ? 'rgba(41, 190, 175, 0.1)'
+        : 'linear-gradient(135deg, #101926, #1f3752)',
     border:
-      '1px solid rgba(243,202,88,0.3)',
+  chat.type === 'group'
+    ? '2px solid rgba(41, 190, 175, 0.35)'
+    : '2px solid #29beaf',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -8415,26 +8624,40 @@ const displayName =
   }}
 >
   {chat.type === 'group' ? (
-    '⛪'
-  ) : otherParticipant?.avatar_url ? (
+  chat.avatar_url ? (
     <img
-      src={otherParticipant.avatar_url}
-      alt={
-        otherParticipant.full_name ||
-        otherParticipant.username ||
-        'User'
-      }
+      src={chat.avatar_url}
+      alt={chat.name || 'Group'}
       style={{
         width: '100%',
         height: '100%',
-        objectFit: 'cover'
+        objectFit: 'cover',
+        display: 'block'
       }}
     />
   ) : (
-    otherParticipant?.full_name?.charAt(0) ||
-    otherParticipant?.username?.charAt(0) ||
-    '👤'
-  )}
+    '⛪'
+  )
+) : otherParticipant?.avatar_url ? (
+  <img
+    src={otherParticipant.avatar_url}
+    alt={
+      otherParticipant.full_name ||
+      otherParticipant.username ||
+      'User'
+    }
+    style={{
+      width: '100%',
+      height: '100%',
+      objectFit: 'cover',
+      display: 'block'
+    }}
+  />
+) : (
+  otherParticipant?.full_name?.charAt(0) ||
+  otherParticipant?.username?.charAt(0) ||
+  '👤'
+)}
 </div>
                         <div>
                           <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>
@@ -8475,9 +8698,49 @@ const displayName =
                   .map(group => {
                     const isAlreadyJoined = dbChats.some(chat => chat.id === group.id);
                     return (
-                      <div key={group.id} onClick={() => { if (isAlreadyJoined) { setActiveDbChat(group); setHubTab('INBOX'); } }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(243, 202, 88, 0.05)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(243, 202, 88, 0.1)', width: '100%', boxSizing: 'border-box', marginBottom: '10px', cursor: isAlreadyJoined ? 'pointer' : 'default' }}>
+                      <div key={group.id} onClick={() => { if (isAlreadyJoined) {
+  const loadedChat = dbChats.find(
+    chat => chat.id === group.id
+  );
+
+  setActiveDbChat(
+    loadedChat || group
+  );
+
+  setHubTab('INBOX');
+} }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(243, 202, 88, 0.05)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(243, 202, 88, 0.1)', width: '100%', boxSizing: 'border-box', marginBottom: '10px', cursor: isAlreadyJoined ? 'pointer' : 'default' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                          <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(243, 202, 88, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontSize: '20px' }}>⛪</div>
+                          <div
+  style={{
+    width: '48px',
+    height: '48px',
+    borderRadius: '50%',
+    overflow: 'hidden',
+    background: 'rgba(243,202,88,0.1)',
+    border: '2px solid rgba(243,202,88,0.25)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#f3ca58',
+    fontSize: '20px',
+    flexShrink: 0
+  }}
+>
+  {group.avatar_url ? (
+    <img
+      src={group.avatar_url}
+      alt={group.name || 'Group'}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block'
+      }}
+    />
+  ) : (
+    '⛪'
+  )}
+</div>
                           <div>
                             <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>{group.name}</div>
                             <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>{isAlreadyJoined ? 'Tap to open chat' : (group.description || 'Connect with your local assembly')}</div>
@@ -8519,9 +8782,49 @@ const displayName =
                 .map(group => {
                   const isAlreadyJoined = dbChats.some(chat => chat.id === group.id);
                   return (
-                    <div key={group.id} onClick={() => { if (isAlreadyJoined) { setActiveDbChat(group); setHubTab('INBOX'); } }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box', marginBottom: '10px', cursor: isAlreadyJoined ? 'pointer' : 'default' }}>
+                    <div key={group.id} onClick={() => { if (isAlreadyJoined) {
+  const loadedChat = dbChats.find(
+    chat => chat.id === group.id
+  );
+
+  setActiveDbChat(
+    loadedChat || group
+  );
+
+  setHubTab('INBOX');
+} }} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box', marginBottom: '10px', cursor: isAlreadyJoined ? 'pointer' : 'default' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#29beaf', fontSize: '20px' }}>🌍</div>
+                        <div
+  style={{
+    width: '48px',
+    height: '48px',
+    borderRadius: '50%',
+    overflow: 'hidden',
+    background: 'rgba(41,190,175,0.1)',
+    border: '2px solid rgba(41,190,175,0.25)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#29beaf',
+    fontSize: '20px',
+    flexShrink: 0
+  }}
+>
+  {group.avatar_url ? (
+    <img
+      src={group.avatar_url}
+      alt={group.name || 'Group'}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block'
+      }}
+    />
+  ) : (
+    '🌍'
+  )}
+</div>
                         <div>
                           <div style={{ color: '#fff', fontSize: '16px', fontWeight: '800' }}>{group.name}</div>
                           <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>
@@ -8573,6 +8876,7 @@ const displayName =
             </div>
           </div>
         )}
+
 
         {/* ==================== TAB 3: PEOPLE ==================== */}
         {hubTab === 'PEOPLE' && (
@@ -8776,7 +9080,6 @@ const displayName =
           </div>
         )}
         
-        {/* Navigation is rendered here when Hub is active */}
         <AppBottomNav />
 
       </div>
@@ -8785,60 +9088,286 @@ const displayName =
       /* =========================================
          ACTIVE CHAT ROOM VIEW
          ========================================= */
-      <div style={{ display: 'flex', flexDirection: 'column', height: '100vh', width: '100%', background: 'transparent', overflow: 'hidden', position: 'relative', zIndex: 1000 }}>
-        
-        <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px', background: 'rgba(9, 16, 26, 0.4)', backdropFilter: 'blur(10px)', borderBottom: '1px solid rgba(255,255,255,0.05)', zIndex: 20 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button onClick={() => setActiveDbChat(null)} style={{ background: 'none', border: 'none', color: '#fff', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center' }}>
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100vh',
+          width: '100%',
+          background: 'transparent',
+          overflow: 'hidden',
+          position: 'relative',
+          zIndex: 1000
+        }}
+      >
+
+        {/* CHAT HEADER */}
+        <div
+          style={{
+            flexShrink: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            padding: '16px 20px',
+            background: 'rgba(9, 16, 26, 0.4)',
+            backdropFilter: 'blur(10px)',
+            borderBottom: '1px solid rgba(255,255,255,0.05)',
+            zIndex: 20
+          }}
+        >
+
+          {/* LEFT SIDE OF HEADER */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              minWidth: 0
+            }}
+          >
+
+            {/* BACK BUTTON */}
+            <button
+              onClick={() => setActiveDbChat(null)}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#fff',
+                cursor: 'pointer',
+                padding: 0,
+                display: 'flex',
+                alignItems: 'center'
+              }}
+            >
               <BackArrowIcon />
             </button>
 
+            {/* CHAT INFORMATION */}
             {(() => {
-              let targetName = activeDbChat.name || "Private Message";
-              let targetAvatarUrl = null;
-              let targetLetter = 'KP';
-              const isGroup = activeDbChat.type === 'group';
-              const activeOtherParticipant = !isGroup ? activeDbChat.chat_participants?.find(p => p.user_id !== userProfile?.id)?.user_profiles : null;
+              const isGroup = activeDbChat?.type === 'group';
 
-              if (!isGroup) {
-                if (activeOtherParticipant) {
-                  targetName = activeOtherParticipant.full_name || activeOtherParticipant.username || targetName;
-                  targetAvatarUrl = activeOtherParticipant.avatar_url;
-                }
-    
-                targetLetter = targetName !== "Private Message" ? targetName.charAt(0).toUpperCase() : 'KP';
-              } else {
-                targetLetter = '⛪';
-              }
+              const activeOtherParticipant = !isGroup
+                ? activeDbChat?.chat_participants?.find(
+                    p => p.user_id !== userProfile?.id
+                  )?.user_profiles
+                : null;
+
+              let targetName = isGroup
+                ? (activeDbChat?.name || 'Kingdom Group')
+                : (
+                    activeOtherParticipant?.full_name ||
+                    activeOtherParticipant?.username ||
+                    activeDbChat?.name ||
+                    'Private Message'
+                  );
+
+              let targetAvatarUrl = isGroup
+                ? (activeDbChat?.avatar_url || null)
+                : (activeOtherParticipant?.avatar_url || null);
+
+              let targetLetter = isGroup
+                ? '⛪'
+                : (
+                    targetName !== 'Private Message'
+                      ? targetName.charAt(0).toUpperCase()
+                      : 'KP'
+                  );
 
               return (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div 
-                    onClick={(e) => {
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    minWidth: 0
+                  }}
+                >
+
+                  {/* AVATAR */}
+                  <div
+                    onClick={() => {
                       if (!isGroup && activeOtherParticipant?.id) {
                         handleViewProfile(activeOtherParticipant.id);
                       }
                     }}
-                    style={{ width: '36px', height: '36px', borderRadius: '50%', background: isGroup ? 'rgba(41, 190, 175, 0.1)' : '#1a8277', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: '16px', fontWeight: 'bold', cursor: !isGroup ? 'pointer' : 'default', border: !isGroup ? '2px solid #09101a' : 'none', overflow: 'hidden' }}
-                    title={!isGroup ? "View Public Profile" : ""}
+                    title={
+                      !isGroup
+                        ? 'View Public Profile'
+                        : ''
+                    }
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '50%',
+                      background: isGroup
+                        ? 'rgba(41, 190, 175, 0.1)'
+                        : '#1a8277',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      fontSize: '16px',
+                      fontWeight: 'bold',
+                      cursor: !isGroup
+                        ? 'pointer'
+                        : 'default',
+                      border: isGroup
+                        ? '2px solid rgba(41,190,175,0.35)'
+                        : '2px solid #09101a',
+                      overflow: 'hidden',
+                      flexShrink: 0
+                    }}
                   >
                     {targetAvatarUrl ? (
-                      <img src={targetAvatarUrl} alt="avatar" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      <img
+                        src={targetAvatarUrl}
+                        alt={targetName}
+                        style={{
+                          width: '100%',
+                          height: '100%',
+                          objectFit: 'cover',
+                          display: 'block'
+                        }}
+                      />
                     ) : (
                       targetLetter
                     )}
                   </div>
-                  <div style={{ display: 'flex', flexDirection: 'column' }}>
-                    <h3 style={{ color: '#fff', fontSize: '16px', fontWeight: '800', margin: 0 }}>
+
+                  {/* NAME + DESCRIPTION */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      minWidth: 0
+                    }}
+                  >
+
+                    <h3
+                      style={{
+                        color: '#fff',
+                        fontSize: '16px',
+                        fontWeight: '800',
+                        margin: 0,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        maxWidth: '220px'
+                      }}
+                    >
                       {targetName}
                     </h3>
-                    <span style={{ color: '#2ecc71', fontSize: '11px', fontWeight: '700' }}>Live Chat Sync</span>
+
+                    {isGroup ? (
+                      <span
+                        style={{
+                          color: '#8e9aab',
+                          fontSize: '10px',
+                          fontWeight: '600',
+                          marginTop: '2px',
+                          maxWidth: '220px',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {activeDbChat?.description ||
+                          'Kingdom community'}
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          color: '#2ecc71',
+                          fontSize: '11px',
+                          fontWeight: '700',
+                          marginTop: '2px'
+                        }}
+                      >
+                        Live Chat Sync
+                      </span>
+                    )}
+
                   </div>
                 </div>
               );
             })()}
 
           </div>
+
+          {/* RIGHT SIDE OF HEADER */}
+          {activeDbChat?.type === 'group' && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                flexShrink: 0
+              }}
+            >
+
+              {/* VIEW MEMBERS */}
+              <button
+  type="button"
+  onClick={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openGroupMembers();
+  }}
+  title="View group members"
+  style={{
+    width: '34px',
+    height: '34px',
+    borderRadius: '10px',
+    border: '1px solid rgba(41,190,175,0.3)',
+    background: 'rgba(41,190,175,0.12)',
+    color: '#29beaf',
+    cursor: 'pointer',
+    fontSize: '15px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    zIndex: 100,
+    pointerEvents: 'auto'
+  }}
+>
+  👥
+</button>
+
+              {/* EDIT GROUP - CREATOR ONLY */}
+              {activeDbChat?.created_by === userProfile?.id && (
+                <button
+  type="button"
+  onClick={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    openGroupSettings();
+  }}
+  title="Edit group"
+  style={{
+    width: '34px',
+    height: '34px',
+    borderRadius: '10px',
+    border: '1px solid rgba(243,202,88,0.35)',
+    background: 'rgba(243,202,88,0.12)',
+    color: '#f3ca58',
+    cursor: 'pointer',
+    fontSize: '15px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    zIndex: 100,
+    pointerEvents: 'auto'
+  }}
+>
+  ⚙️
+</button>
+              )}
+
+            </div>
+          )}
+
         </div>
 
         <div className="glass-scroll" style={{ flex: 1, padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -8944,6 +9473,423 @@ const displayName =
     )}
   </div>
 )}
+
+{/* ==================== GROUP SETTINGS MODAL ==================== */}
+{isGroupSettingsOpen && activeDbChat?.type === 'group' && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(5,10,18,0.96)',
+      zIndex: 20000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}
+  >
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '420px',
+        background: '#101926',
+        borderRadius: '24px',
+        padding: '24px',
+        border: '1px solid rgba(255,255,255,0.1)',
+        boxSizing: 'border-box'
+      }}
+    >
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '22px'
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: '#fff',
+              fontSize: '18px',
+              fontWeight: '900'
+            }}
+          >
+            Group Settings
+          </div>
+
+          <div
+            style={{
+              color: '#8e9aab',
+              fontSize: '11px',
+              marginTop: '4px'
+            }}
+          >
+            Only the group creator can edit this group.
+          </div>
+        </div>
+
+        <button
+          onClick={() =>
+            setIsGroupSettingsOpen(false)
+          }
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#8e9aab',
+            cursor: 'pointer'
+          }}
+        >
+          <XIcon />
+        </button>
+      </div>
+
+      {/* GROUP NAME */}
+      <label
+        style={{
+          display: 'block',
+          color: '#cbd5e1',
+          fontSize: '10px',
+          fontWeight: '900',
+          marginBottom: '6px'
+        }}
+      >
+        GROUP NAME
+      </label>
+
+      <input
+        type="text"
+        value={groupEditName}
+        onChange={e =>
+          setGroupEditName(e.target.value)
+        }
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          padding: '13px',
+          marginBottom: '15px',
+          background: 'rgba(0,0,0,0.3)',
+          border:
+            '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '12px',
+          color: '#fff',
+          outline: 'none'
+        }}
+        placeholder="Group name"
+      />
+
+      {/* DESCRIPTION */}
+      <label
+        style={{
+          display: 'block',
+          color: '#cbd5e1',
+          fontSize: '10px',
+          fontWeight: '900',
+          marginBottom: '6px'
+        }}
+      >
+        DESCRIPTION
+      </label>
+
+      <textarea
+        value={groupEditDesc}
+        onChange={e =>
+          setGroupEditDesc(e.target.value)
+        }
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          padding: '13px',
+          marginBottom: '15px',
+          minHeight: '90px',
+          resize: 'vertical',
+          background: 'rgba(0,0,0,0.3)',
+          border:
+            '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '12px',
+          color: '#fff',
+          outline: 'none'
+        }}
+        placeholder="Describe this group..."
+      />
+
+      {/* GROUP IMAGE URL */}
+      <label
+        style={{
+          display: 'block',
+          color: '#cbd5e1',
+          fontSize: '10px',
+          fontWeight: '900',
+          marginBottom: '6px'
+        }}
+      >
+        GROUP PROFILE IMAGE URL
+      </label>
+
+      <input
+        type="text"
+        value={groupEditAvatar}
+        onChange={e =>
+          setGroupEditAvatar(e.target.value)
+        }
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          padding: '13px',
+          marginBottom: '20px',
+          background: 'rgba(0,0,0,0.3)',
+          border:
+            '1px solid rgba(255,255,255,0.1)',
+          borderRadius: '12px',
+          color: '#fff',
+          outline: 'none'
+        }}
+        placeholder="Paste image URL"
+      />
+
+      {/* SAVE */}
+      <button
+        onClick={saveGroupSettings}
+        style={{
+          width: '100%',
+          padding: '14px',
+          border: 'none',
+          borderRadius: '12px',
+          background:
+            'linear-gradient(135deg,#f3ca58,#29beaf)',
+          color: '#101926',
+          fontWeight: '900',
+          cursor: 'pointer'
+        }}
+      >
+        Save Changes
+      </button>
+
+    </div>
+  </div>
+)}
+
+{/* ==================== GROUP MEMBERS MODAL ==================== */}
+{isGroupMembersOpen && activeDbChat?.type === 'group' && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(5,10,18,0.96)',
+      zIndex: 20000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}
+  >
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '420px',
+        maxHeight: '80vh',
+        overflowY: 'auto',
+        background: '#101926',
+        borderRadius: '24px',
+        padding: '24px',
+        border:
+          '1px solid rgba(255,255,255,0.1)',
+        boxSizing: 'border-box'
+      }}
+    >
+
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: '20px'
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: '#fff',
+              fontSize: '18px',
+              fontWeight: '900'
+            }}
+          >
+            Group Members
+          </div>
+
+          <div
+            style={{
+              color: '#8e9aab',
+              fontSize: '11px',
+              marginTop: '4px'
+            }}
+          >
+            {groupMembers.length} member
+            {groupMembers.length !== 1 ? 's' : ''}
+          </div>
+        </div>
+
+        <button
+          onClick={() =>
+            setIsGroupMembersOpen(false)
+          }
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#8e9aab',
+            cursor: 'pointer'
+          }}
+        >
+          <XIcon />
+        </button>
+      </div>
+
+      {groupMembers.length === 0 ? (
+
+        <div
+          style={{
+            textAlign: 'center',
+            color: '#8e9aab',
+            fontSize: '13px',
+            padding: '30px 10px'
+          }}
+        >
+          No members found.
+        </div>
+
+      ) : (
+
+        groupMembers.map(member => {
+
+          const profile =
+            member.user_profiles;
+
+          const isOwner =
+            member.user_id ===
+            activeDbChat.created_by;
+
+          return (
+            <div
+              key={member.user_id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '12px 0',
+                borderBottom:
+                  '1px solid rgba(255,255,255,0.05)'
+              }}
+            >
+
+              {/* AVATAR */}
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  overflow: 'hidden',
+                  flexShrink: 0,
+                  background:
+                    'linear-gradient(135deg,#101926,#1f3752)',
+                  border:
+                    '2px solid #29beaf',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#f3ca58',
+                  fontWeight: '900'
+                }}
+              >
+                {profile?.avatar_url ? (
+
+                  <img
+                    src={profile.avatar_url}
+                    alt={
+                      profile.full_name ||
+                      profile.username ||
+                      'User'
+                    }
+                    style={{
+                      width: '100%',
+                      height: '100%',
+                      objectFit: 'cover'
+                    }}
+                  />
+
+                ) : (
+
+                  profile?.full_name?.charAt(0) ||
+                  profile?.username?.charAt(0) ||
+                  'U'
+
+                )}
+              </div>
+
+              {/* USER INFO */}
+              <div
+                style={{
+                  flex: 1,
+                  minWidth: 0
+                }}
+              >
+                <div
+                  style={{
+                    color: '#fff',
+                    fontSize: '13px',
+                    fontWeight: '800',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}
+                >
+                  {profile?.full_name ||
+                    profile?.username ||
+                    'Kingdom User'}
+                </div>
+
+                {profile?.username && (
+                  <div
+                    style={{
+                      color: '#8e9aab',
+                      fontSize: '10px',
+                      marginTop: '2px'
+                    }}
+                  >
+                    @{profile.username}
+                  </div>
+                )}
+              </div>
+
+              {/* CREATOR BADGE */}
+              {isOwner && (
+                <div
+                  style={{
+                    background:
+                      'rgba(243,202,88,0.1)',
+                    border:
+                      '1px solid rgba(243,202,88,0.25)',
+                    color: '#f3ca58',
+                    padding: '5px 8px',
+                    borderRadius: '8px',
+                    fontSize: '8px',
+                    fontWeight: '900'
+                  }}
+                >
+                  CREATOR
+                </div>
+              )}
+
+            </div>
+          );
+        })
+
+      )}
+
+    </div>
+  </div>
+)}
+
 
 {/* =========================================
           STEP 24: ADMIN DESK
