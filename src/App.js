@@ -9428,10 +9428,56 @@ const togglePostExpand = (postId) => {
                     </span>
                   </div>
                   
-                  <div className="profile-action-row">
-                    <button className="profile-btn-primary" onClick={openEditModal}>Edit Profile</button>
-                    <button className="profile-btn-secondary">Share</button>
-                    <button className="profile-btn-icon"><LinkIcon /></button>
+                  <div
+  className="profile-action-row"
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexWrap: 'wrap'
+  }}
+>
+  <button
+    className="profile-btn-primary"
+    onClick={openEditModal}
+  >
+    Edit Profile
+  </button>
+
+  <button
+    className="profile-btn-secondary"
+  >
+    Share
+  </button>
+
+  <button
+    className="profile-btn-icon"
+    title="Copy profile link"
+  >
+    <LinkIcon />
+  </button>
+
+  <button
+    onClick={handleLogoutUser}
+    title="Log out"
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '6px',
+      background: 'rgba(231, 76, 60, 0.10)',
+      border: '1px solid rgba(231, 76, 60, 0.35)',
+      color: '#e74c3c',
+      padding: '9px 12px',
+      borderRadius: '12px',
+      fontSize: '12px',
+      fontWeight: '700',
+      cursor: 'pointer'
+    }}
+  >
+    <LogOutIcon />
+    Logout
+  </button>
 
 {userProfile?.id === '8da85fd9-c923-4bd2-8d1e-1d317e0d9fde' && (
   <button 
