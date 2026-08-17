@@ -5048,9 +5048,106 @@ const fetchMessengerData = async () => {
       }
     }
 
-    setDbChats(
-      Array.from(uniqueChats.values())
-    );
+const enrichedChats = await Promise.all(
+  (myChats || []).map(async (chat) => {
+    try {
+      const {
+        data: latestMessages,
+        error: latestError
+      } = await supabase
+        .from('messages')
+        .select(`
+          id,
+          chat_id,
+          sender_id,
+          content,
+          intent,
+          created_at,
+          is_read,
+          sender:sender_id(
+            id,
+            full_name,
+            username,
+            avatar_url
+          )
+        `)
+        .eq('chat_id', chat.id)
+        .order('created_at', {
+          ascending: false
+        })
+        .limit(1);
+
+      if (latestError) {
+        console.error(
+          'Failed to load latest message:',
+          latestError
+        );
+      }
+
+      const latestMessage =
+        latestMessages?.[0] || null;
+
+      const {
+        count: unreadCount,
+        error: unreadError
+      } = await supabase
+        .from('messages')
+        .select('*', {
+          count: 'exact',
+          head: true
+        })
+        .eq('chat_id', chat.id)
+        .neq('sender_id', user.id)
+        .eq('is_read', false);
+
+      if (unreadError) {
+        console.error(
+          'Failed to load unread count for chat:',
+          chat.id,
+          unreadError
+        );
+      }
+
+      return {
+        ...chat,
+        last_message: latestMessage,
+        unread_count: unreadCount || 0
+      };
+
+    } catch (error) {
+      console.error(
+        'Failed to enrich chat:',
+        chat.id,
+        error
+      );
+
+      return {
+        ...chat,
+        last_message: null,
+        unread_count: 0
+      };
+    }
+  })
+);
+
+enrichedChats.sort((a, b) => {
+  const aDate =
+    a.last_message?.created_at ||
+    a.created_at ||
+    0;
+
+  const bDate =
+    b.last_message?.created_at ||
+    b.created_at ||
+    0;
+
+  return (
+    new Date(bDate) -
+    new Date(aDate)
+  );
+});
+
+setDbChats(enrichedChats);
 
     const {
       data: groups,
@@ -5588,12 +5685,7 @@ const openGroupMembers = () => {
     return;
   }
 
-  /*
-   * The messenger data already loads chat participants
-   * together with their user profiles.
-   *
-   * Find the fully loaded version of this chat from dbChats.
-   */
+
   const loadedChat = dbChats.find(
     chat => chat.id === activeDbChat.id
   );
@@ -5638,8 +5730,9 @@ useEffect(() => {
     if (step === 23) setUnreadChatCount(0);
   }, [step]);
 
-  useEffect(() => {
+ useEffect(() => {
   let globalSub = null;
+  let isMounted = true;
 
   const initNotificationListener = async () => {
     try {
@@ -5647,7 +5740,7 @@ useEffect(() => {
         data: { user }
       } = await supabase.auth.getUser();
 
-      if (!user) return;
+      if (!user || !isMounted) return;
 
       const {
         data: myChatParticipants,
@@ -5671,8 +5764,11 @@ useEffect(() => {
         );
 
       if (myChatIds.length === 0) {
+
         setUnreadChatCount(0);
+
       } else {
+
         const {
           count,
           error: unreadError
@@ -5687,78 +5783,106 @@ useEffect(() => {
           .eq('is_read', false);
 
         if (unreadError) {
+
           console.error(
             'Failed to load unread chat count:',
             unreadError
           );
-        } else {
-          setUnreadChatCount(count || 0);
+
+        } else if (isMounted) {
+
+          setUnreadChatCount(
+            count || 0
+          );
         }
       }
 
-const channelName =
-  `chat-notifications-${user.id}`;
+      if (!isMounted) return;
 
-globalSub = supabase.channel(
-  channelName
-);
+      const channelName =
+        `chat-notifications-${user.id}-${Date.now()}-${Math.random()
+          .toString(36)
+          .slice(2)}`;
 
-globalSub.on(
-  'postgres_changes',
-  {
-    event: 'INSERT',
-    schema: 'public',
-    table: 'messages'
-  },
-  (payload) => {
-    const newMessage = payload.new;
+      const channel =
+        supabase.channel(channelName);
 
-    if (!newMessage) return;
+      globalSub = channel;
 
-    if (
-      newMessage.sender_id === user.id
-    ) {
-      return;
-    }
+      channel.on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages'
+        },
+        (payload) => {
 
-    if (
-      !myChatIds.includes(
-        newMessage.chat_id
-      )
-    ) {
-      return;
-    }
+          if (!isMounted) return;
 
-    if (stepRef.current === 23) {
-      return;
-    }
+          const newMessage =
+            payload.new;
 
-    setUnreadChatCount(
-      prev => prev + 1
-    );
-  }
-);
+          if (!newMessage) return;
 
-globalSub.subscribe((status) => {
-  console.log(
-    'Chat notification subscription:',
-    status
-  );
-});
+          if (
+            newMessage.sender_id === user.id
+          ) {
+            return;
+          }
+
+          if (
+            !myChatIds.includes(
+              newMessage.chat_id
+            )
+          ) {
+            return;
+          }
+
+          if (
+            stepRef.current === 23
+          ) {
+            return;
+          }
+
+          setUnreadChatCount(
+            prev => prev + 1
+          );
+        }
+      );
+
+      channel.subscribe((status) => {
+
+        if (!isMounted) return;
+
+        console.log(
+          'Chat notification subscription:',
+          status
+        );
+      });
 
     } catch (error) {
-      console.error(
-        'Chat notification setup failed:',
-        error
-      );
+
+      if (isMounted) {
+        console.error(
+          'Chat notification setup failed:',
+          error
+        );
+      }
     }
   };
 
   initNotificationListener();
 
   return () => {
+    isMounted = false;
+
     if (globalSub) {
-      supabase.removeChannel(globalSub);
+      supabase.removeChannel(
+        globalSub
+      );
+
+      globalSub = null;
     }
   };
 }, []);
