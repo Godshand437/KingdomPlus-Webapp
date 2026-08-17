@@ -5049,7 +5049,7 @@ const fetchMessengerData = async () => {
     }
 
 const enrichedChats = await Promise.all(
-  (myChats || []).map(async (chat) => {
+  Array.from(uniqueChats.values()).map(async (chat) => {
     try {
       const {
         data: latestMessages,
@@ -5802,46 +5802,81 @@ useEffect(() => {
       globalSub = channel;
 
       channel.on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages'
-        },
-        (payload) => {
+  'postgres_changes',
+  {
+    event: 'INSERT',
+    schema: 'public',
+    table: 'messages'
+  },
+  (payload) => {
+    if (!isMounted) return;
 
-          if (!isMounted) return;
+    const newMessage = payload.new;
 
-          const newMessage =
-            payload.new;
+    if (!newMessage) return;
 
-          if (!newMessage) return;
+    if (newMessage.sender_id === user.id) {
+      return;
+    }
 
-          if (
-            newMessage.sender_id === user.id
-          ) {
-            return;
-          }
+    if (!myChatIds.includes(newMessage.chat_id)) {
+      return;
+    }
 
-          if (
-            !myChatIds.includes(
-              newMessage.chat_id
-            )
-          ) {
-            return;
-          }
+    setDbChats(prevChats => {
 
-          if (
-            stepRef.current === 23
-          ) {
-            return;
-          }
+      const updatedChats = prevChats.map(chat => {
 
-          setUnreadChatCount(
-            prev => prev + 1
-          );
+        if (chat.id !== newMessage.chat_id) {
+          return chat;
         }
-      );
+
+        return {
+          ...chat,
+
+          last_message: {
+            ...newMessage
+          },
+
+          unread_count:
+            (Number(chat.unread_count) || 0) + 1
+        };
+      });
+
+      updatedChats.sort((a, b) => {
+
+        const aTime =
+          a.id === newMessage.chat_id
+            ? newMessage.created_at
+            : (
+                a.last_message?.created_at ||
+                a.created_at ||
+                0
+              );
+
+        const bTime =
+          b.id === newMessage.chat_id
+            ? newMessage.created_at
+            : (
+                b.last_message?.created_at ||
+                b.created_at ||
+                0
+              );
+
+        return (
+          new Date(bTime) -
+          new Date(aTime)
+        );
+      });
+
+      return updatedChats;
+    });
+
+    setUnreadChatCount(
+      prev => prev + 1
+    );
+  }
+);
 
       channel.subscribe((status) => {
 
