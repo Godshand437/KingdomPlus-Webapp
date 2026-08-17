@@ -4190,6 +4190,7 @@ const [profileTab, setProfileTab] = useState('All');
   // ==========================================
   
   const [userProfile, setUserProfile] = useState(null);
+  const [authUserId, setAuthUserId] = useState(null);
 
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const hasDiscipleAccess = (profile) => {
@@ -4214,6 +4215,7 @@ const [profileTab, setProfileTab] = useState('All');
         if (authError) throw authError;
 
         if (user) {
+          setAuthUserId(user.id);
           const {
   data: profileData,
   error: profileError
@@ -4935,6 +4937,7 @@ useEffect(() => {
   const [publicGroups, setPublicGroups] = useState([]);
   const [activeDbChat, setActiveDbChat] = useState(null);
   const [dbMessages, setDbMessages] = useState([]);
+  const messagesEndRef = useRef(null);
   const [isCreateGroupModalOpen, setIsCreateGroupModalOpen] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupDesc, setNewGroupDesc] = useState('');
@@ -5322,6 +5325,19 @@ markChatAsRead();
   };
 
 }, [activeDbChat?.id]);
+
+useEffect(() => {
+  if (!activeDbChat) return;
+
+  const scrollToLatestMessage = () => {
+    messagesEndRef.current?.scrollIntoView({
+      behavior: 'auto',
+      block: 'end'
+    });
+  };
+
+  requestAnimationFrame(scrollToLatestMessage);
+}, [activeDbChat?.id, dbMessages.length]);
 
 
 const handleSendDbMessage = async (e) => {
@@ -5728,43 +5744,31 @@ useEffect(() => {
 
   const initNotificationListener = async () => {
     try {
-      const {
-        data: { user }
-      } = await supabase.auth.getUser();
+      const { data: { user }, error: authError } =
+        await supabase.auth.getUser();
 
+      if (authError) throw authError;
       if (!user || !isMounted) return;
 
-      const {
-        data: myChatParticipants,
-        error: chatError
-      } = await supabase
-        .from('chat_participants')
-        .select('chat_id')
-        .eq('user_id', user.id);
+      const { data: myChatParticipants, error: chatError } =
+        await supabase
+          .from('chat_participants')
+          .select('chat_id')
+          .eq('user_id', user.id);
 
       if (chatError) {
-        console.error(
-          'Failed to load user chat memberships:',
-          chatError
-        );
+        console.error('Error loading notification chat memberships:', chatError);
         return;
       }
 
-      const myChatIds =
-        (myChatParticipants || []).map(
-          participant => participant.chat_id
-        );
+      const myChatIds = (myChatParticipants || []).map(
+        participant => participant.chat_id
+      );
 
       if (myChatIds.length === 0) {
-
         setUnreadChatCount(0);
-
       } else {
-
-        const {
-          count,
-          error: unreadError
-        } = await supabase
+        const { count, error: unreadError } = await supabase
           .from('messages')
           .select('*', {
             count: 'exact',
@@ -5775,17 +5779,9 @@ useEffect(() => {
           .eq('is_read', false);
 
         if (unreadError) {
-
-          console.error(
-            'Failed to load unread chat count:',
-            unreadError
-          );
-
-        } else if (isMounted) {
-
-          setUnreadChatCount(
-            count || 0
-          );
+          console.error('Error loading unread messages:', unreadError);
+        } else {
+          setUnreadChatCount(count || 0);
         }
       }
 
@@ -5796,90 +5792,97 @@ useEffect(() => {
           .toString(36)
           .slice(2)}`;
 
-      const channel =
-        supabase.channel(channelName);
-
+      const channel = supabase.channel(channelName);
       globalSub = channel;
 
       channel.on(
-  'postgres_changes',
-  {
-    event: 'INSERT',
-    schema: 'public',
-    table: 'messages'
-  },
-  (payload) => {
-    if (!isMounted) return;
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages'
+        },
+        async (payload) => {
+          try {
+            if (!isMounted) return;
 
-    const newMessage = payload.new;
+            const newMessage = payload.new;
 
-    if (!newMessage) return;
+            if (!newMessage) return;
 
-    if (newMessage.sender_id === user.id) {
-      return;
-    }
+            if (newMessage.sender_id === user.id) return;
 
-    if (!myChatIds.includes(newMessage.chat_id)) {
-      return;
-    }
+            if (!myChatIds.includes(newMessage.chat_id)) return;
 
-    setDbChats(prevChats => {
+            console.log('🔔 LIVE MESSAGE NOTIFICATION:', newMessage);
 
-      const updatedChats = prevChats.map(chat => {
+            const { data: senderProfile } = await supabase
+              .from('user_profiles')
+              .select(`
+                id,
+                full_name,
+                username,
+                avatar_url
+              `)
+              .eq('id', newMessage.sender_id)
+              .single();
 
-        if (chat.id !== newMessage.chat_id) {
-          return chat;
+            const completeMessage = {
+              ...newMessage,
+              sender: senderProfile || null
+            };
+
+            setDbChats(prevChats => {
+              const updatedChats = prevChats.map(chat => {
+                if (chat.id !== newMessage.chat_id) {
+                  return chat;
+                }
+
+                return {
+                  ...chat,
+                  last_message: completeMessage,
+                  unread_count:
+                    (Number(chat.unread_count) || 0) + 1
+                };
+              });
+
+              updatedChats.sort((a, b) => {
+                const aTime =
+                  a.id === newMessage.chat_id
+                    ? newMessage.created_at
+                    : (
+                        a.last_message?.created_at ||
+                        a.created_at ||
+                        0
+                      );
+
+                const bTime =
+                  b.id === newMessage.chat_id
+                    ? newMessage.created_at
+                    : (
+                        b.last_message?.created_at ||
+                        b.created_at ||
+                        0
+                      );
+
+                return new Date(bTime) - new Date(aTime);
+              });
+
+              return updatedChats;
+            });
+
+            setUnreadChatCount(prev => prev + 1);
+
+          } catch (error) {
+            console.error(
+              'Error handling live chat notification:',
+              error
+            );
+          }
         }
-
-        return {
-          ...chat,
-
-          last_message: {
-            ...newMessage
-          },
-
-          unread_count:
-            (Number(chat.unread_count) || 0) + 1
-        };
-      });
-
-      updatedChats.sort((a, b) => {
-
-        const aTime =
-          a.id === newMessage.chat_id
-            ? newMessage.created_at
-            : (
-                a.last_message?.created_at ||
-                a.created_at ||
-                0
-              );
-
-        const bTime =
-          b.id === newMessage.chat_id
-            ? newMessage.created_at
-            : (
-                b.last_message?.created_at ||
-                b.created_at ||
-                0
-              );
-
-        return (
-          new Date(bTime) -
-          new Date(aTime)
-        );
-      });
-
-      return updatedChats;
-    });
-
-    setUnreadChatCount(
-      prev => prev + 1
-    );
-  }
-);
+      );
 
       channel.subscribe((status) => {
-
         if (!isMounted) return;
 
         console.log(
@@ -5889,13 +5892,10 @@ useEffect(() => {
       });
 
     } catch (error) {
-
-      if (isMounted) {
-        console.error(
-          'Chat notification setup failed:',
-          error
-        );
-      }
+      console.error(
+        'Error initializing chat notification listener:',
+        error
+      );
     }
   };
 
@@ -5905,14 +5905,12 @@ useEffect(() => {
     isMounted = false;
 
     if (globalSub) {
-      supabase.removeChannel(
-        globalSub
-      );
-
+      supabase.removeChannel(globalSub);
       globalSub = null;
     }
   };
 }, []);
+
 
 const [globalUsers, setGlobalUsers] = useState([]);
 const [incomingRequests, setIncomingRequests] = useState([]);
@@ -10818,6 +10816,8 @@ const displayName =
         {/* CHAT HEADER */}
         <div
           style={{
+            position: 'sticky',
+                                top: 0,
             flexShrink: 0,
             display: 'flex',
             alignItems: 'center',
@@ -10826,7 +10826,7 @@ const displayName =
             background: 'rgba(9, 16, 26, 0.4)',
             backdropFilter: 'blur(10px)',
             borderBottom: '1px solid rgba(255,255,255,0.05)',
-            zIndex: 20
+            zIndex: 100
           }}
         >
 
@@ -11090,7 +11090,7 @@ const displayName =
           </div>
 
           {dbMessages.map((msg) => {
-            const isMe = userProfile?.id === msg.sender_id; 
+            const isMe = authUserId === msg.sender_id; 
             const isEditing = editingMessageId === msg.id;
             
             return (
@@ -11155,6 +11155,7 @@ const displayName =
               </div>
             );
           })}
+<div ref={messagesEndRef} />
         </div>
 
         <div style={{ flexShrink: 0, padding: '12px 16px', borderTop: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box', background: 'rgba(0,0,0,0.2)' }}>
