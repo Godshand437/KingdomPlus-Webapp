@@ -5481,6 +5481,60 @@ const submitEditDbMessage = async (e, messageId) => {
     }
   };
 
+const getPublicProfileFriendStatus = async (targetUserId) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+
+    if (!user || !targetUserId || user.id === targetUserId) {
+      return 'self';
+    }
+
+    const { data: friendship, error } = await supabase
+      .from('friend_requests')
+      .select('id, sender_id, receiver_id, status')
+      .or(
+        `and(sender_id.eq.${user.id},receiver_id.eq.${targetUserId}),and(sender_id.eq.${targetUserId},receiver_id.eq.${user.id})`
+      )
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!friendship) {
+      return 'none';
+    }
+
+    if (friendship.status === 'accepted') {
+      return 'friends';
+    }
+
+    if (
+      friendship.status === 'pending' &&
+      friendship.sender_id === user.id
+    ) {
+      return 'sent';
+    }
+
+    if (
+      friendship.status === 'pending' &&
+      friendship.receiver_id === user.id
+    ) {
+      return 'received';
+    }
+
+    return 'none';
+
+  } catch (error) {
+    console.error(
+      'Error checking public profile friendship:',
+      error
+    );
+
+    return 'none';
+  }
+};
+
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) return;
     try {
@@ -6006,7 +6060,6 @@ const rewardStreamKPC = async (amount) => {
       return;
     }
 
-    // Get the latest balance directly from Supabase
     const { data: profile, error: fetchError } = await supabase
       .from('user_profiles')
       .select('wallet_balance')
@@ -6018,7 +6071,6 @@ const rewardStreamKPC = async (amount) => {
     const currentBalance = Number(profile?.wallet_balance || 0);
     const newBalance = currentBalance + Number(amount);
 
-    // Update database FIRST
     const { error: updateError } = await supabase
       .from('user_profiles')
       .update({
@@ -6128,6 +6180,29 @@ const [expandedPosts, setExpandedPosts] = useState({});
 
 const togglePostExpand = (postId) => {
   setExpandedPosts(prev => ({ ...prev, [postId]: !prev[postId] }));
+};
+
+const [announceImage, setAnnounceImage] = useState('');
+const [announceColor, setAnnounceColor] = useState('#1E1E2C');
+
+const themeColors = [
+  '#1E1E2C',
+  '#2D3748',
+  '#234E52',
+  '#4A5568',
+  '#553C9A'
+];
+const [isModalOpen, setIsModalOpen] = useState(false);
+const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
+
+const handleOpenModal = (announcement) => {
+  setSelectedAnnouncement(announcement);
+  setIsModalOpen(true);
+};
+
+const handleCloseModal = () => {
+  setIsModalOpen(false);
+  setSelectedAnnouncement(null);
 };
 
 
@@ -6613,27 +6688,135 @@ const togglePostExpand = (postId) => {
                     </div>
                   </div>
 
-                  <div className="announcement-card">
-                    <div className="announcer-info">
-                      <div className="announcer-avatar">G</div>
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span className="announcer-name">Grace <span style={{ color: '#fff', fontSize: '10px' }}>✓</span></span>
-                        <span className="announcer-handle">@grace • Just now</span>
-                      </div>
-                    </div>
-                    <div className="badge-announcement">
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
-                      {announcements[currentSlide].badge}
-                    </div>
-                    <h3>{announcements[currentSlide].title}</h3>
-                    <p>{announcements[currentSlide].desc}</p>
-                  </div>
-
+                 {/* Ensure this container has a fixed max-width and height in your CSS, e.g., max-width: 400px; */}
+{(() => {
+  const announcement = announcements[currentSlide] || {}; 
+  
+  return (
+    <div 
+      className="announcement-card" 
+      onClick={() => handleOpenModal(announcement)}
+      style={{ 
+        backgroundColor: announcement.bg_color || '#1E1E2C',
+        borderRadius: '16px',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        height: '180px', /* Reduced from 250px to make it less long */
+        position: 'relative',
+        cursor: 'pointer',
+        transition: 'transform 0.2s ease'
+      }}
+    >
+      {announcement.image_url && (
+        <div style={{ flex: announcement.title || announcement.desc ? '0 0 45%' : '1 1 100%', width: '100%' }}>
+          <img 
+            src={announcement.image_url} 
+            alt="Announcement Flyer" 
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+          />
+        </div>
+      )}
+      
+      {(announcement.title || announcement.desc) && (
+        <div style={{ padding: '12px 16px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+          {announcement.badge && (
+            <span style={{ fontSize: '10px', backgroundColor: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '12px', width: 'fit-content', marginBottom: '6px', color: '#fff' }}>
+              {announcement.badge}
+            </span>
+          )}
+          {announcement.title && <h3 style={{ margin: '0 0 4px 0', fontSize: '15px', color: '#ffffff', fontWeight: '600' }}>{announcement.title}</h3>}
+          {announcement.desc && <p style={{ margin: '0', fontSize: '12px', color: '#A0AEC0', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{announcement.desc}</p>}
+        </div>
+      )}
+    </div>
+  );
+})()}
                   <div className="carousel-dots">
                     {announcements.map((_, index) => (
                       <div key={index} className={`dot ${currentSlide === index ? 'active' : ''}`}></div>
                     ))}
                   </div>
+{/* Announcement Modal Overlay */}
+{isModalOpen && selectedAnnouncement && (
+  <div 
+    style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(0, 0, 0, 0.75)',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      zIndex: 9999, 
+      padding: '20px',
+      backdropFilter: 'blur(4px)'
+    }}
+    onClick={handleCloseModal}
+  >
+    <div 
+      style={{
+        backgroundColor: selectedAnnouncement.bg_color || '#1E1E2C',
+        borderRadius: '20px',
+        maxWidth: '450px',
+        width: '100%',
+        overflow: 'hidden',
+        position: 'relative',
+        boxShadow: '0 10px 30px rgba(0,0,0,0.5)'
+      }}
+      onClick={(e) => e.stopPropagation()} 
+    >
+      {/* Close Button */}
+      <button 
+        onClick={handleCloseModal} 
+        style={{
+          position: 'absolute',
+          top: '12px',
+          right: '12px',
+          background: 'rgba(0,0,0,0.6)',
+          color: 'white',
+          border: 'none',
+          borderRadius: '50%',
+          width: '32px',
+          height: '32px',
+          cursor: 'pointer',
+          zIndex: 10,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          fontSize: '16px'
+        }}
+      >
+        ✕
+      </button>
+
+      {selectedAnnouncement.image_url && (
+        <img 
+          src={selectedAnnouncement.image_url} 
+          alt="Announcement" 
+          style={{ width: '100%', maxHeight: '250px', objectFit: 'cover', display: 'block' }} 
+        />
+      )}
+      
+      {/* Modal Content */}
+      <div style={{ padding: '24px', color: 'white' }}>
+        {selectedAnnouncement.badge && (
+          <span style={{ fontSize: '12px', backgroundColor: 'rgba(255,255,255,0.15)', padding: '6px 12px', borderRadius: '14px', color: '#fff', marginBottom: '12px', display: 'inline-block' }}>
+            {selectedAnnouncement.badge}
+          </span>
+        )}
+        <h2 style={{ margin: '0 0 12px 0', fontSize: '22px', fontWeight: 'bold' }}>
+          {selectedAnnouncement.title}
+        </h2>
+        <p style={{ margin: '0', fontSize: '15px', color: '#CBD5E0', lineHeight: '1.6' }}>
+          {selectedAnnouncement.desc}
+        </p>
+      </div>
+    </div>
+  </div>
+)}
                 </div>
 
                 {/* Testimonies Reel */}
