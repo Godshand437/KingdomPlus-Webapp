@@ -5332,7 +5332,6 @@ const handleSendDbMessage = async (e) => {
   if (!messageText || !activeDbChat) return;
 
   try {
-
     const {
       data: { user },
       error: authError
@@ -5345,6 +5344,8 @@ const handleSendDbMessage = async (e) => {
       return;
     }
 
+    const messageIntentToSend = messageIntent;
+
     const {
       data: insertedMessage,
       error
@@ -5354,42 +5355,34 @@ const handleSendDbMessage = async (e) => {
         chat_id: activeDbChat.id,
         sender_id: user.id,
         content: messageText,
-        intent: messageIntent
+        intent: messageIntentToSend
       }])
-      .select('*')
+      .select(`
+        *,
+        sender:sender_id(
+          id,
+          full_name,
+          username,
+          avatar_url
+        )
+      `)
       .single();
 
     if (error) throw error;
 
-    const {
-      data: senderProfile
-    } = await supabase
-      .from('user_profiles')
-      .select(`
-        id,
-        full_name,
-        username,
-        avatar_url
-      `)
-      .eq('id', user.id)
-      .single();
-
-    const completeMessage = {
-      ...insertedMessage,
-      sender: senderProfile || userProfile || null
-    };
-
     setDbMessages(prev => {
-
       if (
         prev.some(
-          msg => msg.id === completeMessage.id
+          msg => String(msg.id) === String(insertedMessage.id)
         )
       ) {
         return prev;
       }
 
-      return [...prev, completeMessage];
+      return [
+        ...prev,
+        insertedMessage
+      ];
     });
 
     setChatInputMessage('');
@@ -5409,7 +5402,6 @@ const handleSendDbMessage = async (e) => {
     );
   }
 };
-
 
 const handleDeleteDbMessage = async (messageId) => {
   if (!window.confirm("Delete this message?")) return;
