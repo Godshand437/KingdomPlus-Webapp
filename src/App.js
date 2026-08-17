@@ -413,17 +413,63 @@ export default function App() {
   };
 
 const handleMarkAllRead = () => {
-  setNotifications(notifications.map(n => ({ ...n, isRead: false })));
+  setNotifications(prev => {
+    const updated = prev.map(notification => ({
+      ...notification,
+      isRead: true
+    }));
+
+    const currentUserId =
+      currentUser?.id || 'guest';
+
+    localStorage.setItem(
+      `kp_notifs_${currentUserId}`,
+      JSON.stringify(updated)
+    );
+
+    return updated;
+  });
 };
 
 // Notification State
-  const [isNotifOpen, setIsNotifOpen] = useState(false);
-  const [notifications, setNotifications] = useState(() => {
-  const saved = localStorage.getItem(`kp_notifs_${currentUser?.id || 'guest'}`);
-  return saved ? JSON.parse(saved) : [
-    { id: 1, type: 'SYSTEM', title: 'Welcome to KingdomPlus', message: 'Your Kingdom Vault is ready. Start exploring!', time: '1d ago', isRead: false }
-  ];
-});
+  // Notification State
+const [isNotifOpen, setIsNotifOpen] = useState(false);
+const [notifications, setNotifications] = useState([]);
+useEffect(() => {
+  if (!currentUser?.id) {
+    setNotifications([]);
+    return;
+  }
+
+  const storageKey = `kp_notifs_${currentUser.id}`;
+  const saved = localStorage.getItem(storageKey);
+
+  if (saved) {
+    try {
+      setNotifications(JSON.parse(saved));
+    } catch (error) {
+      console.error('Failed to load notifications:', error);
+
+      setNotifications([]);
+    }
+  } else {
+    const welcomeNotification = {
+      id: `welcome-${currentUser.id}`,
+      type: 'SYSTEM',
+      title: 'Welcome to KingdomPlus',
+      message: 'Your Kingdom Vault is ready. Start exploring! and dont forget to drop Feedback / Suggestion',
+      time: 'Just now',
+      isRead: false
+    };
+
+    setNotifications([welcomeNotification]);
+
+    localStorage.setItem(
+      storageKey,
+      JSON.stringify([welcomeNotification])
+    );
+  }
+}, [currentUser?.id]);
 
 
   const getNotifIcon = (type) => {
@@ -4968,7 +5014,6 @@ const fetchMessengerData = async () => {
 
       if (chat.type === 'group') {
 
-        // Groups are unique by their chat ID
         uniqueChats.set(
           `group:${chat.id}`,
           chat
@@ -5561,30 +5606,129 @@ useEffect(() => {
   }, [step]);
 
   useEffect(() => {
-    let globalSub = null;
+  let globalSub = null;
 
-    const initNotificationListener = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
+  const initNotificationListener = async () => {
+    try {
+      const {
+        data: { user }
+      } = await supabase.auth.getUser();
 
-  const channelName = `notifications_${user.id}_${Date.now()}`;
-  
-  globalSub = supabase
-    .channel(channelName)
-    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages' }, (payload) => {
-      if (payload.new.sender_id !== user.id && stepRef.current !== 23) {
-        setUnreadChatCount(prev => prev + 1);
+      if (!user) return;
+
+      const {
+        data: myChatParticipants,
+        error: chatError
+      } = await supabase
+        .from('chat_participants')
+        .select('chat_id')
+        .eq('user_id', user.id);
+
+      if (chatError) {
+        console.error(
+          'Failed to load user chat memberships:',
+          chatError
+        );
+        return;
       }
-    })
-    .subscribe();
-};
-    
-    initNotificationListener();
 
-    return () => {
-      if (globalSub) supabase.removeChannel(globalSub);
-    };
-  }, []);
+      const myChatIds =
+        (myChatParticipants || []).map(
+          participant => participant.chat_id
+        );
+
+      if (myChatIds.length === 0) {
+        setUnreadChatCount(0);
+      } else {
+        const {
+          count,
+          error: unreadError
+        } = await supabase
+          .from('messages')
+          .select('*', {
+            count: 'exact',
+            head: true
+          })
+          .in('chat_id', myChatIds)
+          .neq('sender_id', user.id)
+          .eq('is_read', false);
+
+        if (unreadError) {
+          console.error(
+            'Failed to load unread chat count:',
+            unreadError
+          );
+        } else {
+          setUnreadChatCount(count || 0);
+        }
+      }
+
+const channelName =
+  `chat-notifications-${user.id}`;
+
+globalSub = supabase.channel(
+  channelName
+);
+
+globalSub.on(
+  'postgres_changes',
+  {
+    event: 'INSERT',
+    schema: 'public',
+    table: 'messages'
+  },
+  (payload) => {
+    const newMessage = payload.new;
+
+    if (!newMessage) return;
+
+    if (
+      newMessage.sender_id === user.id
+    ) {
+      return;
+    }
+
+    if (
+      !myChatIds.includes(
+        newMessage.chat_id
+      )
+    ) {
+      return;
+    }
+
+    if (stepRef.current === 23) {
+      return;
+    }
+
+    setUnreadChatCount(
+      prev => prev + 1
+    );
+  }
+);
+
+globalSub.subscribe((status) => {
+  console.log(
+    'Chat notification subscription:',
+    status
+  );
+});
+
+    } catch (error) {
+      console.error(
+        'Chat notification setup failed:',
+        error
+      );
+    }
+  };
+
+  initNotificationListener();
+
+  return () => {
+    if (globalSub) {
+      supabase.removeChannel(globalSub);
+    }
+  };
+}, []);
 
 const [globalUsers, setGlobalUsers] = useState([]);
 const [incomingRequests, setIncomingRequests] = useState([]);
