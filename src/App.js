@@ -5129,6 +5129,39 @@ useEffect(() => {
 
   fetchMessages();
 
+const markChatAsRead = async () => {
+  try {
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser();
+
+    if (authError) throw authError;
+    if (!user || !activeDbChat?.id) return;
+
+    const { error } = await supabase
+      .from('messages')
+      .update({
+        is_read: true
+      })
+      .eq('chat_id', activeDbChat.id)
+      .neq('sender_id', user.id)
+      .eq('is_read', false);
+
+    if (error) throw error;
+
+    setUnreadChatCount(0);
+
+  } catch (error) {
+    console.error(
+      'Failed to mark chat messages as read:',
+      error
+    );
+  }
+};
+
+markChatAsRead();
+
   const channel = supabase
     .channel(`chat_${activeDbChat.id}`)
     .on(
@@ -5165,7 +5198,6 @@ useEffect(() => {
 
           setDbMessages(prev => {
 
-            // Prevent duplicate messages
             if (
               prev.some(
                 msg => msg.id === newMessage.id
@@ -5193,6 +5225,7 @@ useEffect(() => {
   };
 
 }, [activeDbChat?.id]);
+
 
 const handleSendDbMessage = async (e) => {
   e?.preventDefault();
