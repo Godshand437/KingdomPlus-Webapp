@@ -346,6 +346,7 @@ export default function App() {
   return saved ? 6 : 0;
   });
   const [isAuthLoading, setIsAuthLoading] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState(null);
   const [activeTab, setActiveTab] = useState('sanctuary');
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -356,6 +357,121 @@ export default function App() {
     const saved = localStorage.getItem('kp_current_user');
     return saved ? JSON.parse(saved) : null;
   });
+
+useEffect(() => {
+  if (!currentUser) return;
+
+  setFormData(prev => ({
+    ...prev,
+
+    fullName:
+      currentUser.full_name ||
+      prev.fullName ||
+      '',
+
+    username:
+      currentUser.username ||
+      prev.username ||
+      '',
+
+    email:
+      currentUser.email ||
+      prev.email ||
+      '',
+
+    accountType:
+      currentUser.account_type ||
+      currentUser.accountType ||
+      prev.accountType ||
+      'User',
+
+    membership_tier:
+      currentUser.membership_tier ||
+      prev.membership_tier ||
+      (
+        currentUser.account_type === 'Ministry'
+          ? 'Disciple'
+          : 'Standard'
+      ),
+
+    denomination:
+      currentUser.denomination ||
+      prev.denomination ||
+      '',
+
+    churchName:
+      currentUser.church_name ||
+      currentUser.local_church ||
+      prev.churchName ||
+      ''
+  }));
+}, [currentUser]);
+
+useEffect(() => {
+  let mounted = true;
+
+  const restoreSupabaseSession = async () => {
+    try {
+      const {
+        data: { session },
+        error
+      } = await supabase.auth.getSession();
+
+      if (error) {
+        console.error(
+          'Failed to restore Supabase session:',
+          error
+        );
+      }
+
+      if (!mounted) return;
+
+      if (session?.user) {
+        setAuthReady(true);
+        return;
+      }
+
+      setCurrentUser(null);
+      localStorage.removeItem('kp_current_user');
+
+      setStep(0);
+      setAuthReady(true);
+
+    } catch (error) {
+      console.error(
+        'Supabase session restoration failed:',
+        error
+      );
+
+      if (mounted) {
+        setAuthReady(true);
+      }
+    }
+  };
+
+  restoreSupabaseSession();
+
+  const {
+    data: authListener
+  } = supabase.auth.onAuthStateChange(
+    (_event, session) => {
+      if (!mounted) return;
+
+      if (session?.user) {
+        setAuthReady(true);
+      } else {
+        setAuthReady(true);
+      }
+    }
+  );
+
+  return () => {
+    mounted = false;
+
+    authListener?.subscription?.unsubscribe();
+  };
+}, []);
+
  const [adminTab, setAdminTab] = useState('Dreams');
  const [viewerLiked, setViewerLiked] = useState(false); 
  const [showCommentInput, setShowCommentInput] = useState(false);
@@ -4207,6 +4323,7 @@ const [profileTab, setProfileTab] = useState('All');
 };
 
   useEffect(() => {
+    if (!authReady) return;
     const fetchUserProfile = async () => {
       try {
         setIsLoadingProfile(true);
@@ -4264,9 +4381,8 @@ setUserProfile(normalizedProfile);
       }
     };
 
-    // Trigger the fetch
     fetchUserProfile();
-  }, []);
+  }, [authReady]);
 
   const followedMinistries = [
     { id: 1, name: "Grace Sanctuary", isMain: true, img: "⛪" },
@@ -4696,8 +4812,10 @@ const loadKpcBalanceFromSupabase = async () => {
 };
 
 useEffect(() => {
+  if (!authReady) return;
+
   loadKpcBalanceFromSupabase();
-}, []);
+}, [authReady]);
 
   const fetchWalletData = async () => {
     try {
@@ -5793,6 +5911,7 @@ useEffect(() => {
   }, [step]);
 
  useEffect(() => {
+  if (!authReady) return;
   let globalSub = null;
   let isMounted = true;
 
@@ -5963,7 +6082,7 @@ useEffect(() => {
       globalSub = null;
     }
   };
-}, []);
+}, [authReady]);
 
 
 const [globalUsers, setGlobalUsers] = useState([]);
@@ -6666,9 +6785,14 @@ const handleCloseModal = () => {
   </div>
 )}
 
-            {formData?.accountType === 'Church' || currentUser?.accountType === 'Church' ? (
-              renderChurchDashboard()
-            ) : (
+            {(
+  userProfile?.account_type === 'Ministry' ||
+  currentUser?.account_type === 'Ministry' ||
+  currentUser?.accountType === 'Ministry' ||
+  formData?.accountType === 'Ministry'
+) ? (
+  renderChurchDashboard()
+) : (
               <>
                 <div className="search-bar">
                   <SearchIcon />
@@ -12154,10 +12278,85 @@ const displayName =
                 
                 {/* Public Actions (Add Friend, Message) instead of Edit Profile */}
                 <div className="profile-action-row">
-                  <button className="profile-btn-primary" onClick={() => alert(`Friend request sent to ${viewedProfile.full_name}!`)}>+ Add Friend</button>
-                  <button className="profile-btn-secondary" onClick={() => alert("Direct messaging coming soon!")}>Message</button>
-                  <button className="profile-btn-icon"><ShareIcon /></button>
-                </div>
+  {(() => {
+    const isFriend = friends.some(friend =>
+      friend.sender_id === viewedProfile.id ||
+      friend.receiver_id === viewedProfile.id
+    );
+
+    const hasSentRequest = sentRequests.some(
+      request => request.receiver_id === viewedProfile.id
+    );
+
+    const hasIncomingRequest = incomingRequests.some(
+      request => request.sender_id === viewedProfile.id
+    );
+
+    if (isFriend) {
+      return (
+        <button
+          className="profile-btn-primary"
+          onClick={() => handleInitiateDirectChat(viewedProfile)}
+        >
+          Message
+        </button>
+      );
+    }
+
+    if (hasIncomingRequest) {
+      const request = incomingRequests.find(
+        item => item.sender_id === viewedProfile.id
+      );
+
+      return (
+        <button
+          className="profile-btn-primary"
+          onClick={() => handleRequestAction(request.id, 'accepted')}
+        >
+          Accept Friend
+        </button>
+      );
+    }
+
+    if (hasSentRequest) {
+      return (
+        <button
+          className="profile-btn-secondary"
+          disabled
+          style={{ opacity: 0.65, cursor: 'default' }}
+        >
+          Request Sent
+        </button>
+      );
+    }
+
+    return (
+      <button
+        className="profile-btn-primary"
+        onClick={() => {
+          sendFriendRequest(viewedProfile.id);
+          alert(`Friend request sent to ${viewedProfile.full_name}!`);
+        }}
+      >
+        + Add Friend
+      </button>
+    );
+  })()}
+
+  <button
+    className="profile-btn-icon"
+    onClick={() => {
+      if (navigator.share) {
+        navigator.share({
+          title: viewedProfile.full_name || 'KingdomPlus Profile',
+          text: `Check out ${viewedProfile.full_name || 'this KingdomPlus profile'}.`
+        }).catch(() => {});
+      }
+    }}
+  >
+    <ShareIcon />
+  </button>
+</div>
               </div>
 
               <div className="profile-fb-tabs">
