@@ -1207,19 +1207,35 @@ const [isLoadingChurches, setIsLoadingChurches] = useState(false);
 };
  
  // --- STEP 1 VALIDATION ---
-  const handleStep1Validation = (e) => {
-    e.preventDefault();
-    if (!formData.fullName || !formData.username || !formData.email || !formData.password) {
-      alert("Please fill in all required fields (Full Name, Username, Email, and Password).");
+const handleStep1Validation = (e) => {
+  e.preventDefault();
+
+  if (formData.accountType === 'Ministry') {
+    if (!formData.email || !formData.password) {
+      alert("Please enter the Ministry email and password.");
       return;
     }
 
-   if (formData.accountType === 'Ministry') {
-  setStep(19);
-} else {
+    setStep(19);
+    return;
+  }
+
+  if (
+    !formData.fullName ||
+    !formData.username ||
+    !formData.email ||
+    !formData.password ||
+    !formData.dob
+  ) {
+    alert(
+      "Please fill in all required fields (Full Name, Username, Email, and Password)."
+    );
+    return;
+  }
+
   setStep(2);
-}
-  };
+};
+
 
   // Status/Testimony Upload Handler
   const handleStatusUpload = (e) => {
@@ -2128,7 +2144,7 @@ profileData.last_login_date =
       setFormData({ fullName: '', username: '', email: '', password: '', dob: '', country: '', phone: '', denomination: '', churchName: '' });
       setKpcBalance(0);
       setGeneratedAddress('');
-      setStep(1);
+      setStep(0);
     }
   };
 
@@ -2148,9 +2164,9 @@ profileData.last_login_date =
   }
 };
 
-const handleUpgradeSubscription = async () => {
+const handleUpgradeMembershipTier = async () => {
   if (!selectedUpgrade) {
-    alert('Please select a membership plan.');
+    alert('Please select a membership tier.');
     return;
   }
 
@@ -2177,7 +2193,6 @@ const handleUpgradeSubscription = async () => {
     Apostle: 900
   };
 
-  // Ministry accounts start at Disciple.
   if (
     isMinistry &&
     currentTier === 'Disciple' &&
@@ -2189,7 +2204,6 @@ const handleUpgradeSubscription = async () => {
     return;
   }
 
-  // Prevent downgrades / duplicate purchases.
   if (
     tierRank[selectedUpgrade] <=
     tierRank[currentTier]
@@ -2225,7 +2239,6 @@ const handleUpgradeSubscription = async () => {
   setIsUpgrading(true);
 
   try {
-    // Small delay so testers see a real processing state.
     await new Promise(resolve =>
       setTimeout(resolve, 1200)
     );
@@ -2233,7 +2246,6 @@ const handleUpgradeSubscription = async () => {
     const newBalance =
       Number(kpcBalance) - cost;
 
-    // Update membership in Supabase.
     const {
       error: membershipError
     } = await supabase
@@ -2252,7 +2264,6 @@ const handleUpgradeSubscription = async () => {
       throw membershipError;
     }
 
-    // Keep Ministry record synchronized.
     if (isMinistry) {
       await supabase
         .from('church_profiles')
@@ -2267,7 +2278,6 @@ const handleUpgradeSubscription = async () => {
         .eq('id', userProfile.id);
     }
 
-    // Update the live application.
     setKpcBalance(newBalance);
     setUserTier(selectedUpgrade);
 
@@ -2289,7 +2299,6 @@ const handleUpgradeSubscription = async () => {
         newBalance
     }));
 
-    // Keep local session synchronized.
     const savedUser =
       localStorage.getItem(
         'kp_current_user'
@@ -2320,7 +2329,7 @@ const handleUpgradeSubscription = async () => {
     );
 
     alert(
-      `🎉 Congratulations!\n\nYou are now a Kingdom ${selectedUpgrade}.\n\n${cost} KPC has been used for your upgrade.`
+      `🎉 Congratulations!\n\nYou have successfully upgraded your membership tier to ${selectedUpgrade}.\n\n${cost} KPC has been used for your upgrade.`
     );
 
     setStep(11);
@@ -4052,12 +4061,10 @@ useEffect(() => {
   const [isCheckInActive, setIsCheckInActive] = useState(false);
   const [checkInSessionTitle, setCheckInSessionTitle] = useState('Sunday Morning Gathering');
   
-  const [attendanceRoster, setAttendanceRoster] = useState([
-    { id: 'att_1', name: 'Pastor Josh', handle: '@pjosh', time: '08:55 AM', tier: 'Apostle', avatar: 'P' },
-    { id: 'att_2', name: 'Grace Adeleke', handle: '@gracedesigns', time: '09:02 AM', tier: 'Disciple', avatar: 'G' },
-    { id: 'att_3', name: 'Sarah F.', handle: '@sarah', time: '09:14 AM', tier: 'Seeker', avatar: 'S' },
-    { id: 'att_4', name: 'Daniel O.', handle: '@inkofdaniel', time: '09:20 AM', tier: 'Disciple', avatar: 'D' }
-  ]);
+  const [attendanceRoster, setAttendanceRoster] = useState([]);
+const [ministryMembers, setMinistryMembers] = useState([]);
+const [isLoadingMinistryMembers, setIsLoadingMinistryMembers] = useState(false);
+const [ministryMemberCount, setMinistryMemberCount] = useState(0);
 
   // Pastor toggles check-in open/closed for the congregation
   const handleToggleCheckInSession = () => {
@@ -6407,14 +6414,24 @@ const handleCloseModal = () => {
     <button
       key={type}
       type="button"
-      onClick={() =>
-        handleChange({
-          target: {
-            name: 'accountType',
-            value: type
-          }
-        })
-      }
+      onClick={() => {
+  if (type === 'Ministry') {
+    setFormData(prev => ({
+      ...prev,
+      accountType: 'Ministry'
+    }));
+
+    setStep(19);
+    return;
+  }
+
+  setFormData(prev => ({
+    ...prev,
+    accountType: 'User'
+  }));
+
+  setStep(1);
+}}
       style={{
         flex: 1,
         padding: '12px 10px',
@@ -8176,15 +8193,30 @@ const handleCloseModal = () => {
                 </div>
 
                 <button 
-                  onClick={() => {
-                    alert("Book successfully published to the Kingdom Library!");
-                    setIsAddBookModalOpen(false);
-                    setNewBookForm({ title: '', desc: '', price: '', isFree: false });
-                  }}
-                  style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '25px' }}
-                >
-                  Publish Book
-                </button>
+  onClick={() => {
+    if (!newBookForm.title) {
+      alert("Please provide a book title.");
+      return;
+    }
+    
+    const newBook = {
+      id: `book_${Date.now()}`,
+      title: newBookForm.title,
+      author: userProfile?.full_name || userProfile?.church_name || 'Ministry Admin',
+      price: newBookForm.isFree ? 0 : Number(newBookForm.price),
+      desc: newBookForm.desc,
+      img: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80' // Placeholder cover
+    };
+
+    setStoreBooksList(prev => [newBook, ...prev]);
+    alert("Book successfully published to the Kingdom Library!");
+    setIsAddBookModalOpen(false);
+    setNewBookForm({ title: '', desc: '', price: '', isFree: false });
+  }}
+  style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '25px' }}
+>
+  Publish Book
+</button>
               </div>
             </div>
           )}
@@ -8702,7 +8734,7 @@ const handleCloseModal = () => {
     alignItems: 'center',
     gap: '8px'
   }}
-  onClick={handleUpgradeSubscription}
+  onClick={handleUpgradeMembershipTier}
   disabled={
     isUpgrading ||
     !selectedUpgrade ||
