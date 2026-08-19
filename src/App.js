@@ -1211,11 +1211,6 @@ const handleStep1Validation = (e) => {
   e.preventDefault();
 
   if (formData.accountType === 'Ministry') {
-    if (!formData.email || !formData.password) {
-      alert("Please enter the Ministry email and password.");
-      return;
-    }
-
     setStep(19);
     return;
   }
@@ -1224,8 +1219,7 @@ const handleStep1Validation = (e) => {
     !formData.fullName ||
     !formData.username ||
     !formData.email ||
-    !formData.password ||
-    !formData.dob
+    !formData.password
   ) {
     alert(
       "Please fill in all required fields (Full Name, Username, Email, and Password)."
@@ -1714,11 +1708,33 @@ useEffect(() => {
         const isMinistry =
   formData.accountType === 'Ministry';
 
+const registrationDate = new Date().toISOString();
+
+const ministryName =
+  (formData.churchName || '').trim();
+
+const resolvedDenomination = isMinistry
+  ? (
+      formData.churchDenomination === 'Other'
+        ? formData.customDenomination
+        : formData.churchDenomination
+    )
+  : (
+      formData.denomination === 'Other'
+        ? formData.customDenomination
+        : formData.denomination
+    );
+
+if (isMinistry && !ministryName) {
+  throw new Error('Please enter your Ministry / Church name.');
+}
+
 const profileData = {
   id: userId,
+
   email: formData.email,
-  full_name: formData.fullName,
   username: formData.username,
+
   account_type: isMinistry
     ? 'Ministry'
     : 'User',
@@ -1732,31 +1748,32 @@ const profileData = {
     : null,
 
   membership_updated_at:
-    new Date().toISOString(),
+    registrationDate,
 
-  denomination: isMinistry
-    ? (
-        formData.churchDenomination === 'Other'
-          ? formData.customDenomination
-          : formData.churchDenomination
-      )
-    : (
-        formData.denomination === 'Other'
-          ? formData.customDenomination
-          : formData.denomination
-      ),
+  full_name: isMinistry
+    ? ministryName
+    : formData.fullName,
+
+  denomination:
+    resolvedDenomination || null,
 
   local_church:
-    formData.churchName || null,
+    isMinistry
+      ? null
+      : (formData.churchName || null),
 
   phone_number:
-    formData.phone,
+    formData.phone || null,
 
   date_of_birth:
-    formData.dob || null,
+    isMinistry
+      ? null
+      : (formData.dob || null),
 
   country:
-    formData.country || null,
+    isMinistry
+      ? (formData.churchCountry || formData.country || null)
+      : (formData.country || null),
 
   wallet_address:
     generatedAddress,
@@ -1765,8 +1782,102 @@ const profileData = {
     finalBalance,
 
   created_at:
-    new Date().toISOString()
+    registrationDate
 };
+
+const {
+  error: userProfileError
+} = await supabase
+  .from('user_profiles')
+  .insert([profileData]);
+
+if (userProfileError) {
+  throw userProfileError;
+}
+
+if (isMinistry) {
+  const ministryProfile = {
+    id: userId,
+
+    ministry_name: ministryName,
+    username: formData.username,
+    email: formData.email,
+
+    account_type: 'Ministry',
+    membership_tier: 'Disciple',
+    ministry_type: 'Church',
+    membership_updated_at: registrationDate,
+
+    denomination:
+      resolvedDenomination || null,
+
+    year_founded:
+      formData.yearFounded
+        ? Number(formData.yearFounded)
+        : null,
+
+    mission_statement:
+      formData.missionStatement || null,
+
+    country:
+      formData.churchCountry || null,
+
+    city:
+      formData.churchCity || null,
+
+    street_address:
+      formData.churchAddress || null,
+
+    main_service_day:
+      formData.serviceDay || null,
+
+    'service_time':
+      formData.serviceTime || null,
+
+    phone_number:
+      formData.phone || null,
+
+    wallet_address:
+      generatedAddress,
+
+    wallet_balance:
+      finalBalance,
+
+    created_at:
+      registrationDate
+  };
+
+  const {
+    error: ministryProfileError
+  } = await supabase
+    .from('church_profiles')
+    .insert([ministryProfile]);
+
+  if (ministryProfileError) {
+  console.error(
+    'Ministry profile creation failed:',
+    ministryProfileError
+  );
+
+  const {
+    error: rollbackProfileError
+  } = await supabase
+    .from('user_profiles')
+    .delete()
+    .eq('id', userId);
+
+  if (rollbackProfileError) {
+    console.error(
+      'Failed to rollback user profile:',
+      rollbackProfileError
+    );
+  }
+
+  throw new Error(
+    `Ministry registration failed: ${ministryProfileError.message}`
+  );
+}
+}
 
 const today = new Date();
 
@@ -1837,12 +1948,26 @@ profileData.last_login_date =
 
 const sessionRecord = {
   ...formData,
+
   accountType:
     profileData.account_type,
+
   membership_tier:
     profileData.membership_tier,
+
   ministry_type:
     profileData.ministry_type,
+
+  fullName:
+    isMinistry
+      ? ministryName
+      : formData.fullName,
+
+  ministry_name:
+    isMinistry
+      ? ministryName
+      : null,
+
   generatedAddress,
   kpcBalance: finalBalance
 };
@@ -1859,58 +1984,15 @@ setUserTier(
       )
 );
 
-      setCurrentUser(sessionRecord);
-      localStorage.setItem('kp_current_user', JSON.stringify(sessionRecord));
+setCurrentUser(sessionRecord);
 
-const {
-  error: userProfileError
-} = await supabase
-  .from('user_profiles')
-  .insert([profileData]);
-
-if (userProfileError) {
-  throw userProfileError;
-}
-
-if (isMinistry) {
-  const {
-    error: ministryProfileError
-  } = await supabase
-    .from('church_profiles')
-    .insert([
-      {
-        ...profileData,
-
-        account_type: 'Ministry',
-        membership_tier: 'Disciple',
-        ministry_type:
-          profileData.ministry_type,
-
-        church_name:
-          formData.churchName ||
-          formData.fullName,
-
-        denomination:
-          profileData.denomination,
-
-        year_founded:
-          formData.yearFounded
-            ? Number(formData.yearFounded)
-            : null,
-
-        mission_statement:
-          formData.missionStatement || null
+localStorage.setItem(
+  'kp_current_user',
+  JSON.stringify(sessionRecord)
+);
       }
-    ]);
 
-  if (ministryProfileError) {
-    console.error(
-      'Ministry profile creation failed:',
-      ministryProfileError
-    );
-  }
-}
-      }
+
 
       
       setStep(5);
@@ -4307,26 +4389,51 @@ useEffect(() => {
   // ==========================================
 
   const [isAdmin, setIsAdmin] = useState(true); 
-const [profileTab, setProfileTab] = useState('All');
-// ==========================================
-  // LIVE SUPABASE PROFILE FETCH
-  // ==========================================
-  
+  const [profileTab, setProfileTab] = useState('All');
   const [userProfile, setUserProfile] = useState(null);
   const [authUserId, setAuthUserId] = useState(null);
 
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
-  const hasDiscipleAccess = (profile) => {
+  const getEffectiveMembershipTier = (profile) => {
+  const tier =
+    profile?.membership_tier ||
+    currentUser?.membership_tier ||
+    userTier;
+
+  if (
+    tier === 'Standard' ||
+    tier === 'Disciple' ||
+    tier === 'Apostle'
+  ) {
+    return tier;
+  }
+
+  if (profile?.account_type === 'Apostle') {
+    return 'Apostle';
+  }
+
+  if (profile?.account_type === 'Premium') {
+    return 'Disciple';
+  }
+
+  if (profile?.account_type === 'Ministry') {
+    return 'Disciple';
+  }
+
+  return 'Standard';
+};
+
+const hasDiscipleAccess = (profile) => {
+  const tier = getEffectiveMembershipTier(profile);
+
   return (
-    profile?.membership_tier === 'Disciple' ||
-    profile?.membership_tier === 'Apostle'
+    tier === 'Disciple' ||
+    tier === 'Apostle'
   );
 };
 
-  const hasApostleAccess = (profile) => {
-  return (
-    profile?.membership_tier === 'Apostle'
-  );
+const hasApostleAccess = (profile) => {
+  return getEffectiveMembershipTier(profile) === 'Apostle';
 };
 
   useEffect(() => {
@@ -6415,20 +6522,15 @@ const handleCloseModal = () => {
       key={type}
       type="button"
       onClick={() => {
-  if (type === 'Ministry') {
-    setFormData(prev => ({
-      ...prev,
-      accountType: 'Ministry'
-    }));
+  setFormData(prev => ({
+    ...prev,
+    accountType: type
+  }));
 
+  if (type === 'Ministry') {
     setStep(19);
     return;
   }
-
-  setFormData(prev => ({
-    ...prev,
-    accountType: 'User'
-  }));
 
   setStep(1);
 }}
@@ -8036,7 +8138,7 @@ const handleCloseModal = () => {
                   <h3 className="kingdom-section-title" style={{ margin: 0 }}>Kingdom Library</h3>
                   
                   {/* HIDDEN PUBLISH BUTTON - ONLY PREMIUM/APOSTLE CAN SEE */}
-                  {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') && (
+                  {hasDiscipleAccess(userProfile) && (
                     <button 
                       onClick={() => setIsAddBookModalOpen(true)} 
                       style={{ background: 'transparent', border: '1px solid #f3ca58', color: '#f3ca58', padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}
@@ -10093,10 +10195,10 @@ const handleCloseModal = () => {
 
       
 {/* =========================================
-          CHURCH ONBOARDING BRANCH (STEPS 19 - 22)
+          MINISTRY ONBOARDING BRANCH (STEPS 19 - 22)
           ========================================= */}
 
-      {/* STEP 19: CHURCH IDENTITY */}
+      {/* STEP 19: MINISTRY IDENTITY */}
       {step === 19 && (
         <div className="inner-pad">
           <div style={{ display: 'flex', alignItems: 'center', marginBottom: '20px' }}>
@@ -10111,11 +10213,53 @@ const handleCloseModal = () => {
           </div>
 
           <div className="form-scroll-area">
-            <span style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>CHURCH IDENTITY</span>
-            <h1 className="onboarding-title" style={{ marginTop: '8px' }}>Tell us about your church</h1>
+            <span style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', textTransform: 'uppercase' }}>MINISTRY IDENTITY</span>
+            <h1 className="onboarding-title" style={{ marginTop: '8px' }}>Tell us about your Ministry</h1>
             <p className="onboarding-subtitle" style={{ marginBottom: '25px' }}>This is how believers will discover your church or ministry inside the community.</p>
 
             <div className="input-group"><label className="input-label">CHURCH / MINISTRY NAME</label><input type="text" name="churchName" placeholder="e.g. Grace Fellowship Assembly" value={formData.churchName || ''} onChange={handleChange} className="app-input" /></div>
+<div className="input-group">
+  <label className="input-label">MINISTRY USERNAME</label>
+  <input
+    type="text"
+    name="username"
+    placeholder="e.g. gracefellowship"
+    value={formData.username || ''}
+    onChange={handleChange}
+    className="app-input"
+  />
+  <div style={{
+    color: '#8e9aab',
+    fontSize: '11px',
+    marginTop: '6px'
+  }}>
+    This becomes your Ministry @handle.
+  </div>
+</div>
+
+<div className="input-group">
+  <label className="input-label">MINISTRY EMAIL</label>
+  <input
+    type="email"
+    name="email"
+    placeholder="e.g. office@gracefellowship.org"
+    value={formData.email || ''}
+    onChange={handleChange}
+    className="app-input"
+  />
+</div>
+
+<div className="input-group">
+  <label className="input-label">PASSWORD</label>
+  <input
+    type="password"
+    name="password"
+    placeholder="Create a secure password"
+    value={formData.password || ''}
+    onChange={handleChange}
+    className="app-input"
+  />
+</div>
             <div className="input-group">
               <label className="input-label">DENOMINATION</label>
               <select
@@ -10155,7 +10299,14 @@ const handleCloseModal = () => {
           </div>
           <div className="footer-lock">
             <button onClick={() => setStep(20)} className="action-button" style={{ background: 'linear-gradient(90deg, #e5c158, #29beaf)', color: '#101926' }}>Continue</button>
-            <div style={{ textAlign: 'center', marginTop: '15px', color: '#8e9aab', fontSize: '12px' }}>Registering a believer account instead? <span style={{ color: '#fff', textDecoration: 'underline', cursor: 'pointer' }} onClick={() => { handleChange({ target: { name: 'accountType', value: 'Believer' } }); setStep(1); }}>Go back</span></div>
+            <div style={{ textAlign: 'center', marginTop: '15px', color: '#8e9aab', fontSize: '12px' }}>Registering a believer account instead? <span style={{ color: '#fff', textDecoration: 'underline', cursor: 'pointer' }} onClick={() => {
+  setFormData(prev => ({
+    ...prev,
+    accountType: 'User'
+  }));
+
+  setStep(1);
+}}>Go back</span></div>
           </div>
         </div>
       )}
