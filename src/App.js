@@ -1136,53 +1136,190 @@ const handleDemoSwap = async () => {
   });
 const [availableChurches, setAvailableChurches] = useState([]);
 const [isLoadingChurches, setIsLoadingChurches] = useState(false);
-
-// --- LIVE ANNOUNCEMENT BROADCAST STATE ---
-  const [announcements, setAnnouncements] = useState([
-    { badge: "ANNOUNCEMENT", title: "Midweek Bible Study — Wed 7 PM", desc: "Pastor will be teaching from the book of Romans this week.", author: "Grace Sanctuary", handle: "@grace" },
-    { badge: "EVENT", title: "Youth Praise Night — Friday", desc: "Join us for an evening of acoustic worship and fellowship.", author: "Youth Ministry", handle: "@youth" },
-    { badge: "UPDATE", title: "Building Fund Milestone", desc: "We have reached 80% of our goal! Thank you for your KPC donations.", author: "Treasury Dept", handle: "@finance" }
-  ]);
-
   const [announceTitleInput, setAnnounceTitleInput] = useState('');
   const [announceDescInput, setAnnounceDescInput] = useState('');
   const [announceBadgeInput, setAnnounceBadgeInput] = useState('ANNOUNCEMENT');
 
+// =========================================================
+// ANNOUNCEMENT VISUAL TEMPLATES
+// =========================================================
+
+const ANNOUNCEMENT_TEMPLATES = {
+  announcement: {
+    image: '/announcement-images/announcement.jpg',
+    position: 'center',
+    accent: '#f3ca58'
+  },
+
+  event: {
+    image: '/announcement-images/event.jpg',
+    position: 'center',
+    accent: '#29beaf'
+  },
+
+  update: {
+    image: '/announcement-images/update.jpg',
+    position: 'center',
+    accent: '#d99a6c'
+  },
+
+  urgent: {
+    image: '/announcement-images/urgent.jpg',
+    position: 'center',
+    accent: '#ff7b7b'
+  }
+};
+
+const getAnnouncementTemplate = (badge = 'ANNOUNCEMENT') => {
+  const key = String(badge).toLowerCase();
+
+  return (
+    ANNOUNCEMENT_TEMPLATES[key] ||
+    ANNOUNCEMENT_TEMPLATES.announcement
+  );
+};
+
   const handleBroadcastAnnouncement = (e) => {
-    e.preventDefault();
-    if (!announceTitleInput.trim() || !announceDescInput.trim()) {
-      alert("Please provide both a title and details for your broadcast.");
-      return;
-    }
+  e.preventDefault();
 
-    const newSlide = {
-      badge: announceBadgeInput,
-      title: announceTitleInput,
-      desc: announceDescInput,
-      author: formData.churchName || formData.fullName || "Ministry Admin",
-      handle: `@${formData.username || 'church'}`
-    };
+  if (
+    !announceTitleInput.trim() ||
+    !announceDescInput.trim()
+  ) {
+    alert("Please provide both a title and details for your broadcast.");
+    return;
+  }
 
-    setAnnouncements(prev => [newSlide, ...prev]);
-    setCurrentSlide(0);
-    setAnnounceTitleInput('');
-    setAnnounceDescInput('');
-    setActiveModal(null);
-    alert("Your announcement is now live on your members dashboard slides.");
+  // Get the visual template based on announcement type
+  const template = getAnnouncementTemplate(announceBadgeInput);
+
+  const newSlide = {
+    badge: announceBadgeInput,
+    title: announceTitleInput.trim(),
+    desc: announceDescInput.trim(),
+
+    author:
+      formData.churchName ||
+      formData.fullName ||
+      "Ministry Admin",
+
+    handle:
+      `@${formData.username || 'church'}`,
+
+    // Automatically attach the correct visual
+    image_url: template.image,
+    image_position: template.position,
+    accent: template.accent
   };
 
+  // Put newest announcement first
+  setAnnouncements(prev => [
+    newSlide,
+    ...prev
+  ]);
 
-  const handleNextSlide = () => setCurrentSlide((prev) => (prev + 1) % announcements.length);
-  const handlePrevSlide = () => setCurrentSlide((prev) => (prev - 1 + announcements.length) % announcements.length);
-  const handleChange = (e) => {
+  // Show the new announcement immediately
+  setCurrentSlide(0);
+
+  // Clear form
+  setAnnounceTitleInput('');
+  setAnnounceDescInput('');
+
+  // Close broadcast modal
+  setActiveModal(null);
+
+  alert(
+    "Your announcement is now live on the Sanctuary Feed."
+  );
+};
+
+
+// =========================================================
+// LIVE ANNOUNCEMENT BROADCAST STATE
+// =========================================================
+
+const [announcements, setAnnouncements] = useState([
+  {
+    badge: "ANNOUNCEMENT",
+    title: "Midweek Bible Study — Wed 7 PM",
+    desc: "Pastor will be teaching from the book of Romans this week.",
+    author: "Grace Sanctuary",
+    handle: "@grace",
+    image_url: getAnnouncementTemplate('ANNOUNCEMENT').image,
+    image_position: getAnnouncementTemplate('ANNOUNCEMENT').position,
+    accent: getAnnouncementTemplate('ANNOUNCEMENT').accent
+  },
+
+  {
+    badge: "EVENT",
+    title: "Youth Praise Night — Friday",
+    desc: "Join us for an evening of acoustic worship and fellowship.",
+    author: "Youth Ministry",
+    handle: "@youth",
+    image_url: getAnnouncementTemplate('EVENT').image,
+    image_position: getAnnouncementTemplate('EVENT').position,
+    accent: getAnnouncementTemplate('EVENT').accent
+  },
+
+  {
+    badge: "UPDATE",
+    title: "Building Fund Milestone",
+    desc: "We have reached 80% of our goal! Thank you for your KPC donations.",
+    author: "Treasury Department",
+    handle: "@finance",
+    image_url: getAnnouncementTemplate('UPDATE').image,
+    image_position: getAnnouncementTemplate('UPDATE').position,
+    accent: getAnnouncementTemplate('UPDATE').accent
+  },
+
+  {
+    badge: "URGENT",
+    title: "Prayer Meeting Tonight",
+    desc: "Join the church family tonight as we pray together for our community.",
+    author: "Grace Sanctuary",
+    handle: "@grace",
+    image_url: getAnnouncementTemplate('URGENT').image,
+    image_position: getAnnouncementTemplate('URGENT').position,
+    accent: getAnnouncementTemplate('URGENT').accent
+  }
+]);
+
+// =========================================================
+// EXISTING APP NAVIGATION + FORM HANDLERS
+// =========================================================
+
+const handleNextSlide = () => {
+  setCurrentSlide((prev) => {
+    if (!announcements.length) return 0;
+    return (prev + 1) % announcements.length;
+  });
+};
+
+const handlePrevSlide = () => {
+  setCurrentSlide((prev) => {
+    if (!announcements.length) return 0;
+    return (prev - 1 + announcements.length) % announcements.length;
+  });
+};
+
+
+// =========================================================
+// MAIN FORM CHANGE HANDLER
+// =========================================================
+
+const handleChange = (e) => {
   const { name, value } = e.target;
 
-  setFormData(prev => ({
+  setFormData((prev) => ({
     ...prev,
     [name]: value
   }));
+
+  // When denomination changes,
+  // reload the available churches
   if (name === 'denomination') {
-    setFormData(prev => ({
+
+    setFormData((prev) => ({
       ...prev,
       denomination: value,
       churchName: '',
@@ -1196,9 +1333,27 @@ const [isLoadingChurches, setIsLoadingChurches] = useState(false);
     }
   }
 };
-  const handleNext = () => setStep(prev => prev + 1);
-  const handleBack = () => setStep(prev => prev - 1);
-  const loadChurchesByDenomination = async (denomination) => {
+
+
+// =========================================================
+// MULTI-STEP FORM NAVIGATION
+// =========================================================
+
+const handleNext = () => {
+  setStep((prev) => prev + 1);
+};
+
+const handleBack = () => {
+  setStep((prev) => prev - 1);
+};
+
+
+// =========================================================
+// LOAD CHURCHES BY DENOMINATION
+// =========================================================
+
+const loadChurchesByDenomination = async (denomination) => {
+
   if (!denomination) {
     setAvailableChurches([]);
     return;
@@ -1207,14 +1362,21 @@ const [isLoadingChurches, setIsLoadingChurches] = useState(false);
   setIsLoadingChurches(true);
 
   try {
+
     const { data, error } = await supabase
       .from('church_profiles')
       .select('id, church_name, denomination')
       .eq('denomination', denomination)
-      .order('church_name', { ascending: true });
+      .order('church_name', {
+        ascending: true
+      });
 
     if (error) {
-      console.error('Failed to load churches:', error);
+      console.error(
+        'Failed to load churches:',
+        error
+      );
+
       setAvailableChurches([]);
       return;
     }
@@ -1222,13 +1384,21 @@ const [isLoadingChurches, setIsLoadingChurches] = useState(false);
     setAvailableChurches(data || []);
 
   } catch (error) {
-    console.error('Church loading error:', error);
+
+    console.error(
+      'Church loading error:',
+      error
+    );
+
     setAvailableChurches([]);
+
   } finally {
+
     setIsLoadingChurches(false);
+
   }
 };
- 
+
  // --- STEP 1 VALIDATION ---
 const handleStep1Validation = (e) => {
   e.preventDefault();
@@ -7181,50 +7351,375 @@ const handleCloseModal = () => {
                     </div>
                   </div>
 
-                 {/* Ensure this container has a fixed max-width and height in your CSS, e.g., max-width: 400px; */}
+{/* =========================================================
+    PREMIUM CHURCH ANNOUNCEMENT CARD
+    ========================================================= */}
+
 {(() => {
-  const announcement = announcements[currentSlide] || {}; 
-  
+  const announcement =
+    announcements[currentSlide] || {};
+
+  const template =
+    getAnnouncementTemplate(announcement.badge);
+
+  const image =
+    announcement.image_url ||
+    template.image;
+
+  const accent =
+    announcement.accent ||
+    template.accent;
+
   return (
-    <div 
-      className="announcement-card" 
-      onClick={() => handleOpenModal(announcement)}
-      style={{ 
-        backgroundColor: announcement.bg_color || '#1E1E2C',
-        borderRadius: '16px',
+    <div
+      className="announcement-card"
+      onClick={() =>
+        handleOpenModal(announcement)
+      }
+      style={{
+        height: '250px',
+        borderRadius: '24px',
         overflow: 'hidden',
-        display: 'flex',
-        flexDirection: 'column',
-        height: '180px', /* Reduced from 250px to make it less long */
         position: 'relative',
         cursor: 'pointer',
-        transition: 'transform 0.2s ease'
+        isolation: 'isolate',
+
+        background: '#08111d',
+
+        border:
+          '1px solid rgba(255,255,255,0.10)',
+
+        boxShadow:
+          '0 20px 55px rgba(0,0,0,0.38)',
+
+        transition:
+          'transform .25s ease, box-shadow .25s ease'
+      }}
+
+      onMouseEnter={(e) => {
+        e.currentTarget.style.transform =
+          'translateY(-4px)';
+
+        e.currentTarget.style.boxShadow =
+          '0 28px 65px rgba(0,0,0,0.48)';
+      }}
+
+      onMouseLeave={(e) => {
+        e.currentTarget.style.transform =
+          'translateY(0)';
+
+        e.currentTarget.style.boxShadow =
+          '0 20px 55px rgba(0,0,0,0.38)';
       }}
     >
-      {announcement.image_url && (
-        <div style={{ flex: announcement.title || announcement.desc ? '0 0 45%' : '1 1 100%', width: '100%' }}>
-          <img 
-            src={announcement.image_url} 
-            alt="Announcement Flyer" 
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
-          />
+
+      {/* BACKGROUND IMAGE */}
+      <img
+        src={image}
+        alt="Church announcement"
+        style={{
+          position: 'absolute',
+          inset: 0,
+
+          width: '100%',
+          height: '100%',
+
+          objectFit: 'cover',
+
+          objectPosition:
+            announcement.image_position ||
+            template.position,
+
+          transform: 'scale(1.04)',
+
+          opacity: 0.95,
+
+          zIndex: 0
+        }}
+      />
+
+      {/* DARK CINEMATIC OVERLAY */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+
+          background:
+            'linear-gradient(180deg, rgba(4,10,18,0.05) 0%, rgba(4,10,18,0.18) 35%, rgba(4,10,18,0.94) 100%)',
+
+          zIndex: 1
+        }}
+      />
+
+      {/* ACCENT GLOW */}
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+
+          background:
+            `linear-gradient(90deg, ${accent}22 0%, transparent 70%)`,
+
+          zIndex: 1
+        }}
+      />
+
+      {/* CONTENT */}
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 2,
+
+          height: '100%',
+          padding: '18px',
+
+          display: 'flex',
+          flexDirection: 'column',
+          justifyContent: 'space-between',
+
+          color: '#fff'
+        }}
+      >
+
+        {/* TOP ROW */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}
+        >
+
+          {/* TYPE BADGE */}
+          <span
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '7px',
+
+              padding: '7px 11px',
+
+              borderRadius: '999px',
+
+              background:
+                'rgba(6,14,25,0.68)',
+
+              border:
+                `1px solid ${accent}88`,
+
+              backdropFilter:
+                'blur(12px)',
+
+              fontSize: '10px',
+              fontWeight: '900',
+
+              letterSpacing: '1.2px',
+
+              color: '#fff'
+            }}
+          >
+
+            <span
+              style={{
+                width: '7px',
+                height: '7px',
+
+                borderRadius: '50%',
+
+                background: accent,
+
+                boxShadow:
+                  `0 0 14px ${accent}`
+              }}
+            />
+
+            {announcement.badge ||
+              'ANNOUNCEMENT'}
+
+          </span>
+
+
+          {/* ARROW */}
+          <span
+            style={{
+              width: '36px',
+              height: '36px',
+
+              display: 'grid',
+              placeItems: 'center',
+
+              borderRadius: '50%',
+
+              background:
+                'rgba(5,12,22,0.58)',
+
+              border:
+                '1px solid rgba(255,255,255,0.14)',
+
+              backdropFilter:
+                'blur(10px)',
+
+              fontSize: '18px'
+            }}
+          >
+            ↗
+          </span>
+
         </div>
-      )}
-      
-      {(announcement.title || announcement.desc) && (
-        <div style={{ padding: '12px 16px', flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
-          {announcement.badge && (
-            <span style={{ fontSize: '10px', backgroundColor: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '12px', width: 'fit-content', marginBottom: '6px', color: '#fff' }}>
-              {announcement.badge}
+
+
+        {/* BOTTOM CONTENT */}
+        <div
+          style={{
+            maxWidth: '94%'
+          }}
+        >
+
+          {/* TITLE */}
+          <h3
+            style={{
+              margin: '0 0 7px',
+
+              fontSize: '21px',
+
+              lineHeight: '1.12',
+
+              fontWeight: '900',
+
+              letterSpacing: '-0.4px',
+
+              color: '#fff',
+
+              textShadow:
+                '0 3px 20px rgba(0,0,0,0.55)'
+            }}
+          >
+            {announcement.title ||
+              'Your Church Announcement'}
+          </h3>
+
+
+          {/* DESCRIPTION */}
+          <p
+            style={{
+              margin: '0 0 13px',
+
+              fontSize: '12px',
+
+              lineHeight: '1.45',
+
+              color:
+                'rgba(255,255,255,0.82)',
+
+              display: '-webkit-box',
+
+              WebkitLineClamp: 2,
+
+              WebkitBoxOrient: 'vertical',
+
+              overflow: 'hidden'
+            }}
+          >
+            {announcement.desc ||
+              'Share an announcement with your church community.'}
+          </p>
+
+
+          {/* FOOTER */}
+          <div
+            style={{
+              display: 'flex',
+
+              alignItems: 'center',
+
+              justifyContent:
+                'space-between',
+
+              gap: '10px'
+            }}
+          >
+
+            {/* CHURCH */}
+            <div
+              style={{
+                minWidth: 0
+              }}
+            >
+
+              <div
+                style={{
+                  fontSize: '11px',
+
+                  fontWeight: '800',
+
+                  color: '#fff',
+
+                  overflow: 'hidden',
+
+                  textOverflow:
+                    'ellipsis',
+
+                  whiteSpace: 'nowrap'
+                }}
+              >
+                {announcement.author ||
+                  formData.churchName ||
+                  'Your Church'}
+              </div>
+
+              <div
+                style={{
+                  marginTop: '3px',
+
+                  fontSize: '10px',
+
+                  color:
+                    'rgba(255,255,255,0.62)'
+                }}
+              >
+                {announcement.handle ||
+                  '@church'}
+                {' • '}
+                Tap to view
+              </div>
+
+            </div>
+
+
+            {/* VIEW BUTTON */}
+            <span
+              style={{
+                flexShrink: 0,
+
+                padding: '8px 13px',
+
+                borderRadius: '999px',
+
+                background: '#fff',
+
+                color: '#101926',
+
+                fontSize: '10px',
+
+                fontWeight: '900',
+
+                boxShadow:
+                  '0 5px 20px rgba(0,0,0,0.25)'
+              }}
+            >
+              VIEW
             </span>
-          )}
-          {announcement.title && <h3 style={{ margin: '0 0 4px 0', fontSize: '15px', color: '#ffffff', fontWeight: '600' }}>{announcement.title}</h3>}
-          {announcement.desc && <p style={{ margin: '0', fontSize: '12px', color: '#A0AEC0', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{announcement.desc}</p>}
+
+          </div>
+
         </div>
-      )}
+
+      </div>
+
     </div>
   );
 })()}
+
                   <div className="carousel-dots">
                     {announcements.map((_, index) => (
                       <div key={index} className={`dot ${currentSlide === index ? 'active' : ''}`}></div>
