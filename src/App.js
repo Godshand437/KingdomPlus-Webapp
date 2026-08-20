@@ -4094,12 +4094,71 @@ useEffect(() => {
     { id: 'm3', title: 'Book of Romans', author: '12 Parts • Bible Study', duration: 'Series', reward: 2, img: 'https://images.unsplash.com/photo-1518002171953-a080ee817e1f?auto=format&fit=crop&w=300&q=80', isSeries: true }
   ]);
 
-  const [storeBooksList, setStoreBooksList] = useState([
-    { id: 'b1', title: 'The Purpose Driven Life', author: 'Rick Warren', price: 150, img: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80' },
-    { id: 'b2', title: 'Mere Christianity', author: 'C.S. Lewis', price: 120, img: 'https://images.unsplash.com/photo-1589829085413-56de8ae18c73?auto=format&fit=crop&w=200&q=80' },
-    { id: 'b3', title: 'Crazy Love', author: 'Francis Chan', price: 100, img: 'https://images.unsplash.com/photo-1532012197267-da84d127e765?auto=format&fit=crop&w=200&q=80' },
-    { id: 'b4', title: 'Knowing God', author: 'J.I. Packer', price: 180, img: 'https://images.unsplash.com/photo-1495640388908-05fa85288e61?auto=format&fit=crop&w=200&q=80' }
-  ]);
+  const [storeBooksList, setStoreBooksList] = useState([]);
+  const [isLoadingBooks, setIsLoadingBooks] = useState(false);
+const fetchKingdomBooks = async () => {
+  try {
+    setIsLoadingBooks(true);
+
+    const {
+      data,
+      error
+    } = await supabase
+      .from('kingdom_books')
+      .select(`
+  id,
+  title,
+  description,
+  author_id,
+  author_name,
+  price_kpc,
+  is_free,
+  cover_url,
+  book_file_path,
+  book_file_name,
+  book_file_type,
+  is_published,
+  created_at
+`)
+      .eq('is_published', true)
+      .order('created_at', {
+        ascending: false
+      });
+
+    if (error) throw error;
+
+    const normalizedBooks = (data || []).map(book => ({
+  id: book.id,
+  title: book.title,
+  author: book.author_name,
+  price: book.is_free ? 0 : Number(book.price_kpc || 0),
+  desc: book.description || '',
+  img: book.cover_url,
+  pdfUrl: null,
+
+  bookFilePath: book.book_file_path,
+
+  bookFileName: book.book_file_name,
+  bookFileType: book.book_file_type,
+
+  authorId: book.author_id,
+  createdAt: book.created_at
+}));
+
+    setStoreBooksList(normalizedBooks);
+
+  } catch (error) {
+    console.error('Error loading Kingdom books:', error);
+  } finally {
+    setIsLoadingBooks(false);
+  }
+};
+
+useEffect(() => {
+  if (kingdomTab === 'Store') {
+    fetchKingdomBooks();
+  }
+}, [kingdomTab]);
 
   // --- STUDIO INPUT STATE & UNIFIED PUBLISHING HANDLER ---
   const [studioCategory, setStudioCategory] = useState('Devotions'); // 'Devotions', 'Bible Plans', 'Messages', 'Store'
@@ -5147,20 +5206,135 @@ useEffect(() => {
   const [isAddBookModalOpen, setIsAddBookModalOpen] = useState(false);
   
   const [newBookForm, setNewBookForm] = useState({
-    title: '',
-    desc: '',
-    price: '',
-    isFree: false
-  });
+  title: '',
+  author: '',
+  desc: '',
+  price: '',
+  isFree: false,
+  coverFile: null,
+  pdfFile: null,
+  coverPreview: '',
+  coverUrl: '',
+  pdfUrl: ''
+});
 
-  const handlePurchaseBook = (book) => {
-    if (book.price === 0 || book.price === 'Free') {
-      setIsReadingBook(true);
-    } else {
-      alert(`Purchased '${book.title}' for ${book.price} KPC!`);
-      setIsReadingBook(true);
+const [isUploadingBook, setIsUploadingBook] = useState(false);
+const handleBookFileSelect = async (event, fileType) => {
+  const file = event.target.files?.[0];
+
+  if (!file) return;
+
+  if (fileType === 'cover') {
+    if (!file.type.startsWith('image/')) {
+      alert('Please select a valid image file for the book cover.');
+      return;
     }
-  };
+
+    if (file.size > 30 * 1024 * 1024) {
+      alert('Cover image must be less than 30MB.');
+      return;
+    }
+
+    const previewUrl = URL.createObjectURL(file);
+
+    setNewBookForm(prev => ({
+      ...prev,
+      coverFile: file,
+      coverPreview: previewUrl
+    }));
+
+    return;
+  }
+
+  if (fileType === 'pdf') {
+    const allowedTypes = [
+      'application/pdf',
+      'application/epub+zip'
+    ];
+
+    const fileName = file.name.toLowerCase();
+
+    const validExtension =
+      fileName.endsWith('.pdf') ||
+      fileName.endsWith('.epub');
+
+    if (!allowedTypes.includes(file.type) && !validExtension) {
+      alert('Please select a PDF or EPUB file.');
+      return;
+    }
+
+    if (file.size > 70 * 1024 * 1024) {
+      alert('Book file must be less than 70MB.');
+      return;
+    }
+
+    setNewBookForm(prev => ({
+      ...prev,
+      pdfFile: file
+    }));
+
+    return;
+  }
+};
+
+const openKingdomBook = async (book) => {
+  try {
+    if (!book?.bookFilePath) {
+      alert("This book does not have a book file attached.");
+      return;
+    }
+
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser();
+
+    if (authError) throw authError;
+
+    if (!user) {
+      alert("Please log in to read this book.");
+      return;
+    }
+
+    const {
+      data,
+      error
+    } = await supabase.storage
+      .from('book_files')
+      .createSignedUrl(
+        book.bookFilePath,
+        60 * 60
+      );
+
+    if (error) throw error;
+
+    if (!data?.signedUrl) {
+      throw new Error("Could not create a secure book URL.");
+    }
+
+    setSelectedStoreBook({
+      ...book,
+      pdfUrl: data.signedUrl
+    });
+
+    setIsReadingBook(true);
+
+  } catch (error) {
+
+    console.error(
+      "Unable to open Kingdom book:",
+      error
+    );
+
+    alert(
+      `Unable to open book: ${
+        error?.message || 'Unknown error'
+      }`
+    );
+
+  }
+};
+
 
 // ==========================================
   // KINGDOMPLUS MESSENGER STATES (LIVE)
@@ -8151,7 +8325,14 @@ const handleCloseModal = () => {
                 <div className="store-grid">
                   {storeBooksList.map(book => (
                     <div key={book.id} className="store-card" onClick={() => setSelectedStoreBook(book)} style={{ cursor: 'pointer' }}>
-                      <img src={book.img} alt="book" className="store-book-cover" />
+                      <img
+  src={
+    book.img ||
+    'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80'
+  }
+  alt={book.title}
+  className="store-book-cover"
+/>
                       <span className="store-book-title">{book.title}</span>
                       <span className="store-book-author">{book.author}</span>
                       <button className="store-buy-btn" style={{ background: book.price === 0 || book.price === 'Free' ? 'rgba(41, 190, 175, 0.1)' : 'rgba(243, 202, 88, 0.1)', color: book.price === 0 || book.price === 'Free' ? '#29beaf' : '#f3ca58' }}>
@@ -8204,15 +8385,57 @@ const handleCloseModal = () => {
 
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button 
-                    onClick={() => handlePurchaseBook(selectedStoreBook)}
+                    onClick={() => openKingdomBook(selectedStoreBook)}
                     style={{ flex: 1, padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer' }}
                   >
                     {selectedStoreBook.price === 0 || selectedStoreBook.price === 'Free' ? 'Read Online Now' : `Buy for ${selectedStoreBook.price} KPC`}
                   </button>
                   <button 
-                    onClick={() => alert("Downloading PDF to your device...")}
-                    style={{ padding: '0 20px', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '14px', color: '#fff', fontWeight: '900', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    title="Download Offline"
+                    onClick={async () => {
+  try {
+    if (!selectedStoreBook?.bookFilePath) {
+      alert("No book file is available.");
+      return;
+    }
+
+    const {
+      data,
+      error
+    } = await supabase.storage
+      .from('book_files')
+      .createSignedUrl(
+        selectedStoreBook.bookFilePath,
+        60 * 10
+      );
+
+    if (error) throw error;
+
+    if (!data?.signedUrl) {
+      throw new Error("Could not create download link.");
+    }
+
+    const link = document.createElement('a');
+
+    link.href = data.signedUrl;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.download =
+      selectedStoreBook.bookFileName ||
+      selectedStoreBook.title;
+
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+  } catch (error) {
+    console.error("Download failed:", error);
+    alert(
+      `Download failed: ${
+        error?.message || 'Unknown error'
+      }`
+    );
+  }
+}}
                   >
                     <span style={{ fontSize: '20px' }}>⬇</span>
                   </button>
@@ -8233,21 +8456,28 @@ const handleCloseModal = () => {
                   <button onClick={() => setIsReadingBook(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><XIcon /></button>
                 </div>
                 
-                <div style={{ flex: 1, padding: '30px 20px', overflowY: 'auto', background: '#f8f9fa', color: '#334155' }}>
-                  <h2 style={{ fontSize: '24px', fontWeight: '900', marginBottom: '20px', color: '#0f172a' }}>Introduction</h2>
-                  <p style={{ fontSize: '18px', lineHeight: '1.8', marginBottom: '20px', fontFamily: 'serif' }}>
-                    Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-                  </p>
-                  <p style={{ fontSize: '18px', lineHeight: '1.8', marginBottom: '20px', fontFamily: 'serif' }}>
-                    Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
-                  </p>
-                </div>
-                
-                <div style={{ padding: '15px 20px', background: '#1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <button style={{ background: 'transparent', border: 'none', color: '#8e9aab', fontSize: '14px', fontWeight: '700' }}>← Previous</button>
-                  <span style={{ color: '#cbd5e1', fontSize: '12px' }}>Page 1 of 120</span>
-                  <button style={{ background: 'transparent', border: 'none', color: '#29beaf', fontSize: '14px', fontWeight: '700' }}>Next →</button>
-                </div>
+                {selectedStoreBook?.pdfUrl ? (
+  <iframe
+    src={selectedStoreBook.pdfUrl}
+    title={selectedStoreBook.title}
+    style={{
+      width: '100%',
+      height: '100%',
+      border: 'none',
+      background: '#fff'
+    }}
+  />
+) : (
+  <div
+    style={{
+      padding: '40px',
+      textAlign: 'center',
+      color: '#8e9aab'
+    }}
+  >
+    No PDF has been uploaded for this book.
+  </div>
+)}
               </div>
             </div>
           )}
@@ -8267,6 +8497,41 @@ const handleCloseModal = () => {
                     <input type="text" value={newBookForm.title} onChange={(e) => setNewBookForm({...newBookForm, title: e.target.value})} style={{ width: '100%', padding: '12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#fff', outline: 'none' }} placeholder="E.g. The Power of Prayer" />
                   </div>
 
+<div>
+  <label
+    style={{
+      color: '#cbd5e1',
+      fontSize: '11px',
+      fontWeight: '800',
+      marginBottom: '6px',
+      display: 'block'
+    }}
+  >
+    AUTHOR NAME
+  </label>
+
+  <input
+    type="text"
+    value={newBookForm.author}
+    onChange={(e) =>
+      setNewBookForm({
+        ...newBookForm,
+        author: e.target.value
+      })
+    }
+    style={{
+      width: '100%',
+      padding: '12px',
+      background: 'rgba(0,0,0,0.3)',
+      border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: '10px',
+      color: '#fff',
+      outline: 'none'
+    }}
+    placeholder="E.g. Pastor David Oyedepo"
+  />
+</div>
+
                   <div>
                     <label style={{ color: '#cbd5e1', fontSize: '11px', fontWeight: '800', marginBottom: '6px', display: 'block' }}>DESCRIPTION</label>
                     <textarea value={newBookForm.desc} onChange={(e) => setNewBookForm({...newBookForm, desc: e.target.value})} style={{ width: '100%', padding: '12px', background: 'rgba(0,0,0,0.3)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '10px', color: '#fff', outline: 'none', height: '80px', resize: 'none' }} placeholder="What is this book about?" />
@@ -8285,41 +8550,385 @@ const handleCloseModal = () => {
                   )}
 
                   <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-                    <button style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px dashed rgba(255,255,255,0.3)', borderRadius: '10px', color: '#cbd5e1', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>
-                      + Upload Cover Image
-                    </button>
-                    <button style={{ flex: 1, padding: '12px', background: 'rgba(255,255,255,0.05)', border: '1px dashed rgba(255,255,255,0.3)', borderRadius: '10px', color: '#cbd5e1', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>
-                      + Upload PDF/EPUB
-                    </button>
-                  </div>
+
+  {/* COVER IMAGE */}
+  <label
+    style={{
+      flex: 1,
+      padding: '12px',
+      background: 'rgba(255,255,255,0.05)',
+      border: '1px dashed rgba(255,255,255,0.3)',
+      borderRadius: '10px',
+      color: '#cbd5e1',
+      fontSize: '12px',
+      fontWeight: '800',
+      cursor: 'pointer',
+      textAlign: 'center'
+    }}
+  >
+    {newBookForm.coverFile
+      ? `✓ ${newBookForm.coverFile.name}`
+      : '+ Upload Cover Image'}
+
+    <input
+      type="file"
+      accept="image/*"
+      onChange={(e) => handleBookFileSelect(e, 'cover')}
+      style={{ display: 'none' }}
+    />
+  </label>
+
+  {/* PDF / EPUB */}
+  <label
+    style={{
+      flex: 1,
+      padding: '12px',
+      background: 'rgba(255,255,255,0.05)',
+      border: '1px dashed rgba(255,255,255,0.3)',
+      borderRadius: '10px',
+      color: '#cbd5e1',
+      fontSize: '12px',
+      fontWeight: '800',
+      cursor: 'pointer',
+      textAlign: 'center'
+    }}
+  >
+    {newBookForm.pdfFile
+      ? `✓ ${newBookForm.pdfFile.name}`
+      : '+ Upload PDF/EPUB'}
+
+    <input
+      type="file"
+      accept=".pdf,.epub,application/pdf,application/epub+zip"
+      onChange={(e) => handleBookFileSelect(e, 'pdf')}
+      style={{ display: 'none' }}
+    />
+  </label>
+
+</div>
+
+{/* COVER PREVIEW */}
+{newBookForm.coverPreview && (
+  <div style={{ marginTop: '15px', textAlign: 'center' }}>
+    <img
+      src={newBookForm.coverPreview}
+      alt="Book cover preview"
+      style={{
+        width: '110px',
+        height: '150px',
+        objectFit: 'cover',
+        borderRadius: '10px',
+        boxShadow: '0 10px 25px rgba(0,0,0,0.4)'
+      }}
+    />
+  </div>
+)}
+
+{/* FILE STATUS */}
+{newBookForm.pdfFile && (
+  <div
+    style={{
+      marginTop: '10px',
+      padding: '10px',
+      background: 'rgba(41,190,175,0.08)',
+      borderRadius: '8px',
+      color: '#29beaf',
+      fontSize: '11px',
+      fontWeight: '700'
+    }}
+  >
+    PDF/EPUB selected: {newBookForm.pdfFile.name}
+  </div>
+)}
                 </div>
 
                 <button 
-  onClick={() => {
-    if (!newBookForm.title) {
-      alert("Please provide a book title.");
-      return;
+  onClick={async () => {
+  if (!newBookForm.title.trim()) {
+    alert("Please provide a book title.");
+    return;
+  }
+
+  if (!newBookForm.coverFile) {
+    alert("Please upload a cover image.");
+    return;
+  }
+
+  if (!newBookForm.pdfFile) {
+    alert("Please upload the PDF or EPUB file.");
+    return;
+  }
+
+  if (
+    !newBookForm.isFree &&
+    (!newBookForm.price || Number(newBookForm.price) <= 0)
+  ) {
+    alert("Please enter a valid KPC price.");
+    return;
+  }
+
+  try {
+    setIsUploadingBook(true);
+
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser();
+
+    if (authError) throw authError;
+
+    if (!user) {
+      throw new Error("You must be logged in.");
     }
-    
-    const newBook = {
-      id: `book_${Date.now()}`,
-      title: newBookForm.title,
-      author: userProfile?.full_name || userProfile?.church_name || 'Ministry Admin',
-      price: newBookForm.isFree ? 0 : Number(newBookForm.price),
-      desc: newBookForm.desc,
-      img: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?auto=format&fit=crop&w=200&q=80' // Placeholder cover
+
+    const timestamp = Date.now();
+
+    const coverExtension =
+      newBookForm.coverFile.name
+        .split('.')
+        .pop()
+        ?.toLowerCase() || 'jpg';
+
+    const coverPath =
+      `${user.id}/${timestamp}-cover.${coverExtension}`;
+
+    const {
+      error: coverError
+    } = await supabase.storage
+      .from('book_covers')
+      .upload(
+        coverPath,
+        newBookForm.coverFile,
+        {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: newBookForm.coverFile.type
+        }
+      );
+
+    if (coverError) {
+      throw new Error(
+        `Cover upload failed: ${coverError.message}`
+      );
+    }
+
+    const {
+      data: coverPublicData
+    } = supabase.storage
+      .from('book_covers')
+      .getPublicUrl(coverPath);
+
+    const coverUrl =
+      coverPublicData?.publicUrl || null;
+
+    const bookExtension =
+      newBookForm.pdfFile.name
+        .split('.')
+        .pop()
+        ?.toLowerCase() || 'pdf';
+
+    const bookPath =
+      `${user.id}/${timestamp}-book.${bookExtension}`;
+
+    const {
+      error: bookFileError
+    } = await supabase.storage
+      .from('book_files')
+      .upload(
+        bookPath,
+        newBookForm.pdfFile,
+        {
+          cacheControl: '3600',
+          upsert: false,
+          contentType:
+            newBookForm.pdfFile.type ||
+            (
+              bookExtension === 'epub'
+                ? 'application/epub+zip'
+                : 'application/pdf'
+            )
+        }
+      );
+
+    if (bookFileError) {
+      await supabase.storage
+        .from('book_covers')
+        .remove([coverPath]);
+
+      throw new Error(
+        `Book file upload failed: ${bookFileError.message}`
+      );
+    }
+
+   const authorName = newBookForm.author.trim();
+
+if (!authorName) {
+  await supabase.storage
+    .from('book_covers')
+    .remove([coverPath]);
+
+  await supabase.storage
+    .from('book_files')
+    .remove([bookPath]);
+
+  alert("Please enter the author's name.");
+  return;
+}
+
+    const {
+      data: insertedBook,
+      error: insertError
+    } = await supabase
+      .from('kingdom_books')
+      .insert([{
+        title: newBookForm.title.trim(),
+
+        description:
+          newBookForm.desc.trim() || null,
+
+        author_id: user.id,
+
+        author_name: authorName,
+
+        price_kpc:
+          newBookForm.isFree
+            ? 0
+            : Number(newBookForm.price),
+
+        is_free:
+          newBookForm.isFree,
+
+        cover_url:
+          coverUrl,
+
+        cover_path:
+          coverPath,
+
+        book_file_path:
+          bookPath,
+
+        book_file_name:
+          newBookForm.pdfFile.name,
+
+        book_file_type:
+          bookExtension,
+
+        is_published:
+          true
+      }])
+      .select()
+      .single();
+
+    if (insertError) {
+      await supabase.storage
+        .from('book_covers')
+        .remove([coverPath]);
+
+      await supabase.storage
+        .from('book_files')
+        .remove([bookPath]);
+
+      throw new Error(
+        `Could not save the book: ${insertError.message}`
+      );
+    }
+
+    const bookForLibrary = {
+      id: insertedBook.id,
+
+      title: insertedBook.title,
+
+      author:
+        insertedBook.author_name,
+
+      price:
+        insertedBook.is_free
+          ? 0
+          : Number(insertedBook.price_kpc),
+
+      desc:
+        insertedBook.description || '',
+
+      img:
+        insertedBook.cover_url,
+
+      pdfUrl:
+        null,
+
+      bookFileName:
+        insertedBook.book_file_name,
+
+      bookFileType:
+        insertedBook.book_file_type,
+
+      authorId:
+        insertedBook.author_id,
+
+      bookFilePath:
+        insertedBook.book_file_path,
+
+      createdAt:
+        insertedBook.created_at
     };
 
-    setStoreBooksList(prev => [newBook, ...prev]);
-    alert("Book successfully published to the Kingdom Library!");
+    setStoreBooksList(prev => [
+      bookForLibrary,
+      ...prev
+    ]);
+
+    setNewBookForm({
+  title: '',
+  author: '',
+  desc: '',
+  price: '',
+  isFree: false,
+  coverFile: null,
+  pdfFile: null,
+  coverPreview: '',
+  coverUrl: '',
+  pdfUrl: ''
+});
+
     setIsAddBookModalOpen(false);
-    setNewBookForm({ title: '', desc: '', price: '', isFree: false });
+
+    alert(
+      "Book successfully published to the Kingdom Library!"
+    );
+
+  } catch (error) {
+
+    console.error(
+      "Kingdom bookstore publish error:",
+      error
+    );
+
+    alert(
+      error?.message ||
+      "Something went wrong while publishing this book."
+    );
+
+  } finally {
+
+    setIsUploadingBook(false);
+
+  }
+}}
+disabled={isUploadingBook}
+  style={{
+    width: '100%',
+    padding: '16px',
+    background: 'linear-gradient(135deg, #f3ca58, #29beaf)',
+    border: 'none',
+    borderRadius: '14px',
+    color: '#101926',
+    fontWeight: '900',
+    cursor: isUploadingBook ? 'wait' : 'pointer',
+    marginTop: '25px',
+    opacity: isUploadingBook ? 0.7 : 1
   }}
-  style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '25px' }}
 >
-  Publish Book
-</button>
-              </div>
+  {isUploadingBook ? 'Uploading Book...' : 'Publish Book'}
+</button>              </div>
             </div>
           )}
 
