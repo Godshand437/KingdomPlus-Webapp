@@ -357,6 +357,29 @@ export default function App() {
     const saved = localStorage.getItem('kp_current_user');
     return saved ? JSON.parse(saved) : null;
   });
+const [isBottomNavDimmed, setIsBottomNavDimmed] = useState(false);
+
+const handleBottomNavScroll = (event) => {
+  const container = event.currentTarget;
+  const currentScrollTop = container.scrollTop || 0;
+  const previousScrollTop = Number(
+    container.dataset.lastScrollTop || 0
+  );
+
+  if (currentScrollTop <= 5) {
+    setIsBottomNavDimmed(false);
+  } 
+  else if (currentScrollTop > previousScrollTop + 2) {
+    setIsBottomNavDimmed(true);
+  } 
+  else if (currentScrollTop < previousScrollTop - 2) {
+    setIsBottomNavDimmed(false);
+  }
+
+  container.dataset.lastScrollTop =
+    String(currentScrollTop);
+};
+
 
 useEffect(() => {
   if (!currentUser) return;
@@ -2768,7 +2791,55 @@ useEffect(() => {
   );
 
   const AppBottomNav = () => (
-    <div className="bottom-nav">
+  <div
+    className="bottom-nav"
+    style={{
+  position: 'fixed',
+
+  left: '6px',
+  right: '6px',
+  bottom: '8px',
+
+  width: 'auto',
+
+  zIndex: 2000,
+
+  opacity: isBottomNavDimmed ? 0.18 : 1,
+
+  transform: isBottomNavDimmed
+    ? 'translateY(4px)'
+    : 'translateY(0)',
+
+  background: isBottomNavDimmed
+    ? 'rgba(9, 16, 26, 0.12)'
+    : 'rgba(9, 16, 26, 0.96)',
+
+  backdropFilter: isBottomNavDimmed
+    ? 'blur(2px)'
+    : 'blur(18px)',
+
+  WebkitBackdropFilter: isBottomNavDimmed
+    ? 'blur(2px)'
+    : 'blur(18px)',
+
+  border:
+    isBottomNavDimmed
+      ? '1px solid rgba(255,255,255,0.03)'
+      : '1px solid rgba(255,255,255,0.10)',
+
+  borderRadius: '28px',
+
+  paddingBottom:
+    'env(safe-area-inset-bottom)',
+
+  boxShadow: isBottomNavDimmed
+    ? '0 4px 12px rgba(0,0,0,0.08)'
+    : '0 12px 35px rgba(0,0,0,0.35)',
+
+  transition:
+    'opacity 0.3s ease, transform 0.3s ease, background 0.3s ease, box-shadow 0.3s ease, backdrop-filter 0.3s ease'
+}}
+  >
       <div className={`nav-item ${activeTab === 'sanctuary' ? 'active' : ''}`} onClick={() => { setActiveTab('sanctuary'); setStep(6); }}>
         <div className="nav-icon-wrapper"><HomeIcon /></div>
         <span className="nav-label">Sanctuary</span>
@@ -5203,6 +5274,7 @@ useEffect(() => {
   // ==========================================
   const [selectedStoreBook, setSelectedStoreBook] = useState(null);
   const [isReadingBook, setIsReadingBook] = useState(false);
+  const [isOpeningBook, setIsOpeningBook] = useState(false);
   const [isAddBookModalOpen, setIsAddBookModalOpen] = useState(false);
   
   const [newBookForm, setNewBookForm] = useState({
@@ -5279,6 +5351,7 @@ const handleBookFileSelect = async (event, fileType) => {
 
 const openKingdomBook = async (book) => {
   try {
+setIsOpeningBook(true);
     if (!book?.bookFilePath) {
       alert("This book does not have a book file attached.");
       return;
@@ -5331,6 +5404,10 @@ const openKingdomBook = async (book) => {
         error?.message || 'Unknown error'
       }`
     );
+
+  } finally {
+
+    setIsOpeningBook(false);
 
   }
 };
@@ -6612,9 +6689,6 @@ const handleCloseModal = () => {
   setSelectedAnnouncement(null);
 };
 
-
-
-
  
 
   
@@ -6971,7 +7045,9 @@ const handleCloseModal = () => {
           ========================================= */}
       {step === 6 && (
         <div className="hub-wrapper">
-          <div className="hub-feed">
+          <div className="hub-feed"
+    onScroll={handleBottomNavScroll}
+>
 
             {/* Header */}
             <div className="hub-header">
@@ -7971,7 +8047,9 @@ const handleCloseModal = () => {
             ))}
           </div>
 
-          <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ flexGrow: 1, paddingBottom: '120px' }}>
             
             {/* --- CREATE POST BOX --- */}
             <div className="create-post-card">
@@ -8099,7 +8177,9 @@ const handleCloseModal = () => {
             <p style={{ color: '#8e9aab', fontSize: '13px', lineHeight: '1.4' }}>Join a room. Lift a request. Tap "I Prayed" — every prayer earns +1 KPC.</p>
           </div>
 
-          <div className="feed-scroll-area" style={{ padding: '10px 0 120px 0' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ padding: '10px 0 140px 0' }}>
             <div className="prayer-discover-grid">
               {prayerRooms.map(room => (
                 <div key={room.id} className="prayer-tile" style={{ backgroundColor: room.bg }} onClick={() => { setActiveRoom(room); setStep(9); }}>
@@ -8132,7 +8212,9 @@ const handleCloseModal = () => {
             <p style={{ color: '#8e9aab', fontSize: '13px' }}>{activeRoom.sub}</p>
           </div>
 
-          <div className="feed-scroll-area" style={{ padding: '0 0 120px 0' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ padding: '0 0 140px 0' }}>
             <div className="room-input-card">
               <input type="text" className="room-input" placeholder="One-line prayer point..." value={roomTitleInput} onChange={(e) => setRoomTitleInput(e.target.value)} />
               <textarea className="room-textarea" placeholder="More detail (optional)..." value={roomDetailInput} onChange={(e) => setRoomDetailInput(e.target.value)} />
@@ -8202,7 +8284,9 @@ const handleCloseModal = () => {
             ))}
           </div>
 
-          <div className="feed-scroll-area" style={{ flexGrow: 1, padding: '0 20px 120px 20px', overflowY: 'auto' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ flexGrow: 1, padding: '0 20px 140px 20px', overflowY: 'auto' }}>
 
             {/* 1. DEVOTIONS */}
             {kingdomTab === 'Devotions' && (
@@ -8324,7 +8408,17 @@ const handleCloseModal = () => {
 
                 <div className="store-grid">
                   {storeBooksList.map(book => (
-                    <div key={book.id} className="store-card" onClick={() => setSelectedStoreBook(book)} style={{ cursor: 'pointer' }}>
+                    <div
+  key={book.id}
+  className="store-card"
+  onClick={() => setSelectedStoreBook(book)}
+  style={{
+    cursor: 'pointer',
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%'
+  }}
+>
                       <img
   src={
     book.img ||
@@ -8335,7 +8429,23 @@ const handleCloseModal = () => {
 />
                       <span className="store-book-title">{book.title}</span>
                       <span className="store-book-author">{book.author}</span>
-                      <button className="store-buy-btn" style={{ background: book.price === 0 || book.price === 'Free' ? 'rgba(41, 190, 175, 0.1)' : 'rgba(243, 202, 88, 0.1)', color: book.price === 0 || book.price === 'Free' ? '#29beaf' : '#f3ca58' }}>
+                      <button
+  className="store-buy-btn"
+  style={{
+    background:
+      book.price === 0 || book.price === 'Free'
+        ? 'rgba(41, 190, 175, 0.1)'
+        : 'rgba(243, 202, 88, 0.1)',
+
+    color:
+      book.price === 0 || book.price === 'Free'
+        ? '#29beaf'
+        : '#f3ca58',
+
+    marginTop: 'auto',
+    width: '100%'
+  }}
+>
                         {book.price === 0 || book.price === 'Free' ? 'Free' : `${book.price} KPC`}
                       </button>
                     </div>
@@ -8386,9 +8496,17 @@ const handleCloseModal = () => {
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button 
                     onClick={() => openKingdomBook(selectedStoreBook)}
+                                                     disabled={isOpeningBook}
                     style={{ flex: 1, padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer' }}
                   >
-                    {selectedStoreBook.price === 0 || selectedStoreBook.price === 'Free' ? 'Read Online Now' : `Buy for ${selectedStoreBook.price} KPC`}
+                    {isOpeningBook
+  ? 'Opening Book...'
+  : (
+      selectedStoreBook.price === 0 ||
+      selectedStoreBook.price === 'Free'
+        ? 'Read Online Now'
+        : `Buy for ${selectedStoreBook.price} KPC`
+    )}
                   </button>
                   <button 
                     onClick={async () => {
@@ -8451,22 +8569,71 @@ const handleCloseModal = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px', background: '#1e293b', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     <span style={{ color: '#fff', fontWeight: '800', fontSize: '16px' }}>{selectedStoreBook.title}</span>
-                    <span style={{ color: '#8e9aab', fontSize: '12px' }}>Chapter 1</span>
+                    <span style={{ color: '#8e9aab', fontSize: '12px' }}>Reading Online</span>
                   </div>
                   <button onClick={() => setIsReadingBook(false)} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '50%', width: '36px', height: '36px', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><XIcon /></button>
                 </div>
                 
                 {selectedStoreBook?.pdfUrl ? (
-  <iframe
-    src={selectedStoreBook.pdfUrl}
-    title={selectedStoreBook.title}
+  <div
     style={{
+      position: 'relative',
       width: '100%',
       height: '100%',
-      border: 'none',
-      background: '#fff'
+      flex: 1
     }}
-  />
+  >
+
+    {isOpeningBook && (
+      <div
+        style={{
+          position: 'absolute',
+          inset: 0,
+          zIndex: 2,
+          background: '#101926',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '14px'
+        }}
+      >
+        <div
+          style={{
+            width: '34px',
+            height: '34px',
+            borderRadius: '50%',
+            border: '3px solid rgba(255,255,255,0.15)',
+            borderTopColor: '#f3ca58',
+            animation: 'kingdomBookSpin 0.8s linear infinite'
+          }}
+        />
+
+        <span
+          style={{
+            color: '#cbd5e1',
+            fontSize: '13px',
+            fontWeight: '700'
+          }}
+        >
+          Opening book...
+        </span>
+      </div>
+    )}
+
+    <iframe
+      src={selectedStoreBook.pdfUrl}
+      title={selectedStoreBook.title}
+      onLoad={() => setIsOpeningBook(false)}
+      style={{
+        width: '100%',
+        height: '100%',
+        border: 'none',
+        background: '#fff'
+      }}
+    />
+
+  </div>
 ) : (
   <div
     style={{
@@ -8953,7 +9120,9 @@ disabled={isUploadingBook}
             <div style={{ width: '36px' }}></div>
           </div>
 
-          <div className="feed-scroll-area" style={{ paddingBottom: '120px' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ paddingBottom: '140px' }}>
             <h1 className="treasury-title" style={{ textAlign: 'center' }}>My Treasury</h1>
 
             {/* CENTERED Main Balance Card */}
@@ -9235,7 +9404,9 @@ disabled={isUploadingBook}
             ))}
           </div>
 
-          <div className="feed-scroll-area" style={{ padding: '0 20px 120px 20px' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ padding: '0 20px 140px 20px' }}>
             {freelancers
               .filter(f => hireTab === 'All' || f.cat === hireTab)
               .map((freelancer) => (
@@ -9297,7 +9468,9 @@ disabled={isUploadingBook}
             Unlock deeper experiences, publishing rights, and richer rewards across the Kingdom.
           </p>
 
-          <div className="feed-scroll-area" style={{ padding: '0 20px' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ padding: '0 40px' }}>
 
             {/* STANDARD */}
 {userProfile?.account_type !== 'Ministry' && (
@@ -9488,7 +9661,9 @@ disabled={isUploadingBook}
             </h2>
             <div style={{ width: '36px' }}></div>
           </div>
-          <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ flexGrow: 1, paddingBottom: '140px' }}>
 
             <div className="dream-hero-card">
               <div className="dream-hero-tag"><SparklesIcon /> Night Chronicles</div>
@@ -9827,7 +10002,9 @@ disabled={isUploadingBook}
             </button>
           </div>
 
-          <div className="feed-scroll-area" style={{ paddingBottom: '120px' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ paddingBottom: '140px' }}>
 
             {sendSwapTab === 'Send' && (
               <>
@@ -10225,7 +10402,9 @@ disabled={isUploadingBook}
             />
           </div>
 
-          <div className="feed-scroll-area" style={{ paddingBottom: '120px', flex: 1 }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ paddingBottom: '140px', flex: 1 }}>
 
             {/* ======================= KINGDOM SOUNDS (MUSIC) ======================= */}
             {mediaTab === 'Music' && (
@@ -10387,7 +10566,9 @@ disabled={isUploadingBook}
               <BackArrowIcon />
             </button>
           </div>
-          <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px', overflowY: 'auto', paddingTop: '0' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ flexGrow: 1, paddingBottom: '140px', overflowY: 'auto', paddingTop: '0' }}>
             <div 
               className="profile-cover-photo" 
               onClick={() => wallpaperInputRef.current.click()}
@@ -12861,7 +13042,9 @@ const displayName =
             ))}
           </div>
 
-          <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ flexGrow: 1, paddingBottom: '140px' }}>
 
                {adminTab === 'Dreams' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
@@ -13031,7 +13214,9 @@ const displayName =
             </button>
           </div>
 
-          <div className="feed-scroll-area" style={{ flexGrow: 1, paddingBottom: '120px', overflowY: 'auto', paddingTop: '0' }}>
+          <div className="feed-scroll-area" 
+  onScroll={handleBottomNavScroll}
+ style={{ flexGrow: 1, paddingBottom: '140px', overflowY: 'auto', paddingTop: '0' }}>
             
             {/* Wallpaper */}
             <div 
