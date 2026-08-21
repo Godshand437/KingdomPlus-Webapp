@@ -958,7 +958,7 @@ const handleDemoSwap = async () => {
     return;
   }
 
-  const KPC_TO_USDC = 0.25;
+  const KPC_TO_USDC = 0.1;
 
   let receivedAmount = 0;
 
@@ -1190,7 +1190,6 @@ const getAnnouncementTemplate = (badge = 'ANNOUNCEMENT') => {
     return;
   }
 
-  // Get the visual template based on announcement type
   const template = getAnnouncementTemplate(announceBadgeInput);
 
   const newSlide = {
@@ -1206,26 +1205,19 @@ const getAnnouncementTemplate = (badge = 'ANNOUNCEMENT') => {
     handle:
       `@${formData.username || 'church'}`,
 
-    // Automatically attach the correct visual
     image_url: template.image,
     image_position: template.position,
     accent: template.accent
   };
 
-  // Put newest announcement first
   setAnnouncements(prev => [
     newSlide,
     ...prev
   ]);
 
-  // Show the new announcement immediately
   setCurrentSlide(0);
-
-  // Clear form
   setAnnounceTitleInput('');
   setAnnounceDescInput('');
-
-  // Close broadcast modal
   setActiveModal(null);
 
   alert(
@@ -3546,21 +3538,7 @@ useEffect(() => {
     }
   };
 
-  // 3. UPGRADE TIER HANDLER
-  const handleTierUpgradeSubmit = () => {
-    const cost = selectedTier === 'Disciple' ? 100 : selectedTier === 'Apostle' ? 500 : 0;
-    if (kpcBalance < cost) { alert(`You need ${cost} KPC to unlock the ${selectedTier} tier.`); return; }
-    if (userTier === selectedTier) { alert("You are already on this tier!"); return; }
-
-    if (window.confirm(`Upgrade your Kingdom Vault to "${selectedTier}" for ${cost} KPC?`)) {
-      setKpcBalance(prev => prev - cost);
-      setUserTier(selectedTier);
-      logTransaction(`Upgraded Vault to ${selectedTier} Tier`, -cost, 'SPEND');
-      alert(`Congratulations! You are now ranked as an ${selectedTier.toUpperCase()} with enhanced staking & earning multipliers!`);
-      setActiveModal(null);
-    }
-  };
-
+  
 // --- CHURCH DASHBOARD STATE & HANDLERS ---
   const [ministerSearchInput, setMinisterSearchInput] = useState('');
   const [verifiedMinistersList, setVerifiedMinistersList] = useState([]);
@@ -8611,7 +8589,10 @@ const handleCloseModal = () => {
                         <div className="post-meta">
                           <strong style={{ color: '#fff', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                             {post.user_profiles?.username || 'Kingdom User'} 
-                            {(post.user_profiles?.account_type === 'Disciple' || post.user_profiles?.account_type === 'Apostle') && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
+                            (
+  post.user_profiles?.membership_tier === 'Disciple' ||
+  post.user_profiles?.membership_tier === 'Apostle'
+) && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
                           </strong>
                           <span style={{ color: '#8e9aab', fontSize: '12px' }}>{new Date(post.created_at).toLocaleDateString()}</span>
                         </div>
@@ -8788,7 +8769,7 @@ const handleCloseModal = () => {
               <>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <h3 className="kingdom-section-title" style={{ margin: 0 }}>Daily Bread</h3>
-                  {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') && (
+                  {hasDiscipleAccess(userProfile) && (
                     <span onClick={() => setIsAddDevotionModalOpen(true)} style={{ color: '#f3ca58', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>+ Publish</span>
                   )}
                 </div>
@@ -9681,12 +9662,12 @@ disabled={isUploadingBook}
                 <span className="treasury-action-label">Give /<br />Send</span>
               </div>
               
-              {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') ? (
+              {userProfile?.account_type === 'Ministry' ? (
                 <div className="treasury-action-item" onClick={() => setActiveModal('qr')}>
                   <div className="treasury-action-circle" style={{ color: '#29beaf', background: 'rgba(41, 190, 175, 0.1)' }}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><rect x="7" y="7" width="3" height="3"></rect><rect x="14" y="7" width="3" height="3"></rect><rect x="7" y="14" width="3" height="3"></rect><rect x="14" y="14" width="3" height="3"></rect></svg>
                   </div>
-                  <span className="treasury-action-label">Church<br />QR</span>
+                  <span className="treasury-action-label">Ministry<br />QR</span>
                 </div>
               ) : (
                 <div className="treasury-action-item" onClick={() => setActiveModal('scan')}>
@@ -10739,7 +10720,7 @@ disabled={isUploadingBook}
               'USDC'
           ) {
             return `${(
-              amount * 0.25
+              amount * 0.1
             ).toFixed(2)} USDC`;
           }
 
@@ -10766,7 +10747,7 @@ disabled={isUploadingBook}
         }}
       >
         Prototype rate:
-        {' '}1 KPC = $0.25
+        {' '}1 KPC = $0.1
       </div>
 
       <div
@@ -11112,15 +11093,15 @@ disabled={isUploadingBook}
       </div>
     )}
     
-    {(userProfile.account_type === 'Premium' || userProfile.account_type === 'Apostle') && (
+    {hasDiscipleAccess(userProfile) && (
       <div 
         className="profile-verified-badge" 
-        title={`${userProfile.account_type} Account`}
+        title={`${userProfile.membership_tier || 'Standard'} Account`}
         style={{
           position: 'absolute',
           bottom: '4px',
           right: '4px',
-          background: userProfile.account_type === 'Apostle' ? '#f3ca58' : '#3b82f6',
+          background: hasApostleAccess(userProfile) ? '#f3ca58' : '#3b82f6',
           color: '#101926',
           borderRadius: '50%',
           padding: '4px',
@@ -11140,8 +11121,8 @@ disabled={isUploadingBook}
                   <h2 className="profile-name-main">{userProfile.full_name || 'Kingdom Citizen'}</h2>
                   
                   <div className="profile-status-badge">
-                    {userProfile.account_type || 'Standard'} Account
-                  </div>
+  {userProfile.membership_tier || 'Standard'}
+</div>
 
                   <p className="profile-bio-text">{userProfile.bio || 'Add a bio to tell the community about yourself.'}</p>
 
@@ -11742,7 +11723,7 @@ disabled={isUploadingBook}
             <h2 style={{ color: '#f3ca58', fontSize: '24px', fontWeight: '900', margin: 0, fontFamily: 'serif' }}>Messenger</h2>
             <div style={{ color: '#29beaf', fontSize: '10px', fontWeight: '800', letterSpacing: '2px', marginTop: '2px' }}>WEB3 • LIVE</div>
           </div>
-          {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') ? (
+          {hasDiscipleAccess(userProfile) ? (
             <button onClick={toggleDMLock} title={userProfile?.dms_locked ? 'Unlock DMs' : 'Lock DMs'} style={{ width: '40px', height: '40px', borderRadius: '50%', background: userProfile?.dms_locked ? 'rgba(231, 76, 60, 0.1)' : 'rgba(41, 190, 175, 0.1)', border: userProfile?.dms_locked ? '1px solid #e74c3c' : '1px solid #29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '18px' }}>
               {userProfile?.dms_locked ? '🔒' : '🔓'}
             </button>
@@ -11971,7 +11952,7 @@ const displayName =
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <div style={{ color: '#29beaf', fontSize: '11px', fontWeight: '800', letterSpacing: '1px' }}>DISCOVER COMMUNITIES</div>
-              {(userProfile?.account_type === 'Premium' || userProfile?.account_type === 'Apostle') && (
+              {hasDiscipleAccess(userProfile) && (
                 <button onClick={() => setIsCreateGroupModalOpen(true)} style={{ background: 'transparent', border: '1px solid #29beaf', color: '#29beaf', padding: '4px 10px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}>+ Create Group</button>
               )}
             </div>
@@ -13734,13 +13715,15 @@ const displayName =
                     </div>
                   )}
                   
-                  {(viewedProfile.account_type === 'Premium' || viewedProfile.account_type === 'Apostle') && (
+                  {hasDiscipleAccess(viewedProfile) && (
                     <div className="profile-verified-badge" title="Premium Account"><CheckIcon /></div>
                   )}
                 </div>
                 
                 <h2 className="profile-name-main">{viewedProfile.full_name || 'Kingdom Citizen'}</h2>
-                <div className="profile-status-badge">{viewedProfile.account_type || 'Standard'} Account</div>
+                <div className="profile-status-badge">
+  {viewedProfile.membership_tier || 'Standard'}
+</div>
                 <p className="profile-bio-text">{viewedProfile.bio || 'This user has not added a bio yet.'}</p>
 
                 <div className="profile-location-church">
@@ -13933,7 +13916,7 @@ const displayName =
                                 <div className="post-meta">
                                   <strong style={{ color: '#fff', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '4px' }}>
                                     {viewedProfile.full_name} 
-                                    {(viewedProfile.account_type === 'Premium' || viewedProfile.account_type === 'Apostle') && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
+                                    hasDiscipleAccess(viewedProfile) && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
                                   </strong>
                                   <span style={{ color: '#8e9aab', fontSize: '11px' }}>{new Date(post.created_at).toLocaleDateString()}</span>
                                 </div>
