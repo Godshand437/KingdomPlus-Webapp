@@ -630,20 +630,200 @@ const [activeNewsArticle, setActiveNewsArticle] = useState(null);
 const [showNewsComments, setShowNewsComments] = useState(false);
 const [newCommentText, setNewCommentText] = useState("");
 const handleLikeStatus = async () => {
-  if (!activeViewStatus) return;
-  
-  const updatedStatus = { ...activeViewStatus, likes: (activeViewStatus.likes || 0) + 1 };
-  setActiveViewStatus(updatedStatus);
 
-  setTestimonies(prev => prev.map(t => t.id === activeViewStatus.id ? { ...t, likes: updatedStatus.likes } : t));
+  if (!activeViewStatus) {
+    return;
+  }
 
-  const { error } = await supabase
-    .from('testimonies')
-    .update({ likes: updatedStatus.likes })
-    .eq('id', activeViewStatus.id);
+  const {
+    data: {
+      user
+    }
+  } = await supabase.auth.getUser();
 
-  if (error) console.error("Error liking status:", error);
-localStorage.setItem('kp_posts', JSON.stringify(updatedStatus));
+  if (!user) {
+    alert(
+      'Please sign in to like a status.'
+    );
+    return;
+  }
+
+
+  const statusId =
+    activeViewStatus.id;
+
+
+  if (
+    statusId ===
+    'welcome-001'
+  ) {
+
+    setViewerLiked(
+      prev => !prev
+    );
+
+    return;
+  }
+
+
+  try {
+
+    const {
+      data: existingLike,
+      error: checkError
+    } = await supabase
+      .from('testimony_likes')
+      .select('id')
+      .eq(
+        'testimony_id',
+        statusId
+      )
+      .eq(
+        'user_id',
+        user.id
+      )
+      .maybeSingle();
+
+    if (checkError) {
+      throw checkError;
+    }
+
+    if (existingLike) {
+
+      await supabase
+        .from('testimony_likes')
+        .delete()
+        .eq(
+          'id',
+          existingLike.id
+        );
+
+      const newLikes =
+        Math.max(
+          0,
+          Number(
+            activeViewStatus.likes ||
+            0
+          ) - 1
+        );
+
+      await supabase
+        .from('testimonies')
+        .update({
+          likes:
+            newLikes
+        })
+        .eq(
+          'id',
+          statusId
+        );
+
+      setViewerLiked(false);
+
+      setActiveViewStatus(
+        prev => ({
+          ...prev,
+          likes: newLikes
+        })
+      );
+
+      setTestimonies(
+        prev =>
+          prev.map(
+            status =>
+              status.id === statusId
+                ? {
+                    ...status,
+                    likes: newLikes
+                  }
+                : status
+          )
+      );
+
+      return;
+    }
+
+    const {
+      error: likeError
+    } = await supabase
+      .from(
+        'testimony_likes'
+      )
+      .insert([{
+
+        testimony_id:
+          statusId,
+
+        user_id:
+          user.id
+
+      }]);
+
+    if (likeError) {
+
+      if (
+        likeError.code ===
+        '23505'
+      ) {
+        setViewerLiked(true);
+        return;
+      }
+
+      throw likeError;
+    }
+
+
+    const newLikes =
+      Number(
+        activeViewStatus.likes ||
+        0
+      ) + 1;
+
+
+    await supabase
+      .from('testimonies')
+      .update({
+        likes:
+          newLikes
+      })
+      .eq(
+        'id',
+        statusId
+      );
+
+
+    setViewerLiked(true);
+
+    setActiveViewStatus(
+      prev => ({
+        ...prev,
+        likes:
+          newLikes
+      })
+    );
+
+    setTestimonies(
+      prev =>
+        prev.map(
+          status =>
+            status.id === statusId
+              ? {
+                  ...status,
+                  likes: newLikes
+                }
+              : status
+        )
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      'Status like failed:',
+      error
+    );
+
+  }
 };
 
 const handleLikeComment = async (commentId) => {
