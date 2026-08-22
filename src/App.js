@@ -867,6 +867,93 @@ const handleShareNews = () => {
   alert("Article link copied to clipboard!");
 };
 
+const fetchStatusComments = async (
+  testimonyId
+) => {
+
+  if (!testimonyId) {
+    return;
+  }
+
+  try {
+
+    const {
+      data,
+      error
+    } = await supabase
+      .from(
+        'testimony_comments'
+      )
+      .select('*')
+      .eq(
+        'testimony_id',
+        testimonyId
+      )
+      .order(
+        'created_at',
+        {
+          ascending: false
+        }
+      );
+
+    if (error) {
+      throw error;
+    }
+
+
+    const formatted =
+      (data || []).map(
+        comment => ({
+          ...comment,
+
+          id:
+            comment.id,
+
+          author:
+            comment.author_name ||
+            '@believer',
+
+          text:
+            comment.content,
+
+          time:
+            new Date(
+              comment.created_at
+            ).toLocaleString(),
+
+          likes:
+            Number(
+              comment.likes ||
+              0
+            ),
+
+          isLiked:
+            false,
+
+          avatar:
+            comment.avatar
+        })
+      );
+
+
+    setStatusComments(
+      prev => ({
+        ...prev,
+        [testimonyId]:
+          formatted
+      })
+    );
+
+  } catch (error) {
+
+    console.error(
+      'Failed to load status comments:',
+      error
+    );
+
+  }
+};
+
 // --- SYNC WELCOME STATUS TO REGISTERED ACCOUNT ---
   useEffect(() => {
     if (currentUser) {
@@ -905,18 +992,182 @@ const handleShareNews = () => {
     }, {})
   );
 
-const toggleCommentLike = (commentId) => {
-    setStatusComments(prev => {
-      const currentComments = prev[activeViewStatus.id] || [];
-      const updatedComments = currentComments.map(c => {
-        if (c.id === commentId) {
-          return { ...c, isLiked: !c.isLiked, likes: c.isLiked ? c.likes - 1 : c.likes + 1 };
-        }
-        return c;
-      });
-      return { ...prev, [activeViewStatus.id]: updatedComments };
-    });
-  };
+const toggleCommentLike = async (
+  commentId
+) => {
+
+  const {
+    data: {
+      user
+    }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    return;
+  }
+
+
+  const currentComments =
+    statusComments[
+      activeViewStatus.id
+    ] || [];
+
+  const currentComment =
+    currentComments.find(
+      c =>
+        c.id === commentId
+    );
+
+  if (!currentComment) {
+    return;
+  }
+
+
+  try {
+
+    const {
+      data: existingLike
+    } = await supabase
+      .from(
+        'testimony_comment_likes'
+      )
+      .select('id')
+      .eq(
+        'comment_id',
+        commentId
+      )
+      .eq(
+        'user_id',
+        user.id
+      )
+      .maybeSingle();
+
+
+    if (existingLike) {
+
+      await supabase
+        .from(
+          'testimony_comment_likes'
+        )
+        .delete()
+        .eq(
+          'id',
+          existingLike.id
+        );
+
+      const newLikes =
+        Math.max(
+          0,
+          Number(
+            currentComment.likes ||
+            0
+          ) - 1
+        );
+
+      await supabase
+        .from(
+          'testimony_comments'
+        )
+        .update({
+          likes:
+            newLikes
+        })
+        .eq(
+          'id',
+          commentId
+        );
+
+      setStatusComments(
+        prev => ({
+          ...prev,
+
+          [activeViewStatus.id]:
+            currentComments.map(
+              comment =>
+                comment.id ===
+                commentId
+                  ? {
+                      ...comment,
+                      likes:
+                        newLikes,
+                      isLiked:
+                        false
+                    }
+                  : comment
+            )
+        })
+      );
+
+      return;
+    }
+
+
+    await supabase
+      .from(
+        'testimony_comment_likes'
+      )
+      .insert([{
+
+        comment_id:
+          commentId,
+
+        user_id:
+          user.id
+
+      }]);
+
+
+    const newLikes =
+      Number(
+        currentComment.likes ||
+        0
+      ) + 1;
+
+
+    await supabase
+      .from(
+        'testimony_comments'
+      )
+      .update({
+        likes:
+          newLikes
+      })
+      .eq(
+        'id',
+        commentId
+      );
+
+
+    setStatusComments(
+      prev => ({
+        ...prev,
+
+        [activeViewStatus.id]:
+          currentComments.map(
+            comment =>
+              comment.id ===
+              commentId
+                ? {
+                    ...comment,
+                    likes:
+                      newLikes,
+                    isLiked:
+                      true
+                  }
+                : comment
+          )
+      })
+    );
+
+  } catch (error) {
+
+    console.error(
+      'Comment like failed:',
+      error
+    );
+
+  }
+};
 
 const handleTapTransaction = async (status) => {
     const tapAmount = 5;
@@ -1924,18 +2175,216 @@ const handlePostComment = async (commentText) => {
 };
 
 // Handle opening a status and saving it to seen history
-  const handleViewStatus = (group) => {
-    setActiveViewStatus(group.statuses[0]);
-    setStatusProgress(0);
-    setIsStatusPaused(false);
-    setShowCommentsPanel(false);
-    
-    if (!viewedStatuses.includes(group.userId)) {
-      const newViewed = [...viewedStatuses, group.userId];
-      setViewedStatuses(newViewed);
-      localStorage.setItem('kp_viewed_statuses', JSON.stringify(newViewed));
+  const handleViewStatus = async (
+  group
+) => {
+
+  const status =
+    group.statuses[0];
+
+  if (!status) {
+    return;
+  }
+
+  if (
+    status.id !==
+      'welcome-001' &&
+    status.expires_at &&
+    new Date(
+      status.expires_at
+    ) <= new Date()
+  ) {
+    return;
+  }
+
+
+  setActiveViewStatus(
+    status
+  );
+
+  setStatusProgress(0);
+
+  setIsStatusPaused(false);
+
+  setShowCommentsPanel(false);
+
+  setViewerLiked(false);
+
+  setNewStatusComment('');
+
+
+  if (
+    status.id !==
+    'welcome-001'
+  ) {
+
+    await fetchStatusComments(
+      status.id
+    );
+
+  }
+
+
+  if (
+    !viewedStatuses.includes(
+      group.userId
+    )
+  ) {
+
+    const newViewed = [
+      ...viewedStatuses,
+      group.userId
+    ];
+
+    setViewedStatuses(
+      newViewed
+    );
+
+    localStorage.setItem(
+      'kp_viewed_statuses',
+      JSON.stringify(
+        newViewed
+      )
+    );
+
+  }
+};
+
+const handleSubmitStatusComment = async () => {
+
+  const text =
+    newStatusComment.trim();
+
+  if (!text || !activeViewStatus) {
+    return;
+  }
+
+  if (
+    activeViewStatus.id ===
+    'welcome-001'
+  ) {
+    alert(
+      'This permanent welcome status is not commentable.'
+    );
+    return;
+  }
+
+
+  const {
+    data: {
+      user
     }
-  };
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    alert(
+      'Please sign in to comment.'
+    );
+    return;
+  }
+
+
+  const username =
+    currentUser?.formData?.username ||
+    currentUser?.username ||
+    'believer';
+
+  const avatar =
+    currentUser?.formData?.avatar ||
+    currentUser?.image ||
+    username.charAt(0).toUpperCase();
+
+
+  try {
+
+    const {
+      data,
+      error
+    } = await supabase
+      .from(
+        'testimony_comments'
+      )
+      .insert([{
+
+        testimony_id:
+          activeViewStatus.id,
+
+        user_id:
+          user.id,
+
+        author_name:
+          `@${username}`,
+
+        avatar:
+
+          avatar,
+
+        content:
+          text,
+
+        likes:
+          0
+
+      }])
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+
+    const formatted = {
+
+      ...data,
+
+      author:
+        data.author_name,
+
+      text:
+        data.content,
+
+      time:
+        'Just now',
+
+      isLiked:
+        false
+
+    };
+
+
+    setStatusComments(
+      prev => ({
+        ...prev,
+
+        [activeViewStatus.id]: [
+          formatted,
+          ...(prev[
+            activeViewStatus.id
+          ] || [])
+        ]
+
+      })
+    );
+
+
+    setNewStatusComment('');
+
+  } catch (error) {
+
+    console.error(
+      'Status comment failed:',
+      error
+    );
+
+    alert(
+      error?.message ||
+      'Could not post comment.'
+    );
+
+  }
+
+};
 
 const incrementStatusView = async (statusId, currentViews) => {
   const { data, error } = await supabase
@@ -9564,31 +10013,44 @@ const handleCloseModal = () => {
                 value={newStatusComment}
                 onChange={(e) => setNewStatusComment(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && newStatusComment.trim()) {
-                    const actualUsername = currentUser?.formData?.username || currentUser?.username || 'believer';
-                    const actualAvatar = currentUser?.formData?.avatar || currentUser?.image || actualUsername.charAt(0).toUpperCase();
-                    
-                    const newCommentObj = { id: Date.now(), author: `@${actualUsername}`, text: newStatusComment, time: 'Just now', likes: 0, isLiked: false, avatar: actualAvatar };
-                    setStatusComments(prev => ({ ...prev, [activeViewStatus.id]: [newCommentObj, ...(prev[activeViewStatus.id] || [])] }));
-                    setNewStatusComment("");
-                  }
-                }}
+
+  if (
+    e.key === 'Enter' &&
+    !e.shiftKey
+  ) {
+
+    e.preventDefault();
+
+    handleSubmitStatusComment();
+
+  }
+
+}}
                 style={{ flex: 1, backgroundColor: 'transparent', border: 'none', color: '#fff', fontSize: '14px', outline: 'none' }}
              />
-             <button 
-                disabled={!newStatusComment.trim()}
-                onClick={() => {
-                  const actualUsername = currentUser?.formData?.username || currentUser?.username || 'believer';
-                  const actualAvatar = currentUser?.formData?.avatar || currentUser?.image || actualUsername.charAt(0).toUpperCase();
-                  
-                  const newCommentObj = { id: Date.now(), author: `@${actualUsername}`, text: newStatusComment, time: 'Just now', likes: 0, isLiked: false, avatar: actualAvatar };
-                  setStatusComments(prev => ({ ...prev, [activeViewStatus.id]: [newCommentObj, ...(prev[activeViewStatus.id] || [])] }));
-                  setNewStatusComment("");
-                }}
-                style={{ background: 'none', border: 'none', color: newStatusComment.trim() ? '#29beaf' : '#aaaaaa', cursor: newStatusComment.trim() ? 'pointer' : 'default' }}
-             >
-               <SendIcon />
-             </button>
+             <button
+  type="button"
+  disabled={
+    !newStatusComment.trim()
+  }
+  onClick={
+    handleSubmitStatusComment
+  }
+  style={{
+    background: 'none',
+    border: 'none',
+    color:
+      newStatusComment.trim()
+        ? '#29beaf'
+        : '#aaaaaa',
+    cursor:
+      newStatusComment.trim()
+        ? 'pointer'
+        : 'default'
+  }}
+>
+  <SendIcon />
+</button>
           </div>
           </div>
         </>
