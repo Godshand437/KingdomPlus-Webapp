@@ -922,29 +922,40 @@ const uploadNewTestimony = async (e) => {
   const [swapAmount, setSwapAmount] =
   useState('');
 
-  const [demoUsdcBalance, setDemoUsdcBalance] =
-  useState(() => {
-    const saved =
-      localStorage.getItem(
-        'kp_demo_usdc_balance'
-      );
+  // =========================================================
+// TREASURY ASSET BALANCES
+// =========================================================
 
-    return saved
-      ? Number(saved)
-      : 0;
+const [usdcBalance, setUsdcBalance] =
+  useState(0);
+
+const [solBalance, setSolBalance] =
+  useState(0);
+
+const [walletUsdRates, setWalletUsdRates] =
+  useState({
+    KPC: 0.25,
+    USDC: 1,
+    SOL: 0
   });
+
+const [isLoadingWalletAssets, setIsLoadingWalletAssets] =
+  useState(false);
 
 const [isSwapping, setIsSwapping] =
   useState(false);
 
 const handleDemoSwap = async () => {
+
   const amount =
     Number(swapAmount);
 
   if (!amount || amount <= 0) {
+
     alert(
       'Enter a valid amount to swap.'
     );
+
     return;
   }
 
@@ -952,13 +963,17 @@ const handleDemoSwap = async () => {
     swapFromToken ===
     swapToToken
   ) {
+
     alert(
       'Choose two different tokens.'
     );
+
     return;
   }
 
-  const KPC_TO_USDC = 0.1;
+
+  const KPC_TO_USDC = 0.10;
+
 
   let receivedAmount = 0;
 
@@ -966,150 +981,176 @@ const handleDemoSwap = async () => {
     swapFromToken === 'KPC' &&
     swapToToken === 'USDC'
   ) {
+
     if (
       Number(kpcBalance) <
       amount
     ) {
+
       alert(
         'Insufficient KPC balance.'
       );
+
       return;
     }
 
     receivedAmount =
       amount * KPC_TO_USDC;
+  }
 
-  } else if (
+  else if (
     swapFromToken === 'USDC' &&
     swapToToken === 'KPC'
   ) {
+
     if (
-      Number(demoUsdcBalance) <
+      Number(usdcBalance) <
       amount
     ) {
+
       alert(
-        'Insufficient Demo USDC balance.'
+        'Insufficient USDC balance.'
       );
+
       return;
     }
 
     receivedAmount =
       amount / KPC_TO_USDC;
+  }
 
-  } else {
+
+  else {
+
     alert(
-      'Unsupported prototype swap.'
+      'Unsupported swap pair.'
     );
+
     return;
   }
 
+
   setIsSwapping(true);
 
+
   try {
-    await new Promise(resolve =>
-      setTimeout(resolve, 1200)
-    );
+
+    const {
+      data: {
+        user
+      }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error(
+        'Please sign in first.'
+      );
+    }
+
 
     let newKpcBalance =
       Number(kpcBalance);
 
     let newUsdcBalance =
-      Number(demoUsdcBalance);
+      Number(usdcBalance);
 
     if (
-      swapFromToken === 'KPC'
+      swapFromToken ===
+      'KPC'
     ) {
-      newKpcBalance -= amount;
-      newUsdcBalance += receivedAmount;
+
+      newKpcBalance -=
+        amount;
+
+      newUsdcBalance +=
+        receivedAmount;
+
     } else {
-      newUsdcBalance -= amount;
-      newKpcBalance += receivedAmount;
+
+      newUsdcBalance -=
+        amount;
+
+      newKpcBalance +=
+        receivedAmount;
     }
 
-    if (userProfile?.id) {
-      const {
-        error
-      } = await supabase
-        .from('user_profiles')
-        .update({
-          wallet_balance:
-            newKpcBalance
-        })
-        .eq(
-          'id',
-          userProfile.id
-        );
+    const {
+      error
+    } = await supabase
+      .from('user_profiles')
+      .update({
 
-      if (error) {
-        throw error;
-      }
+        wallet_balance:
+          newKpcBalance,
+
+        usdc_balance:
+          newUsdcBalance
+
+      })
+      .eq(
+        'id',
+        user.id
+      );
+
+    if (error) {
+      throw error;
     }
 
     setKpcBalance(
       newKpcBalance
     );
 
-    setDemoUsdcBalance(
+    setUsdcBalance(
       newUsdcBalance
     );
 
-    localStorage.setItem(
-      'kp_demo_usdc_balance',
-      String(newUsdcBalance)
-    );
+    await logTransaction(
+  `Swap: ${amount} KPC → ${receivedAmount.toFixed(2)} USDC`,
+  amount,
+  'SWAP',
+  null,
+  'OUT'
+);
 
-    const savedUser =
-      localStorage.getItem(
-        'kp_current_user'
-      );
+await logTransaction(
+  `Received ${receivedAmount.toFixed(2)} USDC`,
+  receivedAmount,
+  'SWAP',
+  null,
+  'IN'
+);
 
-    if (savedUser) {
-      const parsed =
-        JSON.parse(savedUser);
+    await fetchTreasuryAssets();
+    await fetchWalletData();
 
-      localStorage.setItem(
-        'kp_current_user',
-        JSON.stringify({
-          ...parsed,
-          wallet_balance:
-            newKpcBalance,
-          kpcBalance:
-            newKpcBalance
-        })
-      );
-    }
-
-    logTransaction(
-      `Demo Swap: ${amount} ${swapFromToken} → ${receivedAmount.toFixed(2)} ${swapToToken}`,
-      swapFromToken === 'KPC'
-        ? -amount
-        : receivedAmount,
-      swapFromToken === 'KPC'
-        ? 'SPEND'
-        : 'EARN'
-    );
-
-    alert(
-      `🔄 Swap completed!\n\n${amount} ${swapFromToken} → ${receivedAmount.toFixed(2)} ${swapToToken}\n\nPrototype rate: 1 KPC = $0.25`
-    );
 
     setSwapAmount('');
 
+
+    alert(
+      `Swap completed!\n\n` +
+      `${amount} ${swapFromToken} → ` +
+      `${receivedAmount.toFixed(2)} ${swapToToken}`
+    );
+
   } catch (error) {
+
     console.error(
-      'Demo swap failed:',
+      'Swap failed:',
       error
     );
 
     alert(
-      `Swap failed: ${
+      `Swap failed:\n\n${
         error?.message ||
         'Please try again.'
       }`
     );
 
   } finally {
+
     setIsSwapping(false);
+
   }
 };
 
@@ -3360,20 +3401,138 @@ useEffect(() => {
 
   const [txFilter, setTxFilter] = useState('ALL');
 
-  // --- UNIVERSAL TRANSACTION LOGGER ---
-  const logTransaction = (title, amount, type = 'EARN', signature = null) => {
-    const newTx = {
-      id: Date.now() + Math.random(),
-      title: title,
-      amount: amount,
-      type: type,
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
-      status: 'Confirmed',
-      signature: signature || `5K2p...${Math.floor(1000 + Math.random() * 9000)}`
+  // =========================================================
+// TREASURY TRANSACTION LOGGER
+// =========================================================
+
+const logTransaction = async (
+  title,
+  amount,
+  type = 'EARN',
+  signature = null,
+  direction = null
+) => {
+  try {
+
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      throw authError;
+    }
+
+    if (!user) {
+      throw new Error(
+        'No authenticated user found.'
+      );
+    }
+
+    const numericAmount =
+      Math.abs(Number(amount) || 0);
+
+    const isPositive =
+  direction
+    ? direction === 'IN'
+    : (
+        type === 'EARN' ||
+        type === 'AIRDROP'
+      );
+
+    const payload = {
+      sender_id: user.id,
+      receiver_id: user.id,
+      amount: numericAmount,
+      tx_type: type,
+      title: title
     };
 
-    setTxHistory(prev => [newTx, ...prev]);
-  };
+    const {
+      data,
+      error
+    } = await supabase
+      .from('transactions')
+      .insert([payload])
+      .select()
+      .single();
+
+    if (error) {
+      console.error(
+        'SUPABASE TRANSACTION INSERT FAILED:',
+        error
+      );
+
+      throw error;
+    }
+
+    const newTx = {
+      id:
+        data?.id ||
+        `${Date.now()}-${Math.random()}`,
+
+      title,
+
+      amount:
+        numericAmount,
+
+      type,
+
+      date:
+        data?.created_at
+          ? new Date(
+              data.created_at
+            ).toLocaleDateString(
+              'en-US',
+              {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }
+            )
+          : new Date().toLocaleDateString(),
+
+      status:
+        'Confirmed',
+
+      signature:
+        signature ||
+        data?.signature ||
+        null,
+
+      isPositive
+    };
+
+    setTxHistory(
+      prev => [
+        newTx,
+        ...prev.filter(
+          tx => tx.id !== newTx.id
+        )
+      ]
+    );
+
+    return newTx;
+
+  } catch (error) {
+
+    console.error(
+      'Treasury transaction failed:',
+      error
+    );
+
+    alert(
+      `Treasury activity could not be recorded:\n\n${
+        error?.message ||
+        'Unknown transaction error'
+      }`
+    );
+
+    return null;
+  }
+};
+
 
   // ==========================================
 // SAFE LOCAL STORAGE AUTO-SYNC
@@ -3541,57 +3700,190 @@ useEffect(() => {
   
 // --- CHURCH DASHBOARD STATE & HANDLERS ---
   const [ministerSearchInput, setMinisterSearchInput] = useState('');
+  const [selectedLeaderRole, setSelectedLeaderRole] = useState('Pastor');
+  const [selectedLeaderAccess, setSelectedLeaderAccess] = useState('limited');
   const [verifiedMinistersList, setVerifiedMinistersList] = useState([]);
 
   const handleVerifyMinister = async (e) => {
-    e.preventDefault();
-    const cleanSearch = ministerSearchInput.trim().toLowerCase().replace('@', '');
-    if (!cleanSearch) return;
+  e.preventDefault();
 
-    let targetEmail = null;
-    let targetUser = null;
+  const cleanSearch = ministerSearchInput
+    .trim()
+    .toLowerCase()
+    .replace(/^@/, '');
 
-    const { data: foundUser, error: searchError } = await supabase
-      .from('user_profiles')
-      .select('*')
-      .or(`username.ilike.${cleanSearch},email.ilike.${cleanSearch}`)
-      .single();
+  if (!cleanSearch) {
+    alert('Please enter a username or email.');
+    return;
+  }
 
-    if (!foundUser) {
-      alert(`No believer found with username @${cleanSearch} or email.`);
-      return;
-    }
+  if (userProfile?.account_type !== 'Ministry') {
+    alert('Only Ministry accounts can appoint leaders.');
+    return;
+  }
 
-    if (foundUser.account_type === 'Minister') {
-      alert(`@${foundUser.username || cleanSearch} is already a verified minister!`);
-      return;
-    }
+  const ministryId = userProfile.id;
 
-    const { error: updateError } = await supabase
-      .from('user_profiles')
-      .update({ 
-        account_type: 'Minister' 
-      })
-      .eq('id', foundUser.id);
+  const {
+    data: foundUser,
+    error: searchError
+  } = await supabase
+    .from('user_profiles')
+    .select(`
+      id,
+      full_name,
+      username,
+      email,
+      account_type,
+      membership_tier
+    `)
+    .or(
+      `username.ilike.${cleanSearch},email.ilike.${cleanSearch}`
+    )
+    .maybeSingle();
 
-    if (updateError) {
-      console.error("Failed to upgrade minister in Supabase:", updateError);
-      alert("Failed to ordain minister on the server.");
-      return;
-    }
+  if (searchError) {
+    console.error(
+      'Leader search failed:',
+      searchError
+    );
 
-    setVerifiedMinistersList(prev => [
-      { 
-        name: foundUser.full_name || 'Minister', 
-        handle: `@${foundUser.username}`, 
-        role: 'Ordained Minister' 
+    alert('Unable to find that user.');
+    return;
+  }
+
+  if (!foundUser) {
+    alert(
+      `No user found with username @${cleanSearch} or that email.`
+    );
+    return;
+  }
+
+  if (foundUser.account_type !== 'User') {
+    alert(
+      'Only individual User accounts can be appointed as Ministry leaders.'
+    );
+    return;
+  }
+
+  if (foundUser.id === ministryId) {
+    alert('A Ministry cannot appoint itself as a leader.');
+    return;
+  }
+
+  const {
+    data: existingLeader,
+    error: existingLeaderError
+  } = await supabase
+    .from('ministry_leaders')
+    .select('id, role, status')
+    .eq('ministry_id', ministryId)
+    .eq('user_id', foundUser.id)
+    .maybeSingle();
+
+  if (existingLeaderError) {
+    console.error(
+      'Failed to check existing leader:',
+      existingLeaderError
+    );
+
+    alert('Unable to check this person’s current leadership status.');
+    return;
+  }
+
+  if (existingLeader?.status === 'active') {
+    alert(
+      `@${foundUser.username || cleanSearch} is already a leader in this Ministry.`
+    );
+    return;
+  }
+
+  const {
+    data: leaderRow,
+    error: leaderError
+  } = await supabase
+    .from('ministry_leaders')
+    .upsert(
+      {
+        ministry_id: ministryId,
+        user_id: foundUser.id,
+        role: selectedLeaderRole,
+        dashboard_access: selectedLeaderAccess,
+        status: 'active',
+        appointed_by: userProfile.id,
+        appointed_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
       },
-      ...prev
-    ]);
+      {
+        onConflict: 'ministry_id,user_id'
+      }
+    )
+    .select()
+    .single();
 
-    setMinisterSearchInput('');
-    alert(`Hallelujah! @${foundUser.username} is now a Verified Minister under your church.`);
- };
+  if (leaderError) {
+    console.error(
+      'Failed to appoint Ministry leader:',
+      leaderError
+    );
+
+    alert(
+      `Failed to appoint leader: ${leaderError.message}`
+    );
+    return;
+  }
+
+  const {
+    data: updatedUser,
+    error: updatedUserError
+  } = await supabase
+    .from('user_profiles')
+    .select(`
+      id,
+      full_name,
+      username,
+      email,
+      account_type,
+      membership_tier,
+      membership_source
+    `)
+    .eq('id', foundUser.id)
+    .single();
+
+  if (updatedUserError) {
+    console.error(
+      'Leader was appointed, but updated user profile could not be loaded:',
+      updatedUserError
+    );
+  }
+
+  const displayUser =
+    updatedUser || foundUser;
+
+  setVerifiedMinistersList(prev => [
+    {
+      id: leaderRow.id,
+      userId: displayUser.id,
+      name: displayUser.full_name || 'Leader',
+      handle: `@${displayUser.username || 'user'}`,
+      role: selectedLeaderRole,
+      dashboardAccess: selectedLeaderAccess,
+      membershipTier:
+        displayUser.membership_tier || 'Disciple'
+    },
+    ...prev.filter(
+      item => item.userId !== displayUser.id
+    )
+  ]);
+
+  setMinisterSearchInput('');
+  setSelectedLeaderRole('Pastor');
+  setSelectedLeaderAccess('limited');
+
+  alert(
+    `Hallelujah! @${displayUser.username || 'user'} has been appointed as ${selectedLeaderRole}.`
+  );
+};
 
 // --- CHURCH STUDIO REFS, LIVE STREAM & MODAL STATES ---
   const coverInputRef = useRef(null);
@@ -3773,7 +4065,9 @@ useEffect(() => {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '12px' }}>
             
             {/* Action 1: Upload Book -> Maps to Store */}
-            <div onClick={() => { setStudioCategory('Store'); setActiveStudioModal('kingdom_publish'); }} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(243, 202, 88, 0.2)', padding: '16px', borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div onClick={() => {
+  setIsAddBookModalOpen(true);
+}} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(243, 202, 88, 0.2)', padding: '16px', borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <div style={{ width: '42px', height: '42px', borderRadius: '12px', background: 'rgba(243, 202, 88, 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                 <StudioBookIcon />
               </div>
@@ -4214,19 +4508,141 @@ useEffect(() => {
           {/* Ordain New Minister Input Form */}
           <div style={{ background: 'rgba(0,0,0,0.3)', padding: '16px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.03)', marginBottom: '20px' }}>
             <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', marginBottom: '10px', letterSpacing: '0.5px' }}>ORDAIN A NEW MINISTER</div>
-            <form onSubmit={handleVerifyMinister} style={{ display: 'flex', gap: '10px' }}>
-              <input 
-                type="text" 
-                placeholder="Enter believer's @username or email..." 
-                value={ministerSearchInput}
-                onChange={(e) => setMinisterSearchInput(e.target.value)}
-                className="app-input" 
-                style={{ margin: 0, flex: 1, background: 'rgba(255,255,255,0.05)' }} 
-              />
-              <button type="submit" className="action-button" style={{ width: 'auto', padding: '0 20px', margin: 0, background: 'linear-gradient(135deg, #f3ca58, #e5c158)', color: '#101926', fontWeight: '800', fontSize: '13px' }}>
-                Verify Minister
-              </button>
-            </form>
+            <form
+  onSubmit={handleVerifyMinister}
+  style={{
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '14px'
+  }}
+>
+  <div>
+    <label
+      style={{
+        display: 'block',
+        color: '#8e9aab',
+        fontSize: '10px',
+        fontWeight: '800',
+        marginBottom: '7px',
+        letterSpacing: '0.5px'
+      }}
+    >
+      SEARCH BELIEVER
+    </label>
+
+    <input
+      type="text"
+      placeholder="Enter @username or email..."
+      value={ministerSearchInput}
+      onChange={(e) => setMinisterSearchInput(e.target.value)}
+      className="app-input"
+      style={{
+        margin: 0,
+        width: '100%',
+        boxSizing: 'border-box',
+        background: 'rgba(255,255,255,0.05)'
+      }}
+    />
+  </div>
+
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: '1fr 1fr',
+      gap: '12px'
+    }}
+  >
+    <div>
+      <label
+        style={{
+          display: 'block',
+          color: '#8e9aab',
+          fontSize: '10px',
+          fontWeight: '800',
+          marginBottom: '7px',
+          letterSpacing: '0.5px'
+        }}
+      >
+        LEADERSHIP ROLE
+      </label>
+
+      <select
+        value={selectedLeaderRole}
+        onChange={(e) =>
+          setSelectedLeaderRole(e.target.value)
+        }
+        className="app-input"
+        style={{
+          margin: 0,
+          width: '100%',
+          boxSizing: 'border-box',
+          background: '#111b28',
+          color: '#fff'
+        }}
+      >
+        <option value="Pastor">Pastor</option>
+        <option value="Evangelist">Evangelist</option>
+        <option value="Minister">Minister</option>
+        <option value="Deacon">Deacon</option>
+        <option value="Leader">Leader</option>
+      </select>
+    </div>
+
+    <div>
+      <label
+        style={{
+          display: 'block',
+          color: '#8e9aab',
+          fontSize: '10px',
+          fontWeight: '800',
+          marginBottom: '7px',
+          letterSpacing: '0.5px'
+        }}
+      >
+        DASHBOARD ACCESS
+      </label>
+
+      <select
+        value={selectedLeaderAccess}
+        onChange={(e) =>
+          setSelectedLeaderAccess(e.target.value)
+        }
+        className="app-input"
+        style={{
+          margin: 0,
+          width: '100%',
+          boxSizing: 'border-box',
+          background: '#111b28',
+          color: '#fff'
+        }}
+      >
+        <option value="limited">Limited Access</option>
+        <option value="content">Content Access</option>
+        <option value="members">Member Management</option>
+        <option value="outreach">Outreach Access</option>
+        <option value="checkins">Check-in Access</option>
+        <option value="full">Full Dashboard</option>
+      </select>
+    </div>
+  </div>
+
+  <button
+    type="submit"
+    className="action-button"
+    style={{
+      width: '100%',
+      padding: '12px 20px',
+      margin: 0,
+      background: 'linear-gradient(135deg, #f3ca58, #e5c158)',
+      color: '#101926',
+      fontWeight: '800',
+      fontSize: '13px',
+      borderRadius: '10px'
+    }}
+  >
+    Appoint Ministry Leader
+  </button>
+</form>
           </div>
 
           {/* Complete Leadership Roster */}
@@ -4379,42 +4795,599 @@ useEffect(() => {
   }
 }, [kingdomTab]);
 
-  // --- STUDIO INPUT STATE & UNIFIED PUBLISHING HANDLER ---
-  const [studioCategory, setStudioCategory] = useState('Devotions'); // 'Devotions', 'Bible Plans', 'Messages', 'Store'
-  const [studioTitle, setStudioTitle] = useState('');
-  const [studioSub, setStudioSub] = useState('');
-  const [studioPriceOrReward, setStudioPriceOrReward] = useState('5');
+ // =========================================================
+// KINGDOMPLUS STUDIO PUBLISHING
+// =========================================================
 
-  const handleKingdomPublish = (e) => {
-    e.preventDefault();
-    if (!studioTitle.trim()) { alert("Please provide a title for your publication."); return; }
+const [studioCategory, setStudioCategory] =
+  useState('Devotions');
 
-    const authorName = formData.churchName || formData.fullName || "Official Ministry";
-    const newId = `pub_${Date.now()}`;
-    const defaultImg = "https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&w=300&q=80";
+const [studioTitle, setStudioTitle] =
+  useState('');
 
-    if (studioCategory === 'Devotions') {
-      setDevotionsList(prev => [{
-        id: newId, title: studioTitle, scripture: studioSub || 'General Devotional', time: '5 min read', reward: Number(studioPriceOrReward) || 5, img: defaultImg, isFeatured: false, author: authorName
-      }, ...prev]);
-    } else if (studioCategory === 'Bible Plans') {
-      setBiblePlansList(prev => [{
-        id: newId, title: studioTitle, desc: studioSub || '30 Days of Spiritual Growth', progress: 0, rewardText: `Bonus: +${studioPriceOrReward} KPC`, img: defaultImg, isActive: false
-      }, ...prev]);
-    } else if (studioCategory === 'Messages') {
-      setMessagesList(prev => [{
-        id: newId, title: studioTitle, author: `${authorName} • Just now`, duration: studioSub || '35:00', reward: Number(studioPriceOrReward) || 10, img: defaultImg, isSeries: false
-      }, ...prev]);
-    } else if (studioCategory === 'Store') {
-      setStoreBooksList(prev => [{
-        id: newId, title: studioTitle, author: authorName, price: Number(studioPriceOrReward) || 50, img: defaultImg
-      }, ...prev]);
+const [studioSub, setStudioSub] =
+  useState('');
+
+const [studioBody, setStudioBody] =
+  useState('');
+
+const KINGDOM_REWARD_KPC = 5;
+
+const [studioBookPrice, setStudioBookPrice] =
+  useState('50');
+
+const [studioCoverFile, setStudioCoverFile] =
+  useState(null);
+
+const [studioVideoFile, setStudioVideoFile] =
+  useState(null);
+
+const [studioAudioFile, setStudioAudioFile] =
+  useState(null);
+
+const [isPublishingKingdomContent, setIsPublishingKingdomContent] =
+  useState(false);
+
+const resetKingdomStudioForm = () => {
+  setStudioTitle('');
+  setStudioSub('');
+  setStudioBody('');
+
+  setStudioCoverFile(null);
+  setStudioVideoFile(null);
+  setStudioAudioFile(null);
+};
+
+const uploadKingdomStudioFile = async (
+  file,
+  folder
+) => {
+
+  if (!file) return null;
+
+  const {
+    data: { user },
+    error: authError
+  } = await supabase.auth.getUser();
+
+  if (authError) {
+    throw authError;
+  }
+
+  if (!user) {
+    throw new Error(
+      'You must be signed in to publish Kingdom content.'
+    );
+  }
+
+  const safeName =
+    file.name.replace(
+      /[^a-zA-Z0-9._-]/g,
+      '_'
+    );
+
+  const filePath =
+    `${folder}/${user.id}/${Date.now()}-${safeName}`;
+
+  const {
+    error: uploadError
+  } = await supabase.storage
+    .from('kingdom_media')
+    .upload(
+      filePath,
+      file,
+      {
+        cacheControl: '3600',
+        upsert: false
+      }
+    );
+
+  if (uploadError) {
+    throw uploadError;
+  }
+
+  const {
+    data
+  } = supabase.storage
+    .from('kingdom_media')
+    .getPublicUrl(filePath);
+
+  if (!data?.publicUrl) {
+    throw new Error(
+      `Could not create public URL for ${file.name}.`
+    );
+  }
+
+  return data.publicUrl;
+};
+
+const getLocalMediaDuration = (
+  file,
+  elementType
+) => {
+
+  return new Promise((resolve) => {
+
+    if (!file) {
+      resolve(null);
+      return;
     }
 
-    alert(`Glory! Your ${studioCategory.slice(0, -1)} "${studioTitle}" has been published directly to the Kingdom Hub!`);
-    setStudioTitle(''); setStudioSub(''); setStudioPriceOrReward('5');
-    setActiveModal(null);
-  };
+    const media =
+      document.createElement(elementType);
+
+    const objectUrl =
+      URL.createObjectURL(file);
+
+    media.preload = 'metadata';
+
+    media.onloadedmetadata = () => {
+
+      const duration =
+        Number.isFinite(media.duration)
+          ? Math.round(media.duration)
+          : null;
+
+      URL.revokeObjectURL(objectUrl);
+
+      resolve(duration);
+    };
+
+    media.onerror = () => {
+
+      URL.revokeObjectURL(objectUrl);
+
+      resolve(null);
+    };
+
+    media.src = objectUrl;
+  });
+};
+
+const formatMediaDuration = (
+  seconds
+) => {
+
+  if (!Number.isFinite(seconds)) {
+    return '';
+  }
+
+  const total =
+    Math.round(seconds);
+
+  const hours =
+    Math.floor(total / 3600);
+
+  const minutes =
+    Math.floor(
+      (total % 3600) / 60
+    );
+
+  const secs =
+    total % 60;
+
+  return hours > 0
+    ? `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`
+    : `${minutes}:${String(secs).padStart(2, '0')}`;
+};
+
+const fetchKingdomContent = async () => {
+
+  try {
+
+    const [
+      devotionResult,
+      messageResult
+    ] = await Promise.all([
+
+      supabase
+        .from('devotions')
+        .select('*')
+        .order(
+          'created_at',
+          { ascending: false }
+        ),
+
+      supabase
+        .from('kingdom_content')
+        .select('*')
+        .eq(
+          'is_published',
+          true
+        )
+        .eq(
+          'content_type',
+          'MESSAGE'
+        )
+        .order(
+          'created_at',
+          { ascending: false }
+        )
+    ]);
+
+    if (devotionResult.error) {
+      throw devotionResult.error;
+    }
+
+    if (messageResult.error) {
+      throw messageResult.error;
+    }
+
+    const normalizedDevotions =
+      (devotionResult.data || []).map(
+        item => ({
+          ...item,
+
+          img:
+            item.img_url || '',
+
+          reward:
+            Number(item.reward || 5),
+
+          author:
+            item.author_name ||
+            item.church_name ||
+            'Ministry'
+        })
+      );
+
+    const normalizedMessages =
+      (messageResult.data || []).map(
+        item => ({
+
+          ...item,
+
+          img:
+            item.cover_url ||
+            item.img_url ||
+            '',
+
+          author:
+            item.church_name ||
+            item.author_name ||
+            'Ministry',
+
+          reward:
+            Number(item.reward || 10),
+
+          duration:
+            formatMediaDuration(
+              item.duration_seconds
+            ),
+
+          format:
+            item.video_url
+              ? 'video'
+              : item.audio_url
+                ? 'audio'
+                : 'text'
+        })
+      );
+
+    setDevotionsList(
+      normalizedDevotions
+    );
+
+    setMessagesList(
+      normalizedMessages
+    );
+
+  } catch (error) {
+
+    console.error(
+      'Error loading Kingdom content:',
+      error
+    );
+
+  }
+};
+
+useEffect(() => {
+
+  if (step === 10) {
+    fetchKingdomContent();
+  }
+
+}, [step]);
+
+
+const handleKingdomPublish = async (
+  e,
+  publishCategory = studioCategory
+) => {
+  e.preventDefault();
+
+  if (!studioTitle.trim()) {
+
+    alert(
+      'Please provide a title.'
+    );
+
+    return;
+  }
+
+  if (
+    publishCategory === 'Devotions' &&
+    !studioBody.trim()
+  ) {
+
+    alert(
+      'Please enter the devotional text.'
+    );
+
+    return;
+  }
+
+  if (
+    publishCategory === 'Messages' &&
+    !studioBody.trim() &&
+    !studioVideoFile &&
+    !studioAudioFile
+  ) {
+
+    alert(
+      'Add text, video, or audio to the message.'
+    );
+
+    return;
+  }
+
+  setIsPublishingKingdomContent(true);
+
+  try {
+
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      throw authError;
+    }
+
+    if (!user) {
+      throw new Error(
+        'Please sign in before publishing.'
+      );
+    }
+
+    const authorName =
+      formData.churchName ||
+      formData.fullName ||
+      'Official Ministry';
+
+    const reward =
+  KINGDOM_REWARD_KPC;
+
+    const coverUrl =
+      studioCoverFile
+        ? await uploadKingdomStudioFile(
+            studioCoverFile,
+            'covers'
+          )
+        : null;
+
+    if (
+      publishCategory === 'Devotions'
+    ) {
+
+      const {
+        error
+      } = await supabase
+        .from('devotions')
+        .insert([{
+
+          title:
+            studioTitle.trim(),
+
+          scripture:
+            studioSub.trim() ||
+            null,
+
+          body:
+            studioBody.trim(),
+
+          reward,
+
+          is_featured:
+            false,
+
+          img_url:
+            coverUrl
+
+        }]);
+
+      if (error) {
+        throw error;
+      }
+    }
+
+    else if (
+      publishCategory === 'Messages'
+    ) {
+
+      const videoUrl =
+        studioVideoFile
+          ? await uploadKingdomStudioFile(
+              studioVideoFile,
+              `messages/video`
+            )
+          : null;
+
+      const audioUrl =
+        studioAudioFile
+          ? await uploadKingdomStudioFile(
+              studioAudioFile,
+              `messages/audio`
+            )
+          : null;
+
+      let durationSeconds = null;
+
+      if (studioVideoFile) {
+
+        durationSeconds =
+          await getLocalMediaDuration(
+            studioVideoFile,
+            'video'
+          );
+
+      } else if (
+        studioAudioFile
+      ) {
+
+        durationSeconds =
+          await getLocalMediaDuration(
+            studioAudioFile,
+            'audio'
+          );
+      }
+
+      const payload = {
+
+        author_id:
+          user.id,
+
+        church_name:
+          authorName,
+
+        title:
+          studioTitle.trim(),
+
+        scripture:
+          studioSub.trim() ||
+          null,
+
+        body:
+          studioBody.trim() ||
+          null,
+
+        reward,
+
+        cover_url:
+          coverUrl,
+
+        video_url:
+          videoUrl,
+
+        audio_url:
+          audioUrl,
+
+        content_type:
+          'MESSAGE',
+
+        duration_seconds:
+          durationSeconds,
+
+        is_published:
+          true
+      };
+
+      const {
+        error
+      } = await supabase
+        .from('kingdom_content')
+        .insert([payload]);
+
+      if (error) {
+        throw error;
+      }
+    }
+
+else if (
+  publishCategory === 'Bible Plans'
+) {
+
+  const {
+    error
+  } = await supabase
+    .from('kingdom_content')
+    .insert([{
+
+      author_id:
+        user.id,
+
+      church_name:
+        authorName,
+
+      title:
+        studioTitle.trim(),
+
+      scripture:
+        studioSub.trim() ||
+        null,
+
+      body:
+        studioBody.trim(),
+
+      reward:
+        KINGDOM_REWARD_KPC,
+
+      cover_url:
+        coverUrl,
+
+      content_type:
+        'BIBLE_PLAN',
+
+      is_published:
+        true
+
+    }]);
+
+  if (error) {
+    throw error;
+  }
+}
+
+    else {
+
+      alert(
+        'This publishing flow currently supports Devotions and Messages.'
+      );
+
+      return;
+    }
+
+
+    const publishedLabel =
+  publishCategory === 'Devotions'
+    ? 'devotion'
+    : publishCategory === 'Bible Plans'
+      ? 'Bible plan'
+      : 'message';
+
+alert(
+  `Glory! Your ${publishedLabel} was published successfully. Believers receive ${KINGDOM_REWARD_KPC} KPC when they complete it.`
+);
+
+
+    resetKingdomStudioForm();
+
+    setActiveStudioModal(null);
+
+    await fetchKingdomContent();
+
+  } catch (error) {
+
+    console.error(
+      'Kingdom publishing error:',
+      error
+    );
+
+    alert(
+      error?.message ||
+      'Something went wrong while publishing.'
+    );
+
+  } finally {
+
+    setIsPublishingKingdomContent(
+      false
+    );
+
+  }
+};
+
 
 // --- CHURCH CRM & GAMIFIED ATTENDANCE STATE ---
   const [churchSubTab, setChurchSubTab] = useState('attendance'); // 'attendance' | 'timeline' | 'campaigns'
@@ -4684,14 +5657,6 @@ useEffect(() => {
     tier === 'Apostle'
   ) {
     return tier;
-  }
-
-  if (profile?.account_type === 'Apostle') {
-    return 'Apostle';
-  }
-
-  if (profile?.account_type === 'Premium') {
-    return 'Disciple';
   }
 
   if (profile?.account_type === 'Ministry') {
@@ -5209,6 +6174,125 @@ useEffect(() => {
   loadKpcBalanceFromSupabase();
 }, [authReady]);
 
+// =========================================================
+// LOAD FULL TREASURY PORTFOLIO
+// =========================================================
+
+const fetchTreasuryAssets = async () => {
+
+  try {
+
+    setIsLoadingWalletAssets(true);
+
+    const {
+      data: {
+        user
+      }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return;
+    }
+
+    const {
+      data: profile,
+      error: profileError
+    } = await supabase
+      .from('user_profiles')
+      .select(
+        'wallet_balance, usdc_balance, sol_balance, wallet_address'
+      )
+      .eq(
+        'id',
+        user.id
+      )
+      .single();
+
+    if (profileError) {
+      throw profileError;
+    }
+
+    const kpc =
+      Number(
+        profile?.wallet_balance || 0
+      );
+
+    const usdc =
+      Number(
+        profile?.usdc_balance || 0
+      );
+
+    let sol = Number(
+      profile?.sol_balance || 0
+    );
+
+    const address =
+      profile?.wallet_address ||
+      generatedAddress;
+
+    if (address) {
+
+      try {
+
+        const connection =
+          new Connection(
+            clusterApiUrl('devnet'),
+            'confirmed'
+          );
+
+        const lamports =
+          await connection.getBalance(
+            new PublicKey(address)
+          );
+
+        sol =
+          lamports /
+          LAMPORTS_PER_SOL;
+
+      } catch (solError) {
+
+        console.warn(
+          'Could not read SOL balance:',
+          solError
+        );
+      }
+    }
+
+    setKpcBalance(kpc);
+    setUsdcBalance(usdc);
+    setSolBalance(sol);
+
+    if (
+      profile?.wallet_address &&
+      Number.isFinite(sol)
+    ) {
+
+      await supabase
+        .from('user_profiles')
+        .update({
+          sol_balance: sol
+        })
+        .eq(
+          'id',
+          user.id
+        );
+
+    }
+
+  } catch (error) {
+
+    console.error(
+      'Treasury portfolio load failed:',
+      error
+    );
+
+  } finally {
+
+    setIsLoadingWalletAssets(false);
+
+  }
+};
+
   const fetchWalletData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -5224,17 +6308,56 @@ useEffect(() => {
         .order('created_at', { ascending: false });
 
       if (txs) {
-        const formattedTxs = txs.map(tx => {
-          const isEarned = tx.receiver_id === user.id;
-          return {
-            id: tx.id,
-            amount: tx.amount,
-            type: tx.tx_type,
-            title: tx.title,
-            date: new Date(tx.created_at).toLocaleDateString(),
-            isPositive: isEarned
-          };
-        });
+        const formattedTxs =
+  (txs || []).map(tx => {
+
+    const positiveTypes = [
+      'EARN',
+      'AIRDROP'
+    ];
+
+    const isPositive =
+      positiveTypes.includes(
+        String(
+          tx.tx_type || ''
+        ).toUpperCase()
+      );
+
+    return {
+      id:
+        tx.id,
+
+      amount:
+        Math.abs(
+          Number(tx.amount) || 0
+        ),
+
+      type:
+        tx.tx_type,
+
+      title:
+        tx.title ||
+        'Treasury Activity',
+
+      date:
+        tx.created_at
+          ? new Date(
+              tx.created_at
+            ).toLocaleDateString(
+              'en-US',
+              {
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+              }
+            )
+          : '',
+
+      isPositive
+    };
+  });
+
         setTxHistory(formattedTxs);
       }
     } catch (error) {
@@ -5243,8 +6366,16 @@ useEffect(() => {
   };
 
   useEffect(() => {
-    if (step === 11) fetchWalletData();
-  }, [step]);
+
+  if (step !== 11) {
+    return;
+  }
+
+  fetchWalletData();
+  fetchTreasuryAssets();
+
+}, [step]);
+
 
   const handleLiveTransfer = async (e) => {
     e.preventDefault();
@@ -5313,10 +6444,264 @@ useEffect(() => {
   // ==========================================
   const [selectedDevotion, setSelectedDevotion] = useState(null);
   const [readDevotionsList, setReadDevotionsList] = useState([]);
-  const [isAddDevotionModalOpen, setIsAddDevotionModalOpen] = useState(false);
-  const [newDevotionForm, setNewDevotionForm] = useState({ title: '', scripture: '', body: '', reward: 5 });
+  const [activeKingdomPublishModal, setActiveKingdomPublishModal] =
+  useState(null);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [selectedMessage, setSelectedMessage] = useState(null);
+  const [completedKingdomContentIds, setCompletedKingdomContentIds] =
+  useState([]);
+  const openKingdomPublishModal = (category) => {
+  setActiveKingdomPublishModal(category);
+   };
+  const closeKingdomPublishModal = () => {
+  resetKingdomStudioForm();
+  setActiveKingdomPublishModal(null);
+};
+
+// =========================================================
+// LOAD USER KINGDOM COMPLETIONS
+// =========================================================
+
+const fetchKingdomCompletions = async () => {
+
+  try {
+
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return;
+    }
+
+    const {
+      data,
+      error
+    } = await supabase
+      .from('kingdom_content_completions')
+      .select('content_id')
+      .eq(
+        'user_id',
+        user.id
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    setCompletedKingdomContentIds(
+      (data || []).map(
+        row => String(row.content_id)
+      )
+    );
+
+  } catch (error) {
+
+    console.error(
+      'Error loading Kingdom completions:',
+      error
+    );
+
+  }
+};
+
+const handleCompleteKingdomContent = async (
+  content,
+  label = 'content'
+) => {
+
+  try {
+
+    const {
+      data: { user },
+      error: authError
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      throw authError;
+    }
+
+    if (!user) {
+
+      alert(
+        'Please sign in before claiming a reward.'
+      );
+
+      return false;
+    }
+
+    const contentId =
+      String(content.id);
+
+    const rewardAmount =
+      Math.max(
+        1,
+        Number(
+          content.reward ||
+          content.reward_kpc ||
+          5
+        )
+      );
+
+    if (
+      completedKingdomContentIds.includes(
+        contentId
+      )
+    ) {
+
+      alert(
+        `You have already completed this ${label}.`
+      );
+
+      return false;
+    }
+
+    const {
+      error: completionError
+    } = await supabase
+      .from(
+        'kingdom_content_completions'
+      )
+      .insert([{
+
+        user_id:
+          user.id,
+
+        content_id:
+          content.id,
+
+        reward_kpc:
+          rewardAmount
+
+      }]);
+
+    if (completionError) {
+
+      if (
+        completionError.code ===
+        '23505'
+      ) {
+
+        setCompletedKingdomContentIds(
+          prev => [
+            ...new Set([
+              ...prev,
+              contentId
+            ])
+          ]
+        );
+
+        alert(
+          `You have already completed this ${label}.`
+        );
+
+        return false;
+      }
+
+      throw completionError;
+    }
+
+    const newBalance =
+      Number(kpcBalance || 0) +
+      rewardAmount;
+
+    const {
+  error: balanceError
+} = await supabase
+  .from('user_profiles')
+  .update({
+    wallet_balance:
+      newBalance
+  })
+  .eq(
+    'id',
+    user.id
+  );
+
+    if (balanceError) {
+      throw balanceError;
+    }
+
+    const {
+      error: transactionError
+    } = await supabase
+      .from('transactions')
+      .insert([{
+
+        sender_id:
+          user.id,
+
+        receiver_id:
+          user.id,
+
+        amount:
+          rewardAmount,
+
+        tx_type:
+          'EARN',
+
+        title:
+          `Completed ${label}: ${content.title}`
+
+      }]);
+
+    if (transactionError) {
+      throw transactionError;
+    }
+
+
+    setKpcBalance(
+      newBalance
+    );
+
+    setCompletedKingdomContentIds(
+      prev => [
+        ...new Set([
+          ...prev,
+          contentId
+        ])
+      ]
+    );
+
+    setReadDevotionsList(
+      prev => [
+        ...new Set([
+          ...prev,
+          content.id
+        ])
+      ]
+    );
+
+    alert(
+      `Praise God! You earned +${rewardAmount} KPC.`
+    );
+
+    return true;
+
+  } catch (error) {
+
+    console.error(
+      `Error completing ${label}:`,
+      error
+    );
+
+    alert(
+      error?.message ||
+      'Could not claim this reward.'
+    );
+
+    return false;
+  }
+};
+
+
+useEffect(() => {
+
+  if (step === 10) {
+    fetchKingdomCompletions();
+  }
+
+}, [step]);
 
   // Live Bible API States
   const [selectedBook, setSelectedBook] = useState('Psalms');
@@ -5366,7 +6751,7 @@ useEffect(() => {
       const rewardAmount = devotion.reward || 5;
 
       await supabase.from('user_profiles').update({
-        kpc_balance: (kpcBalance || 0) + rewardAmount,
+        wallet_balance: (kpcBalance || 0) + rewardAmount,
         devotions_read: (userProfile?.devotions_read || 0) + 1
       }).eq('id', user.id);
 
@@ -5397,7 +6782,7 @@ useEffect(() => {
       const rewardAmount = 5;
 
       await supabase.from('user_profiles').update({
-        kpc_balance: (kpcBalance || 0) + rewardAmount
+        wallet_balance: (kpcBalance || 0) + rewardAmount
       }).eq('id', user.id);
 
       await supabase.from('transactions').insert([{
@@ -8407,71 +9792,417 @@ const handleCloseModal = () => {
 
       {/* --- 1. UNIFIED KINGDOM PUBLISHING MODAL --- */}
       {activeStudioModal === 'kingdom_publish' && (
-        <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-          <div className="modal-box" style={{ background: '#101926', border: '1px solid rgba(243, 202, 88, 0.4)', borderRadius: '20px', padding: '25px', width: '100%', maxWidth: '420px', boxShadow: '0 20px 50px rgba(0,0,0,0.6)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <StudioBookIcon />
-                <h3 className="metallic-gold-text" style={{ margin: 0, fontSize: '18px' }}>Publish to Kingdom Hub</h3>
-              </div>
-              <button onClick={() => setActiveStudioModal(null)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}><XIcon /></button>
+  <div
+    className="modal-overlay"
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.85)',
+      backdropFilter: 'blur(8px)',
+      zIndex: 1000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}
+  >
+
+    <div
+      className="modal-box"
+      style={{
+        background: '#101926',
+        border:
+          '1px solid rgba(243,202,88,0.4)',
+        borderRadius: '20px',
+        padding: '25px',
+        width: '100%',
+        maxWidth: '460px',
+        maxHeight: '90vh',
+        overflowY: 'auto'
+      }}
+    >
+
+      {/* HEADER */}
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '20px'
+        }}
+      >
+
+        <div>
+          <h3
+            className="metallic-gold-text"
+            style={{
+              margin: 0,
+              fontSize: '18px'
+            }}
+          >
+            Publish to Kingdom Hub
+          </h3>
+
+          <p
+            style={{
+              color: '#8e9aab',
+              fontSize: '11px',
+              margin: '5px 0 0'
+            }}
+          >
+            Publish spiritual content for believers.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            resetKingdomStudioForm();
+            setActiveStudioModal(null);
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#8e9aab',
+            cursor: 'pointer'
+          }}
+        >
+          <XIcon />
+        </button>
+
+      </div>
+
+
+      <form
+  onSubmit={(e) =>
+    handleKingdomPublish(
+      e,
+      studioCategory
+    )
+  }
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '14px'
+        }}
+      >
+
+        {/* SECTION */}
+        <div>
+
+          <label className="input-label">
+            KINGDOM SECTION
+          </label>
+
+          <select
+  value={studioCategory}
+  onChange={(e) => {
+    setStudioCategory(
+      e.target.value
+    );
+    setStudioCoverFile(null);
+    setStudioVideoFile(null);
+    setStudioAudioFile(null);
+  }}
+  className="app-select"
+>
+  <option value="Devotions">
+    Devotions — Daily Bread
+  </option>
+
+  <option value="Bible Plans">
+    Bible Reading Plan
+  </option>
+
+  <option value="Messages">
+    Messages — Video / Audio / Text
+  </option>
+</select>
+
+        </div>
+
+
+        {/* TITLE */}
+        <div>
+
+          <label className="input-label">
+            TITLE
+          </label>
+
+          <input
+            type="text"
+            value={studioTitle}
+            onChange={(e) =>
+              setStudioTitle(
+                e.target.value
+              )
+            }
+            className="app-input"
+            placeholder={
+              studioCategory === 'Devotions'
+                ? 'e.g. Trusting God in Difficult Seasons'
+                : 'e.g. Walking by Faith'
+            }
+          />
+
+        </div>
+
+
+        {/* SCRIPTURE */}
+        <div>
+
+  <label className="input-label">
+    {studioCategory === 'Devotions'
+      ? 'SCRIPTURE REFERENCE'
+      : studioCategory === 'Bible Plans'
+        ? 'PLAN DURATION'
+        : 'SCRIPTURE / REFERENCE'}
+  </label>
+
+  <input
+    type="text"
+    value={studioSub}
+    onChange={(e) =>
+      setStudioSub(
+        e.target.value
+      )
+    }
+    className="app-input"
+    placeholder={
+      studioCategory === 'Devotions'
+        ? 'e.g. Psalm 23:1'
+        : studioCategory === 'Bible Plans'
+          ? 'e.g. 30 Days of Wisdom'
+          : 'e.g. Romans 8:1–17'
+    }
+  />
+
+</div>
+
+
+        {/* BODY */}
+        <div>
+
+  <label className="input-label">
+    {studioCategory === 'Devotions'
+      ? 'DEVOTIONAL TEXT'
+      : studioCategory === 'Bible Plans'
+        ? 'PLAN DESCRIPTION / READING GUIDE'
+        : 'MESSAGE / TRANSCRIPT'}
+  </label>
+
+  <textarea
+    value={studioBody}
+    onChange={(e) =>
+      setStudioBody(
+        e.target.value
+      )
+    }
+    className="app-input"
+    style={{
+      minHeight: '170px',
+      resize: 'vertical',
+      lineHeight: '1.6'
+    }}
+    placeholder={
+      studioCategory === 'Devotions'
+        ? 'Write the full devotional message...'
+        : studioCategory === 'Bible Plans'
+          ? 'Explain the reading plan, daily assignments, chapters, and instructions...'
+          : 'Write the sermon text or transcript...'
+    }
+  />
+
+</div>
+
+
+        {/* COVER */}
+        <div>
+
+          <label className="input-label">
+            COVER IMAGE
+          </label>
+
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) =>
+              setStudioCoverFile(
+                e.target.files?.[0] ||
+                null
+              )
+            }
+            style={{
+              width: '100%',
+              color: '#cbd5e1'
+            }}
+          />
+
+          {studioCoverFile && (
+            <div
+              style={{
+                color: '#29beaf',
+                fontSize: '11px',
+                marginTop: '6px'
+              }}
+            >
+              ✓ {studioCoverFile.name}
+            </div>
+          )}
+
+        </div>
+
+
+        {/* MESSAGE MEDIA */}
+        {studioCategory === 'Messages' && (
+          <>
+            <div>
+
+              <label className="input-label">
+                VIDEO — OPTIONAL
+              </label>
+
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(e) =>
+                  setStudioVideoFile(
+                    e.target.files?.[0] ||
+                    null
+                  )
+                }
+                style={{
+                  width: '100%',
+                  color: '#cbd5e1'
+                }}
+              />
+
+              {studioVideoFile && (
+                <div
+                  style={{
+                    color: '#29beaf',
+                    fontSize: '11px',
+                    marginTop: '6px'
+                  }}
+                >
+                  ✓ {studioVideoFile.name}
+                </div>
+              )}
+
             </div>
 
-            <form onSubmit={handleKingdomPublish} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label className="input-label">SELECT KINGDOM SECTION</label>
-                <select value={studioCategory} onChange={(e) => setStudioCategory(e.target.value)} className="app-select">
-                  <option value="Store">Bookstore (PDF / Audiobooks)</option>
-                  <option value="Messages">Audio / Video Messages</option>
-                  <option value="Devotions">Devotions (Daily Bread)</option>
-                  <option value="Bible Plans">Bible Reading Plans</option>
-                </select>
-              </div>
 
-              <div>
-                <label className="input-label">TITLE / HEADLINE</label>
-                <input type="text" placeholder="e.g. Walking in Authority or 30-Day Fast" value={studioTitle} onChange={(e) => setStudioTitle(e.target.value)} className="app-input" />
-              </div>
+            <div>
 
-              <div>
-                <label className="input-label">
-                  {studioCategory === 'Devotions' ? 'SCRIPTURE REFERENCE (e.g. Psalm 23:1)' :
-                   studioCategory === 'Bible Plans' ? 'PLAN DURATION (e.g. 14 Days of Prayer)' :
-                   studioCategory === 'Messages' ? 'DURATION / SERIES INFO (e.g. 45:00)' : 'SUBTITLE / EDITION'}
-                </label>
-                <input type="text" placeholder="Enter supporting details..." value={studioSub} onChange={(e) => setStudioSub(e.target.value)} className="app-input" />
-              </div>
+              <label className="input-label">
+                AUDIO — OPTIONAL
+              </label>
 
-              {studioCategory === 'Store' && (
-                <div>
-                  <label className="input-label">BOOK PRICE (IN KPC)</label>
-                  <input 
-                    type="number" 
-                    placeholder="50" 
-                    value={studioPriceOrReward} 
-                    onChange={(e) => setStudioPriceOrReward(e.target.value)} 
-                    className="app-input" 
-                  />
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) =>
+                  setStudioAudioFile(
+                    e.target.files?.[0] ||
+                    null
+                  )
+                }
+                style={{
+                  width: '100%',
+                  color: '#cbd5e1'
+                }}
+              />
+
+              {studioAudioFile && (
+                <div
+                  style={{
+                    color: '#29beaf',
+                    fontSize: '11px',
+                    marginTop: '6px'
+                  }}
+                >
+                  ✓ {studioAudioFile.name}
                 </div>
               )}
 
-              {studioCategory !== 'Store' && (
-                <div style={{ background: 'rgba(41, 190, 175, 0.1)', border: '1px solid rgba(41, 190, 175, 0.3)', padding: '10px 14px', borderRadius: '12px', fontSize: '11px', color: '#29beaf', lineHeight: '1.4' }}>
-                  <strong>Platform Algorithmic Reward:</strong> Believer rewards are automatically calculated and backed by the KingdomPlus Treasury based on verified engagement!
-                </div>
-              )}
+            </div>
+          </>
+        )}
 
-              <div style={{ padding: '15px', border: '1px dashed rgba(255,255,255,0.2)', borderRadius: '12px', textAlign: 'center', color: '#8e9aab', fontSize: '12px', cursor: 'pointer', background: 'rgba(255,255,255,0.02)' }} onClick={() => alert("Media / PDF attachment selected!")}>
-                Tap to attach cover image or manuscript file
-              </div>
 
-              <button type="submit" className="action-button" style={{ background: 'linear-gradient(90deg, #f3ca58, #29beaf)', color: '#101926', fontWeight: '800', marginTop: '10px' }}>
-                Publish Live to {studioCategory}
-              </button>
-            </form>
-          </div>
+        {/* REWARD */}
+        <div
+  style={{
+    background:
+      'rgba(41,190,175,0.08)',
+    border:
+      '1px solid rgba(41,190,175,0.25)',
+    padding: '13px',
+    borderRadius: '12px',
+    color: '#9ddfd6',
+    fontSize: '11px',
+    lineHeight: '1.5'
+  }}
+>
+  <strong>
+    Kingdom Reward: {KINGDOM_REWARD_KPC} KPC
+  </strong>
+
+  <br />
+
+  This reward is automatically set by KingdomPlus.
+  Publishers cannot change the reward amount.
+</div>
+
+
+        {/* INFO */}
+        <div
+          style={{
+            background:
+              'rgba(41,190,175,0.08)',
+            border:
+              '1px solid rgba(41,190,175,0.25)',
+            padding: '12px',
+            borderRadius: '12px',
+            fontSize: '11px',
+            color: '#9ddfd6',
+            lineHeight: '1.5'
+          }}
+        >
+          {studioCategory === 'Messages'
+            ? 'A message may contain video, audio, text, or all three. Each believer can claim the reward once.'
+            : 'The devotional is saved to the Kingdom database and can be rewarded once per believer.'}
         </div>
-      )}
+
+
+        {/* SUBMIT */}
+        <button
+          type="submit"
+          disabled={
+            isPublishingKingdomContent
+          }
+          className="action-button"
+          style={{
+            background:
+              'linear-gradient(90deg, #f3ca58, #29beaf)',
+            color: '#101926',
+            fontWeight: '900',
+            opacity:
+              isPublishingKingdomContent
+                ? 0.7
+                : 1
+          }}
+        >
+          {isPublishingKingdomContent
+            ? 'Uploading & Publishing...'
+            : 'Publish to Kingdom'}
+        </button>
+
+      </form>
+
+    </div>
+  </div>
+)}
 
       {/* --- 2. START CONFERENCE ROOM MODAL --- */}
       {activeStudioModal === 'conference' && (
@@ -8770,8 +10501,28 @@ const handleCloseModal = () => {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                   <h3 className="kingdom-section-title" style={{ margin: 0 }}>Daily Bread</h3>
                   {hasDiscipleAccess(userProfile) && (
-                    <span onClick={() => setIsAddDevotionModalOpen(true)} style={{ color: '#f3ca58', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>+ Publish</span>
-                  )}
+  <button
+    type="button"
+    onClick={() =>
+      openKingdomPublishModal(
+        'Devotions'
+      )
+    }
+    style={{
+      background:
+        'linear-gradient(90deg,#f3ca58,#29beaf)',
+      border: 'none',
+      borderRadius: '999px',
+      padding: '7px 13px',
+      color: '#101926',
+      fontSize: '11px',
+      fontWeight: '900',
+      cursor: 'pointer'
+    }}
+  >
+    + Publish
+  </button>
+)}
                 </div>
                 {devotionsList.map(item => (
                   <div key={item.id} className="devotion-card" onClick={() => setSelectedDevotion(item)} style={{ cursor: 'pointer', marginBottom: '15px' }}>
@@ -8789,7 +10540,45 @@ const handleCloseModal = () => {
             {/* 2. BIBLE PLANS */}
             {kingdomTab === 'Bible Plans' && (
               <>
-                <h3 className="kingdom-section-title">Your Active Plans</h3>
+                <div
+  style={{
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '12px'
+  }}
+>
+  <h3
+    className="kingdom-section-title"
+    style={{ margin: 0 }}
+  >
+    Your Active Plans
+  </h3>
+
+  {hasDiscipleAccess(userProfile) && (
+    <button
+      type="button"
+      onClick={() =>
+        openKingdomPublishModal(
+          'Bible Plans'
+        )
+      }
+      style={{
+        background:
+          'linear-gradient(90deg,#f3ca58,#29beaf)',
+        border: 'none',
+        borderRadius: '999px',
+        padding: '7px 13px',
+        color: '#101926',
+        fontSize: '11px',
+        fontWeight: '900',
+        cursor: 'pointer'
+      }}
+    >
+      + Publish
+    </button>
+  )}
+</div>
                 {biblePlansList.map(plan => (
                   <div key={plan.id} className="devotion-card" onClick={() => setSelectedPlan(plan)} style={{ flexDirection: 'column', alignItems: 'flex-start', marginBottom: '15px', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
@@ -8808,7 +10597,45 @@ const handleCloseModal = () => {
             {/* 3. MESSAGES */}
             {kingdomTab === 'Messages' && (
               <>
-                <h3 className="kingdom-section-title">Ministry Resources</h3>
+                <div
+  style={{
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '10px'
+  }}
+>
+  <h3
+    className="kingdom-section-title"
+    style={{ margin: 0 }}
+  >
+    Ministry Resources
+  </h3>
+
+  {hasDiscipleAccess(userProfile) && (
+    <button
+      type="button"
+      onClick={() =>
+        openKingdomPublishModal(
+          'Messages'
+        )
+      }
+      style={{
+        background:
+          'linear-gradient(90deg,#f3ca58,#29beaf)',
+        border: 'none',
+        borderRadius: '999px',
+        padding: '7px 13px',
+        color: '#101926',
+        fontSize: '11px',
+        fontWeight: '900',
+        cursor: 'pointer'
+      }}
+    >
+      + Publish
+    </button>
+  )}
+</div>
                 <div className="horizontal-scroll" style={{ paddingBottom: '10px' }}>
                   {messagesList.map(msg => (
                     <div key={msg.id} className="message-card" onClick={() => setSelectedMessage(msg)} style={{ cursor: 'pointer' }}>
@@ -8937,14 +10764,393 @@ const handleCloseModal = () => {
               ========================================= */}
 
           {selectedDevotion && (
-            <div className="constrained-overlay" style={{ zIndex: 1000 }}><div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto', padding: '20px' }}><div className="dream-modal-header" style={{ marginBottom: '15px' }}><h3 style={{ color: '#fff', margin: 0, fontSize: '18px' }}>{selectedDevotion.title}</h3><button className="dream-modal-close" onClick={() => setSelectedDevotion(null)}><XIcon /></button></div>{selectedDevotion.img && (<img src={selectedDevotion.img} alt="devotion cover" style={{ width: '100%', height: '200px', objectFit: 'cover', borderRadius: '12px', marginBottom: '15px' }} />)}<div style={{ margin: '15px 0' }}><span style={{ color: '#f3ca58', fontSize: '14px', fontWeight: '800' }}>📖 {selectedDevotion.scripture}</span><p style={{ color: '#e2e8f0', fontSize: '15px', lineHeight: '1.7', marginTop: '15px', whiteSpace: 'pre-line' }}>{selectedDevotion.body || "Father, thank You for Your word today."}</p></div><button onClick={() => handleCompleteDevotion(selectedDevotion)} style={{ width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f3ca58, #29beaf)', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '20px' }}>{readDevotionsList.includes(selectedDevotion.id) ? 'Completed ✓' : `Mark as Read & Claim +${selectedDevotion.reward || 5} KPC`}</button></div></div>
-          )}
+  <div
+    className="constrained-overlay"
+    style={{ zIndex: 1000 }}
+  >
+
+    <div
+      className="create-modal-content"
+      style={{
+        maxHeight: '88vh',
+        overflowY: 'auto',
+        padding: '20px'
+      }}
+    >
+
+      <div
+        className="dream-modal-header"
+        style={{ marginBottom: '15px' }}
+      >
+
+        <h3
+          style={{
+            color: '#fff',
+            margin: 0,
+            fontSize: '18px'
+          }}
+        >
+          {selectedDevotion.title}
+        </h3>
+
+        <button
+          className="dream-modal-close"
+          onClick={() =>
+            setSelectedDevotion(null)
+          }
+        >
+          <XIcon />
+        </button>
+
+      </div>
+
+
+      {selectedDevotion.img && (
+        <img
+          src={selectedDevotion.img}
+          alt="devotion cover"
+          style={{
+            width: '100%',
+            height: '210px',
+            objectFit: 'cover',
+            borderRadius: '12px',
+            marginBottom: '15px'
+          }}
+        />
+      )}
+
+
+      {selectedDevotion.scripture && (
+        <div
+          style={{
+            color: '#f3ca58',
+            fontSize: '14px',
+            fontWeight: '800',
+            marginBottom: '15px'
+          }}
+        >
+          📖 {selectedDevotion.scripture}
+        </div>
+      )}
+
+
+      <div
+        style={{
+          color: '#e2e8f0',
+          fontSize: '15px',
+          lineHeight: '1.8',
+          whiteSpace: 'pre-line'
+        }}
+      >
+        {selectedDevotion.body ||
+          'No devotional text was added.'}
+      </div>
+
+
+      <button
+        onClick={async () => {
+
+          const completed =
+            await handleCompleteKingdomContent(
+              selectedDevotion,
+              'devotion'
+            );
+
+          if (completed) {
+            setSelectedDevotion(null);
+          }
+
+        }}
+        disabled={
+          completedKingdomContentIds.includes(
+            String(selectedDevotion.id)
+          )
+        }
+        style={{
+          width: '100%',
+          padding: '16px',
+          background:
+            completedKingdomContentIds.includes(
+              String(selectedDevotion.id)
+            )
+              ? '#1a2533'
+              : 'linear-gradient(135deg,#f3ca58,#29beaf)',
+          border: 'none',
+          borderRadius: '14px',
+          color:
+            completedKingdomContentIds.includes(
+              String(selectedDevotion.id)
+            )
+              ? '#8e9aab'
+              : '#101926',
+          fontWeight: '900',
+          marginTop: '25px',
+          cursor: 'pointer'
+        }}
+      >
+        {completedKingdomContentIds.includes(
+          String(selectedDevotion.id)
+        )
+          ? 'Completed ✓'
+          : `Mark as Read & Claim +${selectedDevotion.reward || 5} KPC`}
+      </button>
+
+    </div>
+  </div>
+)}
           {selectedPlan && (
             <div className="constrained-overlay" style={{ zIndex: 1000 }}><div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto' }}><div className="dream-modal-header"><h3 style={{ color: '#fff', margin: 0 }}>{selectedPlan.title}</h3><button className="dream-modal-close" onClick={() => setSelectedPlan(null)}><XIcon /></button></div><img src={selectedPlan.img} alt="plan cover" style={{ width: '100%', height: '150px', objectFit: 'cover', borderRadius: '12px', margin: '15px 0' }} /><p style={{ color: '#cbd5e1', fontSize: '14px', marginBottom: '20px' }}>{selectedPlan.desc}</p><div style={{ background: 'rgba(0,0,0,0.3)', padding: '15px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}><h4 style={{ color: '#f3ca58', margin: '0 0 10px 0' }}>Today's Assignment</h4><p style={{ color: '#fff', margin: 0, fontSize: '14px' }}>Read Romans 8:1-17</p></div><button onClick={() => { alert("Plan day completed! Rewards issued."); setSelectedPlan(null); }} style={{ width: '100%', padding: '16px', background: '#29beaf', border: 'none', borderRadius: '14px', color: '#101926', fontWeight: '900', cursor: 'pointer', marginTop: '20px' }}>Complete Today's Reading</button></div></div>
           )}
           {selectedMessage && (
-            <div className="constrained-overlay" style={{ zIndex: 1000 }}><div className="create-modal-content" style={{ maxHeight: '85vh', overflowY: 'auto' }}><div className="dream-modal-header" style={{ marginBottom: '15px' }}><h3 style={{ color: '#fff', margin: 0 }}>{selectedMessage.title}</h3><button className="dream-modal-close" onClick={() => setSelectedMessage(null)}><XIcon /></button></div>{(selectedMessage.format === 'video' || selectedMessage.format === 'audio' || !selectedMessage.format) && (<div style={{ width: '100%', height: selectedMessage.format === 'audio' ? '100px' : '220px', background: '#000', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', border: '1px solid rgba(255,255,255,0.1)', marginBottom: '15px' }}><span style={{ fontSize: '30px', color: '#29beaf' }}>{selectedMessage.format === 'audio' ? '🎧' : '▶'}</span><span style={{ color: '#8e9aab', fontSize: '12px', marginTop: '10px' }}>{selectedMessage.format === 'audio' ? 'Audio stream ready' : 'Video stream ready'}</span></div>)}{selectedMessage.format === 'text' && (<div style={{ padding: '15px', background: 'rgba(255,255,255,0.05)', borderRadius: '12px', marginBottom: '15px', border: '1px solid rgba(255,255,255,0.1)' }}><p style={{ color: '#e2e8f0', fontSize: '15px', lineHeight: '1.6', margin: 0 }}>This is the text transcript or article content for the selected message. The believer can read through this fully inside the app.</p></div>)}<div style={{ color: '#8e9aab', fontSize: '13px' }}>By {selectedMessage.author}</div></div></div>
-          )}
+  <div
+    className="constrained-overlay"
+    style={{ zIndex: 1000 }}
+  >
+
+    <div
+      className="create-modal-content"
+      style={{
+        maxHeight: '88vh',
+        overflowY: 'auto',
+        padding: '20px'
+      }}
+    >
+
+      {/* HEADER */}
+      <div
+        className="dream-modal-header"
+        style={{
+          marginBottom: '15px'
+        }}
+      >
+
+        <div>
+
+          <h3
+            style={{
+              color: '#fff',
+              margin: 0
+            }}
+          >
+            {selectedMessage.title}
+          </h3>
+
+          <div
+            style={{
+              color: '#29beaf',
+              fontSize: '12px',
+              marginTop: '4px'
+            }}
+          >
+            By {selectedMessage.author || 'Ministry'}
+          </div>
+
+        </div>
+
+        <button
+          className="dream-modal-close"
+          onClick={() =>
+            setSelectedMessage(null)
+          }
+        >
+          <XIcon />
+        </button>
+
+      </div>
+
+
+      {/* COVER */}
+      {selectedMessage.img && (
+        <img
+          src={selectedMessage.img}
+          alt="message cover"
+          style={{
+            width: '100%',
+            height: '190px',
+            objectFit: 'cover',
+            borderRadius: '12px',
+            marginBottom: '18px'
+          }}
+        />
+      )}
+
+
+      {/* VIDEO */}
+      {selectedMessage.video_url && (
+        <div
+          style={{
+            marginBottom: '18px'
+          }}
+        >
+
+          <div
+            style={{
+              color: '#f3ca58',
+              fontSize: '11px',
+              fontWeight: '800',
+              marginBottom: '7px'
+            }}
+          >
+            VIDEO MESSAGE
+          </div>
+
+          <video
+            controls
+            playsInline
+            src={
+              selectedMessage.video_url
+            }
+            style={{
+              width: '100%',
+              borderRadius: '12px',
+              background: '#000'
+            }}
+          />
+
+        </div>
+      )}
+
+
+      {/* AUDIO */}
+      {selectedMessage.audio_url && (
+        <div
+          style={{
+            marginBottom: '18px'
+          }}
+        >
+
+          <div
+            style={{
+              color: '#f3ca58',
+              fontSize: '11px',
+              fontWeight: '800',
+              marginBottom: '7px'
+            }}
+          >
+            AUDIO MESSAGE
+          </div>
+
+          <audio
+            controls
+            src={
+              selectedMessage.audio_url
+            }
+            style={{
+              width: '100%'
+            }}
+          />
+
+        </div>
+      )}
+
+
+      {/* SCRIPTURE */}
+      {selectedMessage.scripture && (
+        <div
+          style={{
+            color: '#f3ca58',
+            fontSize: '13px',
+            fontWeight: '800',
+            marginBottom: '15px'
+          }}
+        >
+          📖 {selectedMessage.scripture}
+        </div>
+      )}
+
+
+      {/* TRANSCRIPT */}
+      {selectedMessage.body && (
+        <div
+          style={{
+            padding: '16px',
+            background:
+              'rgba(255,255,255,0.04)',
+            borderRadius: '12px',
+            border:
+              '1px solid rgba(255,255,255,0.08)',
+            marginBottom: '18px'
+          }}
+        >
+
+          <div
+            style={{
+              color: '#f3ca58',
+              fontSize: '11px',
+              fontWeight: '800',
+              marginBottom: '8px'
+            }}
+          >
+            TEXT / TRANSCRIPT
+          </div>
+
+          <p
+            style={{
+              color: '#e2e8f0',
+              fontSize: '15px',
+              lineHeight: '1.75',
+              margin: 0,
+              whiteSpace: 'pre-line'
+            }}
+          >
+            {selectedMessage.body}
+          </p>
+
+        </div>
+      )}
+
+
+      {/* REWARD */}
+      <button
+        onClick={async () => {
+
+          const completed =
+            await handleCompleteKingdomContent(
+              selectedMessage,
+              'message'
+            );
+
+          if (completed) {
+            setSelectedMessage(null);
+          }
+
+        }}
+        disabled={
+          completedKingdomContentIds.includes(
+            String(selectedMessage.id)
+          )
+        }
+        style={{
+          width: '100%',
+          padding: '16px',
+          background:
+            completedKingdomContentIds.includes(
+              String(selectedMessage.id)
+            )
+              ? '#1a2533'
+              : 'linear-gradient(135deg,#f3ca58,#29beaf)',
+          border: 'none',
+          borderRadius: '14px',
+          color:
+            completedKingdomContentIds.includes(
+              String(selectedMessage.id)
+            )
+              ? '#8e9aab'
+              : '#101926',
+          fontWeight: '900',
+          cursor: 'pointer'
+        }}
+      >
+        {completedKingdomContentIds.includes(
+          String(selectedMessage.id)
+        )
+          ? 'Completed ✓'
+          : `Complete Message & Claim +${selectedMessage.reward || 10} KPC`}
+      </button>
+
+    </div>
+  </div>
+)}
 
           {selectedStoreBook && (
             <div className="constrained-overlay" style={{ zIndex: 1000 }}>
@@ -9575,6 +11781,399 @@ disabled={isUploadingBook}
             </div>
           )}
 
+{/* =========================================================
+    KINGDOM HUB USER PUBLISH MODAL
+    ========================================================= */}
+
+{activeKingdomPublishModal && (
+  <div
+    className="modal-overlay"
+    style={{
+      position: 'fixed',
+      inset: 0,
+      background: 'rgba(0,0,0,0.88)',
+      backdropFilter: 'blur(10px)',
+      zIndex: 2000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px'
+    }}
+  >
+
+    <div
+      className="modal-box"
+      style={{
+        background: '#101926',
+        border:
+          '1px solid rgba(243,202,88,0.35)',
+        borderRadius: '20px',
+        width: '100%',
+        maxWidth: '460px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        padding: '25px',
+        boxShadow:
+          '0 25px 80px rgba(0,0,0,0.6)'
+      }}
+    >
+
+      {/* HEADER */}
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '20px'
+        }}
+      >
+
+        <div>
+
+          <div
+            style={{
+              color: '#f3ca58',
+              fontSize: '10px',
+              fontWeight: '900',
+              letterSpacing: '1.4px',
+              textTransform: 'uppercase',
+              marginBottom: '5px'
+            }}
+          >
+            KINGDOM HUB
+          </div>
+
+          <h3
+            style={{
+              margin: 0,
+              color: '#fff',
+              fontSize: '20px'
+            }}
+          >
+            {activeKingdomPublishModal === 'Devotions'
+              ? 'Publish Devotion'
+              : activeKingdomPublishModal === 'Bible Plans'
+                ? 'Publish Bible Plan'
+                : 'Publish Message'}
+          </h3>
+
+          <p
+            style={{
+              margin: '5px 0 0',
+              color: '#8e9aab',
+              fontSize: '11px'
+            }}
+          >
+            Share Kingdom resources with believers.
+          </p>
+
+        </div>
+
+
+        <button
+          type="button"
+          onClick={
+            closeKingdomPublishModal
+          }
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#8e9aab',
+            cursor: 'pointer'
+          }}
+        >
+          <XIcon />
+        </button>
+
+      </div>
+
+
+      <form
+  onSubmit={(e) =>
+    handleKingdomPublish(
+      e,
+      activeKingdomPublishModal
+    )
+  }
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '15px'
+        }}
+      >
+
+        {/* TITLE */}
+
+        <div>
+
+          <label className="input-label">
+            TITLE
+          </label>
+
+          <input
+            type="text"
+            value={studioTitle}
+            onChange={(e) =>
+              setStudioTitle(
+                e.target.value
+              )
+            }
+            className="app-input"
+            placeholder={
+              activeKingdomPublishModal === 'Devotions'
+                ? 'e.g. Walking With God'
+                : activeKingdomPublishModal === 'Bible Plans'
+                  ? 'e.g. 30 Days in the Book of Romans'
+                  : 'e.g. Walking by Faith'
+            }
+          />
+
+        </div>
+
+
+        {/* SCRIPTURE / PLAN REFERENCE */}
+
+        <div>
+
+          <label className="input-label">
+            {activeKingdomPublishModal === 'Bible Plans'
+              ? 'PLAN REFERENCE / DURATION'
+              : 'SCRIPTURE / REFERENCE'}
+          </label>
+
+          <input
+            type="text"
+            value={studioSub}
+            onChange={(e) =>
+              setStudioSub(
+                e.target.value
+              )
+            }
+            className="app-input"
+            placeholder={
+              activeKingdomPublishModal === 'Bible Plans'
+                ? 'e.g. 30 Days • Romans 1–16'
+                : 'e.g. Romans 8:1–17'
+            }
+          />
+
+        </div>
+
+
+        {/* BODY / TEXT */}
+
+        <div>
+
+          <label className="input-label">
+            {activeKingdomPublishModal === 'Devotions'
+              ? 'DEVOTIONAL TEXT'
+              : activeKingdomPublishModal === 'Bible Plans'
+                ? 'PLAN GUIDE / DESCRIPTION'
+                : 'MESSAGE / TRANSCRIPT'}
+          </label>
+
+          <textarea
+            value={studioBody}
+            onChange={(e) =>
+              setStudioBody(
+                e.target.value
+              )
+            }
+            className="app-input"
+            style={{
+              minHeight: '170px',
+              resize: 'vertical',
+              lineHeight: '1.6'
+            }}
+            placeholder={
+              activeKingdomPublishModal === 'Devotions'
+                ? 'Write the full devotional...'
+                : activeKingdomPublishModal === 'Bible Plans'
+                  ? 'Explain the reading plan, daily assignments and instructions...'
+                  : 'Write the message transcript or teaching...'
+            }
+          />
+
+        </div>
+
+
+        {/* COVER */}
+
+        <div>
+
+          <label className="input-label">
+            COVER IMAGE
+          </label>
+
+          <input
+            type="file"
+            accept="image/*"
+            onChange={(e) =>
+              setStudioCoverFile(
+                e.target.files?.[0] ||
+                null
+              )
+            }
+            style={{
+              width: '100%',
+              color: '#cbd5e1'
+            }}
+          />
+
+          {studioCoverFile && (
+            <div
+              style={{
+                color: '#29beaf',
+                fontSize: '11px',
+                marginTop: '6px'
+              }}
+            >
+              ✓ {studioCoverFile.name}
+            </div>
+          )}
+
+        </div>
+
+
+        {/* MESSAGE VIDEO + AUDIO */}
+
+        {activeKingdomPublishModal === 'Messages' && (
+          <>
+
+            <div>
+
+              <label className="input-label">
+                VIDEO — OPTIONAL
+              </label>
+
+              <input
+                type="file"
+                accept="video/*"
+                onChange={(e) =>
+                  setStudioVideoFile(
+                    e.target.files?.[0] ||
+                    null
+                  )
+                }
+                style={{
+                  width: '100%',
+                  color: '#cbd5e1'
+                }}
+              />
+
+              {studioVideoFile && (
+                <div
+                  style={{
+                    color: '#29beaf',
+                    fontSize: '11px',
+                    marginTop: '6px'
+                  }}
+                >
+                  ✓ {studioVideoFile.name}
+                </div>
+              )}
+
+            </div>
+
+
+            <div>
+
+              <label className="input-label">
+                AUDIO — OPTIONAL
+              </label>
+
+              <input
+                type="file"
+                accept="audio/*"
+                onChange={(e) =>
+                  setStudioAudioFile(
+                    e.target.files?.[0] ||
+                    null
+                  )
+                }
+                style={{
+                  width: '100%',
+                  color: '#cbd5e1'
+                }}
+              />
+
+              {studioAudioFile && (
+                <div
+                  style={{
+                    color: '#29beaf',
+                    fontSize: '11px',
+                    marginTop: '6px'
+                  }}
+                >
+                  ✓ {studioAudioFile.name}
+                </div>
+              )}
+
+            </div>
+
+          </>
+        )}
+
+
+        {/* FIXED REWARD */}
+
+        <div
+          style={{
+            background:
+              'rgba(41,190,175,0.08)',
+            border:
+              '1px solid rgba(41,190,175,0.25)',
+            padding: '13px',
+            borderRadius: '12px',
+            color: '#9ddfd6',
+            fontSize: '11px',
+            lineHeight: '1.5'
+          }}
+        >
+
+          <strong>
+            Kingdom Reward: 5 KPC
+          </strong>
+
+          <br />
+
+          The KingdomPlus reward is fixed
+          automatically by the platform.
+
+        </div>
+
+
+        {/* PUBLISH */}
+
+        <button
+          type="submit"
+          disabled={
+            isPublishingKingdomContent
+          }
+          className="action-button"
+          style={{
+            background:
+              'linear-gradient(90deg,#f3ca58,#29beaf)',
+            color: '#101926',
+            fontWeight: '900',
+            opacity:
+              isPublishingKingdomContent
+                ? 0.7
+                : 1
+          }}
+        >
+          {isPublishingKingdomContent
+            ? 'Publishing...'
+            : 'Publish to Kingdom'}
+        </button>
+
+      </form>
+
+    </div>
+  </div>
+)}
+
           <AppBottomNav />
         </div>
       )}
@@ -9599,62 +12198,321 @@ disabled={isUploadingBook}
           <div className="feed-scroll-area" 
   onScroll={handleBottomNavScroll}
  style={{ paddingBottom: '140px' }}>
-            <h1 className="treasury-title" style={{ textAlign: 'center' }}>My Treasury</h1>
+            {/* =====================================================
+    TREASURY PORTFOLIO
+    ===================================================== */}
 
-            {/* CENTERED Main Balance Card */}
-            <div className="treasury-balance-card" style={{ padding: '30px 20px', borderRadius: '24px', background: 'linear-gradient(135deg, #1e293b 0%, #0a0f1a 100%)', border: '1px solid rgba(243, 202, 88, 0.3)', boxShadow: '0 20px 40px rgba(0,0,0,0.5)', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-              <div style={{ color: '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '1px', marginBottom: '10px', textTransform: 'uppercase' }}>
-                Available Treasury Balance
-              </div>
-              
-              <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '8px', marginBottom: '6px' }}>
-                <span style={{ color: '#f3ca58', fontSize: '46px', fontWeight: '900', letterSpacing: '-1px' }}>
-                  {Number(kpcBalance || 0).toLocaleString()}
-                </span>
-                <span style={{ color: '#fff', fontSize: '18px', fontWeight: '800' }}>KPC</span>
-              </div>
-              
-              <div style={{ color: '#29beaf', fontSize: '15px', fontWeight: '700', marginBottom: '20px' }}>
-                ≈ ${(kpcBalance * 0.25).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USD
-              </div>
+<div
+  style={{
+    margin: '10px 20px 18px',
+    borderRadius: '28px',
+    padding: '24px',
+    background:
+      'radial-gradient(circle at top right, rgba(41,190,175,0.22), transparent 35%), linear-gradient(145deg,#182536,#091019)',
+    border:
+      '1px solid rgba(243,202,88,0.28)',
+    boxShadow:
+      '0 25px 60px rgba(0,0,0,0.45)',
+    position: 'relative',
+    overflow: 'hidden'
+  }}
+>
 
-              <div 
+  <div
+    style={{
+      position: 'absolute',
+      width: '180px',
+      height: '180px',
+      right: '-80px',
+      top: '-90px',
+      borderRadius: '50%',
+      background:
+        'rgba(243,202,88,0.08)',
+      filter: 'blur(8px)'
+    }}
+  />
 
-                onClick={() => {
+  <div
+    style={{
+      position: 'relative'
+    }}
+  >
 
-                  if (!generatedAddress) return;
+    <div
+      style={{
+        color: '#8e9aab',
+        fontSize: '10px',
+        letterSpacing: '1.6px',
+        fontWeight: '900',
+        textTransform: 'uppercase'
+      }}
+    >
+      Total Portfolio
+    </div>
 
-                  navigator.clipboard.writeText(generatedAddress); 
 
-                  alert("Solana Wallet Address copied to clipboard!"); 
+    <div
+      style={{
+        marginTop: '8px',
+        color: '#fff',
+        fontSize: '34px',
+        fontWeight: '950',
+        letterSpacing: '-1px'
+      }}
+    >
+      $
+      {(
+        Number(kpcBalance) *
+          0.25 +
+        Number(usdcBalance) +
+        Number(solBalance) *
+          Number(walletUsdRates.SOL || 0)
+      ).toLocaleString(
+        'en-US',
+        {
+          minimumFractionDigits: 2,
+          maximumFractionDigits: 2
+        }
+      )}
+    </div>
 
-                }}
 
-                style={{ width: '100%', maxWidth: '340px', background: 'rgba(0, 0, 0, 0.4)', padding: '12px 16px', borderRadius: '14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', border: '1px solid rgba(255, 255, 255, 0.08)', cursor: 'pointer' }}
+    <div
+      style={{
+        color: '#64748b',
+        fontSize: '10px',
+        marginTop: '3px'
+      }}
+    >
+      Live Treasury Portfolio
+    </div>
 
-              >
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', overflow: 'hidden' }}>
+    {/* COIN CARDS */}
 
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2ecc71', flexShrink: 0, boxShadow: '0 0 10px #2ecc71' }}></div>
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns:
+          'repeat(3,1fr)',
+        gap: '9px',
+        marginTop: '22px'
+      }}
+    >
 
-                  <span style={{ color: '#cbd5e1', fontSize: '13px', fontFamily: 'monospace', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      {/* KPC */}
 
-                    {generatedAddress ? generatedAddress : 'No Wallet Connected'}
+      <div
+        style={{
+          padding: '12px 9px',
+          borderRadius: '18px',
+          background:
+            'linear-gradient(145deg, rgba(243,202,88,0.13), rgba(243,202,88,0.03))',
+          border:
+            '1px solid rgba(243,202,88,0.22)'
+        }}
+      >
 
-                  </span>
+        <div
+          style={{
+            width: '34px',
+            height: '34px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background:
+              'radial-gradient(circle at 30% 25%, #fff2a8, #d9a932 45%, #8e6518)',
+            color: '#3a2b08',
+            fontWeight: '950',
+            boxShadow:
+              '0 5px 18px rgba(243,202,88,0.28)'
+          }}
+        >
+          K
+        </div>
 
-                </div>
+        <div
+          style={{
+            color: '#f3ca58',
+            fontWeight: '900',
+            fontSize: '11px',
+            marginTop: '9px'
+          }}
+        >
+          KPC
+        </div>
 
-                <div style={{ color: '#f3ca58', display: 'flex', alignItems: 'center', marginLeft: '10px' }}>
+        <div
+          style={{
+            color: '#fff',
+            fontSize: '17px',
+            fontWeight: '900',
+            marginTop: '2px'
+          }}
+        >
+          {Number(
+            kpcBalance
+          ).toLocaleString()}
+        </div>
 
-                  <CopyIcon />
+        <div
+          style={{
+            color: '#64748b',
+            fontSize: '9px',
+            marginTop: '2px'
+          }}
+        >
+          ≈ $
+          {(
+            Number(
+              kpcBalance
+            ) * 0.25
+          ).toFixed(2)}
+        </div>
 
-                </div>
+      </div>
 
-              </div>
 
-            </div>
+      {/* USDC */}
+
+      <div
+        style={{
+          padding: '12px 9px',
+          borderRadius: '18px',
+          background:
+            'linear-gradient(145deg, rgba(41,190,175,0.14), rgba(41,190,175,0.03))',
+          border:
+            '1px solid rgba(41,190,175,0.22)'
+        }}
+      >
+
+        <div
+          style={{
+            width: '34px',
+            height: '34px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background:
+              'radial-gradient(circle at 30% 25%, #d9fff9, #4dd6c4 45%, #138f83)',
+            color: '#063d38',
+            fontWeight: '950'
+          }}
+        >
+          $
+        </div>
+
+        <div
+          style={{
+            color: '#29beaf',
+            fontWeight: '900',
+            fontSize: '11px',
+            marginTop: '9px'
+          }}
+        >
+          USDC
+        </div>
+
+        <div
+          style={{
+            color: '#fff',
+            fontSize: '17px',
+            fontWeight: '900',
+            marginTop: '2px'
+          }}
+        >
+          {Number(
+            usdcBalance
+          ).toFixed(2)}
+        </div>
+
+        <div
+          style={{
+            color: '#64748b',
+            fontSize: '9px',
+            marginTop: '2px'
+          }}
+        >
+          Stable value
+        </div>
+
+      </div>
+
+
+      {/* SOL */}
+
+      <div
+        style={{
+          padding: '12px 9px',
+          borderRadius: '18px',
+          background:
+            'linear-gradient(145deg, rgba(155,89,182,0.14), rgba(155,89,182,0.03))',
+          border:
+            '1px solid rgba(155,89,182,0.22)'
+        }}
+      >
+
+        <div
+          style={{
+            width: '34px',
+            height: '34px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background:
+              'linear-gradient(135deg,#9945FF,#14F195)',
+            color: '#fff',
+            fontWeight: '950',
+            boxShadow:
+              '0 5px 18px rgba(153,69,255,0.25)'
+          }}
+        >
+          S
+        </div>
+
+        <div
+          style={{
+            color: '#b98fe6',
+            fontWeight: '900',
+            fontSize: '11px',
+            marginTop: '9px'
+          }}
+        >
+          SOL
+        </div>
+
+        <div
+          style={{
+            color: '#fff',
+            fontSize: '17px',
+            fontWeight: '900',
+            marginTop: '2px'
+          }}
+        >
+          {Number(
+            solBalance
+          ).toFixed(4)}
+        </div>
+
+        <div
+          style={{
+            color: '#64748b',
+            fontSize: '9px',
+            marginTop: '2px'
+          }}
+        >
+          Solana Devnet
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+</div>
 
             <div className="treasury-actions-row">
               <div className="treasury-action-item" onClick={() => setActiveModal('send')}>
@@ -9683,12 +12541,29 @@ disabled={isUploadingBook}
                 <span className="treasury-action-label">Hire<br />(Services)</span>
               </div>
 
-              <div className="treasury-action-item" onClick={() => setActiveModal('upgrade')}>
+              <div
+  className="treasury-action-item"
+  onClick={() => {
+    setSelectedUpgrade(
+      userProfile?.membership_tier ||
+      userTier ||
+      'Disciple'
+    );
+
+    setStep(13);
+  }}
+>
                 <div className="treasury-action-circle" style={{ color: '#e5c158', background: 'rgba(229, 193, 88, 0.1)' }}><CrownIcon /></div>
                 <span className="treasury-action-label">Upgrade<br />(Premium)</span>
               </div>
               
-              <div className="treasury-action-item" onClick={() => setActiveModal('swap')}>
+              <div
+  className="treasury-action-item"
+  onClick={() => {
+    setSendSwapTab('Swap');
+    setStep(16);
+  }}
+>
                 <div className="treasury-action-circle" style={{ color: '#e67e22', background: 'rgba(230, 126, 34, 0.1)' }}>
                   <SwapIcon />
                 </div>
@@ -10760,7 +13635,7 @@ disabled={isUploadingBook}
         Demo USDC balance:
         {' '}
         {Number(
-          demoUsdcBalance
+          usdcBalance
         ).toFixed(2)}
       </div>
     </div>
