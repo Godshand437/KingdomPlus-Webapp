@@ -4471,12 +4471,12 @@ const [isLoadingMinistryLeaders, setIsLoadingMinistryLeaders] = useState(false);
     .from('user_profiles')
     .select(`
       id,
-      full_name,
-      username,
-      email,
-      account_type,
-      membership_tier,
-      membership_source
+full_name,
+username,
+email,
+avatar_url,
+membership_tier,
+membership_source
     `)
     .eq('id', foundUser.id)
     .single();
@@ -5307,13 +5307,108 @@ const [isLoadingMinistryLeaders, setIsLoadingMinistryLeaders] = useState(false);
                   No additional ministers ordained yet. Use the portal above to add team members.
                 </div>
               ) : (
-                verifiedMinistersList.map((min, idx) => (
-                  <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '14px', borderRadius: '14px', border: '1px solid rgba(255,255,255,0.05)', transition: 'all 0.2s' }}>
+                verifiedMinistersList.map((min, leader) => (
+                  <div
+  key={leader.id}
+  onClick={() => handleViewProfile(leader.userId)}
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '12px',
+    borderRadius: '14px',
+    background:
+      'rgba(255,255,255,0.035)',
+    border:
+      '1px solid rgba(255,255,255,0.07)',
+    cursor: 'pointer',
+    transition: 'transform 0.15s ease, border-color 0.15s ease'
+  }}
+>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                  
-                      <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: min.avatar ? `url(${min.avatar}) center/cover no-repeat` : 'rgba(243, 202, 88, 0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', fontWeight: '800', fontSize: '16px', border: '1px solid rgba(243, 202, 88, 0.3)' }}>
-                        {!min.avatar && min.name.charAt(0).toUpperCase()}
-                      </div>
+                      <div
+  style={{
+    minWidth: 0,
+    flex: 1
+  }}
+>
+  <div
+    style={{
+      color: '#fff',
+      fontSize: '13px',
+      fontWeight: '800',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis'
+    }}
+  >
+    {leader.name}
+  </div>
+
+  <div
+    style={{
+      color: '#8e9aab',
+      fontSize: '10px',
+      marginTop: '3px'
+    }}
+  >
+    {leader.handle}
+  </div>
+
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+      marginTop: '6px',
+      flexWrap: 'wrap'
+    }}
+  >
+    <span
+      style={{
+        padding: '3px 7px',
+        borderRadius: '6px',
+        background:
+          'rgba(243,202,88,0.10)',
+        color: '#f3ca58',
+        fontSize: '9px',
+        fontWeight: '800'
+      }}
+    >
+      {leader.role}
+    </span>
+
+    <span
+      style={{
+        padding: '3px 7px',
+        borderRadius: '6px',
+        background:
+          'rgba(41,190,175,0.10)',
+        color: '#29beaf',
+        fontSize: '9px',
+        fontWeight: '800'
+      }}
+    >
+      {leader.dashboardAccess}
+    </span>
+
+    <span
+      style={{
+        color:
+          leader.membershipTier === 'Apostle'
+            ? '#f3ca58'
+            : '#8e9aab',
+        fontSize: '9px',
+        fontWeight: '700'
+      }}
+    >
+      {leader.membershipTier}
+    </span>
+  </div>
+</div>
+
+<ChevronRightIcon />
                       
                       <div>
                         <div style={{ color: '#fff', fontSize: '14px', fontWeight: '800', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -6309,6 +6404,151 @@ const hasDiscipleAccess = (profile) => {
   );
 };
 
+const loadMinistryMembers = async () => {
+  if (
+    !userProfile?.id ||
+    userProfile?.account_type !== 'Ministry'
+  ) {
+    setMinistryMembers([]);
+    setMinistryMemberCount(0);
+    return;
+  }
+
+  setIsLoadingMinistryMembers(true);
+
+  try {
+    // Get all active members belonging to this Ministry.
+    const {
+      data: memberRows,
+      error: memberError
+    } = await supabase
+      .from('ministry_members')
+      .select(`
+        id,
+        user_id,
+        status,
+        joined_at,
+        updated_at
+      `)
+      .eq('ministry_id', userProfile.id)
+      .eq('status', 'active')
+      .order('joined_at', {
+        ascending: false
+      });
+
+    if (memberError) {
+      throw memberError;
+    }
+
+    if (!memberRows || memberRows.length === 0) {
+      setMinistryMembers([]);
+      setMinistryMemberCount(0);
+      return;
+    }
+
+    const userIds = memberRows
+      .map(member => member.user_id)
+      .filter(Boolean);
+
+    const {
+      data: memberUsers,
+      error: userError
+    } = await supabase
+      .from('user_profiles')
+      .select(`
+        id,
+        full_name,
+        username,
+        avatar_url,
+        membership_tier
+      `)
+      .in('id', userIds);
+
+    if (userError) {
+      throw userError;
+    }
+
+    const userMap = new Map(
+      (memberUsers || []).map(user => [
+        user.id,
+        user
+      ])
+    );
+
+    const formattedMembers = memberRows.map(
+      member => {
+        const user =
+          userMap.get(member.user_id);
+
+        return {
+          id: member.id,
+          userId: member.user_id,
+
+          name:
+            user?.full_name ||
+            user?.username ||
+            'Kingdom Member',
+
+          username:
+            user?.username || null,
+
+          avatarUrl:
+            user?.avatar_url || null,
+
+          membershipTier:
+            user?.membership_tier ||
+            'Standard',
+
+          status:
+            member.status,
+
+          joinedAt:
+            member.joined_at,
+
+          updatedAt:
+            member.updated_at
+        };
+      }
+    );
+
+    setMinistryMembers(
+      formattedMembers
+    );
+
+    setMinistryMemberCount(
+      formattedMembers.length
+    );
+
+  } catch (error) {
+    console.error(
+      'Failed to load Ministry members:',
+      error
+    );
+
+    setMinistryMembers([]);
+    setMinistryMemberCount(0);
+
+  } finally {
+    setIsLoadingMinistryMembers(false);
+  }
+};
+
+useEffect(() => {
+  if (
+    step !== 6 ||
+    userProfile?.account_type !== 'Ministry'
+  ) {
+    return;
+  }
+
+  loadMinistryMembers();
+}, [
+  step,
+  userProfile?.id,
+  userProfile?.account_type
+]);
+
+
 const [ministryLeaderships, setMinistryLeaderships] = useState([]);
 const [activeMinistryWorkspace, setActiveMinistryWorkspace] = useState(null);
 const [isOpeningMinistryWorkspace, setIsOpeningMinistryWorkspace] = useState(false);
@@ -6385,114 +6625,129 @@ useEffect(() => {
   }
 
   const loadUserMinistryLeaderships = async () => {
-    try {
-      const {
-        data: leaderRows,
-        error: leaderError
-      } = await supabase
-        .from('ministry_leaders')
-        .select(`
-          id,
-          ministry_id,
-          role,
-          dashboard_access,
-          status,
-          appointed_at
-        `)
-        .eq('user_id', authUserId)
-        .eq('status', 'active')
-        .order('appointed_at', {
-          ascending: false
-        });
+  if (!authReady || !authUserId) {
+    setMinistryLeaderships([]);
+    return;
+  }
 
-      if (leaderError) {
-        throw leaderError;
-      }
+  try {
+    const {
+      data: leaderRows,
+      error: leaderError
+    } = await supabase
+      .from('ministry_leaders')
+      .select(`
+        id,
+        ministry_id,
+        role,
+        dashboard_access,
+        status,
+        appointed_at
+      `)
+      .eq('user_id', authUserId)
+      .eq('status', 'active')
+      .order('appointed_at', {
+        ascending: false
+      });
 
-      if (!leaderRows || leaderRows.length === 0) {
-        setMinistryLeaderships([]);
-        return;
-      }
-
-      const ministryIds = leaderRows
-        .map(leader => leader.ministry_id)
-        .filter(Boolean);
-
-      const {
-        data: ministryRows,
-        error: ministryError
-      } = await supabase
-        .from('church_profiles')
-        .select(`
-          id,
-          ministry_name,
-          username,
-          denomination
-        `)
-        .in('id', ministryIds);
-
-      if (ministryError) {
-        throw ministryError;
-      }
-
-      const ministryMap = new Map(
-        (ministryRows || []).map(ministry => [
-          ministry.id,
-          ministry
-        ])
-      );
-
-      const leadershipData = leaderRows.map(
-        leader => {
-          const ministry =
-            ministryMap.get(leader.ministry_id);
-
-          return {
-            id: leader.id,
-            ministryId: leader.ministry_id,
-
-            ministryName:
-              ministry?.ministry_name ||
-              ministry?.username ||
-              'Ministry',
-
-            ministryUsername:
-              ministry?.username
-                ? `@${ministry.username}`
-                : null,
-
-            denomination:
-              ministry?.denomination || null,
-
-            role:
-              leader.role || 'Leader',
-
-            dashboardAccess:
-              leader.dashboard_access ||
-              'limited',
-
-            status:
-              leader.status || 'active',
-
-            appointedAt:
-              leader.appointed_at
-          };
-        }
-      );
-
-      setMinistryLeaderships(
-        leadershipData
-      );
-
-    } catch (error) {
-      console.error(
-        'Failed to load Ministry leaderships:',
-        error
-      );
-
-      setMinistryLeaderships([]);
+    if (leaderError) {
+      throw leaderError;
     }
-  };
+
+    if (!leaderRows || leaderRows.length === 0) {
+      setMinistryLeaderships([]);
+      return;
+    }
+
+    const ministryIds = leaderRows
+      .map(leader => leader.ministry_id)
+      .filter(Boolean);
+
+    const {
+      data: ministryRows,
+      error: ministryError
+    } = await supabase
+      .from('church_profiles')
+      .select(`
+        id,
+        ministry_name,
+        username,
+        denomination,
+        image
+      `)
+      .in('id', ministryIds);
+
+    if (ministryError) {
+      throw ministryError;
+    }
+
+    const ministryMap = new Map(
+      (ministryRows || []).map(ministry => [
+        ministry.id,
+        ministry
+      ])
+    );
+
+    const leadershipData = leaderRows.map(
+  leader => {
+    const ministry =
+      ministryMap.get(leader.ministry_id);
+
+    return {
+      id: leader.id,
+
+      ministryId:
+        leader.ministry_id,
+
+      ministryName:
+        ministry?.ministry_name ||
+        ministry?.username ||
+        'Ministry',
+
+      ministryUsername:
+        ministry?.username
+          ? `@${ministry.username}`
+          : null,
+
+      denomination:
+        ministry?.denomination ||
+        null,
+
+      ministryImage:
+        ministry?.image ||
+        null,
+
+      role:
+        leader.role ||
+        'Leader',
+
+      dashboardAccess:
+        leader.dashboard_access ||
+        'limited',
+
+      status:
+        leader.status ||
+        'active',
+
+      appointedAt:
+        leader.appointed_at
+    };
+  }
+);
+
+    setMinistryLeaderships(
+      leadershipData
+    );
+
+  } catch (error) {
+    console.error(
+      'Failed to load Ministry leaderships:',
+      error
+    );
+
+    setMinistryLeaderships([]);
+  }
+};
 
   loadUserMinistryLeaderships();
 }, [
@@ -6990,9 +7245,20 @@ const handlePurchaseService = async (service) => {
       return;
     }
 
-    const authorId = eOrAuthorId; 
-    
-    try {
+    const authorId = eOrAuthorId;
+
+if (
+  !authorId ||
+  typeof authorId !== 'string'
+) {
+  console.error(
+    'Cannot open public profile: invalid user ID',
+    authorId
+  );
+  return;
+}
+
+try {
       const currentUserResponse = await supabase.auth.getUser();
       const currentUser = currentUserResponse.data?.user;
       
@@ -14992,78 +15258,82 @@ disabled={isUploadingBook}
   style={{
     display: 'flex',
     alignItems: 'center',
-    gap: '8px',
-    flexWrap: 'wrap'
+    gap: '10px',
+    flexWrap: 'wrap',
+    marginTop: '14px'
   }}
 >
   <button
     className="profile-btn-primary"
     onClick={openEditModal}
+    style={{
+      minWidth: '120px'
+    }}
   >
     Edit Profile
   </button>
 
   <button
     className="profile-btn-secondary"
+    style={{
+      minWidth: '90px'
+    }}
   >
     Share
   </button>
 
-  <button
-    className="profile-btn-icon"
-    title="Copy profile link"
-  >
-    <LinkIcon />
-  </button>
+  {ministryLeaderships.length > 0 && (
+    <button
+      onClick={() =>
+        openMinistryWorkspace(
+          ministryLeaderships[0]
+        )
+      }
+      disabled={isOpeningMinistryWorkspace}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '7px',
+        minWidth: '155px',
+        padding: '9px 13px',
+        borderRadius: '12px',
+        border:
+          '1px solid rgba(41,190,175,0.35)',
+        background:
+          'rgba(41,190,175,0.10)',
+        color: '#29beaf',
+        fontSize: '12px',
+        fontWeight: '800',
+        cursor: isOpeningMinistryWorkspace
+          ? 'wait'
+          : 'pointer'
+      }}
+    >
+      <ChurchIcon />
+      {isOpeningMinistryWorkspace
+        ? 'Opening...'
+        : 'Ministry Workspace'}
+    </button>
+  )}
 
-{ministryLeaderships.length > 0 && (
   <button
-    onClick={() =>
-      openMinistryWorkspace(
-        ministryLeaderships[0]
-      )
-    }
-    disabled={isOpeningMinistryWorkspace}
+    onClick={handleLogoutUser}
     style={{
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
       gap: '7px',
-      background: 'rgba(41, 190, 175, 0.10)',
-      border: '1px solid rgba(41, 190, 175, 0.35)',
-      color: '#29beaf',
-      padding: '9px 12px',
+      minWidth: '95px',
+      padding: '9px 13px',
       borderRadius: '12px',
+      border:
+        '1px solid rgba(231,76,60,0.30)',
+      background:
+        'rgba(231,76,60,0.08)',
+      color: '#e74c3c',
       fontSize: '12px',
       fontWeight: '800',
-      cursor: isOpeningMinistryWorkspace
-        ? 'wait'
-        : 'pointer'
-    }}
-    title="Open Ministry Workspace"
-  >
-    <ChurchIcon />
-    {isOpeningMinistryWorkspace
-      ? 'Opening...'
-      : 'Ministry Workspace'}
-  </button>
-)}
-
-  <button
-    onClick={handleLogoutUser}
-    title="Log out"
-    style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: '6px',
-      background: 'rgba(231, 76, 60, 0.10)',
-      border: '1px solid rgba(231, 76, 60, 0.35)',
-      color: '#e74c3c',
-      padding: '9px 12px',
-      borderRadius: '12px',
-      fontSize: '12px',
-      fontWeight: '700',
       cursor: 'pointer'
     }}
   >
@@ -17842,10 +18112,12 @@ const displayName =
     style={{
       minHeight: '100vh',
       width: '100%',
-      background: '#08111d',
+      minWidth: '100%',
+      background: '#101926',
       color: '#fff',
       display: 'flex',
-      flexDirection: 'column'
+      flexDirection: 'column',
+      boxSizing: 'border-box'
     }}
   >
     {/* WORKSPACE HEADER */}
@@ -17854,7 +18126,7 @@ const displayName =
         position: 'sticky',
         top: 0,
         zIndex: 50,
-        background: 'rgba(8,17,29,0.94)',
+        background: 'rgba(16,25,38,0.94)',
         backdropFilter: 'blur(16px)',
         borderBottom:
           '1px solid rgba(255,255,255,0.07)',
@@ -17880,7 +18152,7 @@ const displayName =
           <button
             onClick={() => {
               setActiveMinistryWorkspace(null);
-              setStep(6);
+              setStep(18);
             }}
             style={{
               width: '36px',
@@ -17901,40 +18173,48 @@ const displayName =
           </button>
 
           <div
-            style={{
-              width: '40px',
-              height: '40px',
-              borderRadius: '12px',
-              overflow: 'hidden',
-              flexShrink: 0,
-              background:
-                'linear-gradient(135deg,#29beaf,#101926)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#f3ca58',
-              fontWeight: '900'
-            }}
-          >
-            {activeMinistryWorkspace.ministry.image ? (
-              <img
-                src={
-                  activeMinistryWorkspace.ministry.image
-                }
-                alt={
-                  activeMinistryWorkspace.ministry
-                    .ministry_name
-                }
-                style={{
-                  width: '100%',
-                  height: '100%',
-                  objectFit: 'cover'
-                }}
-              />
-            ) : (
-              <ChurchIcon />
-            )}
-          </div>
+  style={{
+    width: '42px',
+    height: '42px',
+    borderRadius: '12px',
+    overflow: 'hidden',
+    flexShrink: 0,
+    background:
+      'linear-gradient(135deg,#29beaf,#101926)',
+    border:
+      '1px solid rgba(41,190,175,0.25)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#f3ca58',
+    fontWeight: '900'
+  }}
+>
+  {activeMinistryWorkspace?.ministry?.image ? (
+    <img
+      src={activeMinistryWorkspace.ministry.image}
+      alt={
+        activeMinistryWorkspace.ministry
+          .ministry_name ||
+        'Ministry'
+      }
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block'
+      }}
+    />
+  ) : (
+    <div
+      style={{
+        fontSize: '18px'
+      }}
+    >
+      ⛪
+    </div>
+  )}
+</div>
 
           <div style={{ minWidth: 0 }}>
             <div
@@ -17991,13 +18271,14 @@ const displayName =
 
     {/* WORKSPACE CONTENT */}
     <div
-      style={{
-        width: '100%',
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '20px'
-      }}
-    >
+  style={{
+    width: '100%',
+    flex: 1,
+    boxSizing: 'border-box',
+    padding: '24px 28px 40px',
+    background: 'transparent'
+  }}
+>
       <div
         style={{
           marginBottom: '20px'
