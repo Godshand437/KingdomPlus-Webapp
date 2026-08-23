@@ -4329,9 +4329,11 @@ useEffect(() => {
   
 // --- CHURCH DASHBOARD STATE & HANDLERS ---
   const [ministerSearchInput, setMinisterSearchInput] = useState('');
-  const [selectedLeaderRole, setSelectedLeaderRole] = useState('Pastor');
-  const [selectedLeaderAccess, setSelectedLeaderAccess] = useState('limited');
-  const [verifiedMinistersList, setVerifiedMinistersList] = useState([]);
+const [selectedLeaderRole, setSelectedLeaderRole] = useState('Pastor');
+const [selectedLeaderAccess, setSelectedLeaderAccess] = useState('limited');
+
+const [verifiedMinistersList, setVerifiedMinistersList] = useState([]);
+const [isLoadingMinistryLeaders, setIsLoadingMinistryLeaders] = useState(false);
 
   const handleVerifyMinister = async (e) => {
   e.preventDefault();
@@ -4505,6 +4507,7 @@ useEffect(() => {
     )
   ]);
 
+
   setMinisterSearchInput('');
   setSelectedLeaderRole('Pastor');
   setSelectedLeaderAccess('limited');
@@ -4513,6 +4516,8 @@ useEffect(() => {
     `Hallelujah! @${displayUser.username || 'user'} has been appointed as ${selectedLeaderRole}.`
   );
 };
+
+
 
 // --- CHURCH STUDIO REFS, LIVE STREAM & MODAL STATES ---
   const coverInputRef = useRef(null);
@@ -6304,6 +6309,9 @@ const hasDiscipleAccess = (profile) => {
   );
 };
 
+const [ministryLeaderships, setMinistryLeaderships] = useState([]);
+const [activeMinistryWorkspace, setActiveMinistryWorkspace] = useState(null);
+const [isOpeningMinistryWorkspace, setIsOpeningMinistryWorkspace] = useState(false);
 const hasApostleAccess = (profile) => {
   return getEffectiveMembershipTier(profile) === 'Apostle';
 };
@@ -6370,11 +6378,338 @@ setUserProfile(normalizedProfile);
     fetchUserProfile();
   }, [authReady]);
 
+useEffect(() => {
+  if (!authReady || !authUserId) {
+    setMinistryLeaderships([]);
+    return;
+  }
+
+  const loadUserMinistryLeaderships = async () => {
+    try {
+      const {
+        data: leaderRows,
+        error: leaderError
+      } = await supabase
+        .from('ministry_leaders')
+        .select(`
+          id,
+          ministry_id,
+          role,
+          dashboard_access,
+          status,
+          appointed_at
+        `)
+        .eq('user_id', authUserId)
+        .eq('status', 'active')
+        .order('appointed_at', {
+          ascending: false
+        });
+
+      if (leaderError) {
+        throw leaderError;
+      }
+
+      if (!leaderRows || leaderRows.length === 0) {
+        setMinistryLeaderships([]);
+        return;
+      }
+
+      const ministryIds = leaderRows
+        .map(leader => leader.ministry_id)
+        .filter(Boolean);
+
+      const {
+        data: ministryRows,
+        error: ministryError
+      } = await supabase
+        .from('church_profiles')
+        .select(`
+          id,
+          ministry_name,
+          username,
+          denomination
+        `)
+        .in('id', ministryIds);
+
+      if (ministryError) {
+        throw ministryError;
+      }
+
+      const ministryMap = new Map(
+        (ministryRows || []).map(ministry => [
+          ministry.id,
+          ministry
+        ])
+      );
+
+      const leadershipData = leaderRows.map(
+        leader => {
+          const ministry =
+            ministryMap.get(leader.ministry_id);
+
+          return {
+            id: leader.id,
+            ministryId: leader.ministry_id,
+
+            ministryName:
+              ministry?.ministry_name ||
+              ministry?.username ||
+              'Ministry',
+
+            ministryUsername:
+              ministry?.username
+                ? `@${ministry.username}`
+                : null,
+
+            denomination:
+              ministry?.denomination || null,
+
+            role:
+              leader.role || 'Leader',
+
+            dashboardAccess:
+              leader.dashboard_access ||
+              'limited',
+
+            status:
+              leader.status || 'active',
+
+            appointedAt:
+              leader.appointed_at
+          };
+        }
+      );
+
+      setMinistryLeaderships(
+        leadershipData
+      );
+
+    } catch (error) {
+      console.error(
+        'Failed to load Ministry leaderships:',
+        error
+      );
+
+      setMinistryLeaderships([]);
+    }
+  };
+
+  loadUserMinistryLeaderships();
+}, [
+  authReady,
+  authUserId
+]);
+
+const openMinistryWorkspace = async (leadership) => {
+  if (!leadership?.ministryId) {
+    alert('No Ministry workspace is available.');
+    return;
+  }
+
+  setIsOpeningMinistryWorkspace(true);
+
+  try {
+    const {
+      data: ministry,
+      error
+    } = await supabase
+      .from('church_profiles')
+      .select(`
+        id,
+        ministry_name,
+        username,
+        denomination,
+        ministry_type,
+        membership_tier,
+        image,
+        country,
+        city,
+        street_address,
+        main_service_day,
+        service_time,
+        mission_statement
+      `)
+      .eq('id', leadership.ministryId)
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    if (!ministry) {
+      throw new Error(
+        'Ministry profile could not be found.'
+      );
+    }
+
+    setActiveMinistryWorkspace({
+      ministry,
+      role: leadership.role,
+      dashboardAccess:
+        leadership.dashboardAccess || 'limited'
+    });
+
+    setStep(26);
+
+  } catch (error) {
+    console.error(
+      'Failed to open Ministry Workspace:',
+      error
+    );
+
+    alert(
+      'Unable to open this Ministry Workspace.'
+    );
+
+  } finally {
+    setIsOpeningMinistryWorkspace(false);
+  }
+};
+
   const followedMinistries = [
     { id: 1, name: "Grace Sanctuary", isMain: true, img: "⛪" },
     { id: 2, name: "Elevation", isMain: false, img: "🔥" },
     { id: 3, name: "Hillsong", isMain: false, img: "🕊️" }
   ];
+
+const loadMinistryLeaders = async () => {
+  if (
+    !userProfile?.id ||
+    userProfile?.account_type !== 'Ministry'
+  ) {
+    setVerifiedMinistersList([]);
+    return;
+  }
+
+  setIsLoadingMinistryLeaders(true);
+
+  try {
+    const {
+      data: leaderRows,
+      error: leaderError
+    } = await supabase
+      .from('ministry_leaders')
+      .select(`
+        id,
+        user_id,
+        role,
+        dashboard_access,
+        status,
+        appointed_at
+      `)
+      .eq('ministry_id', userProfile.id)
+      .eq('status', 'active')
+      .order('appointed_at', {
+        ascending: false
+      });
+
+    if (leaderError) {
+      throw leaderError;
+    }
+
+    if (!leaderRows || leaderRows.length === 0) {
+      setVerifiedMinistersList([]);
+      return;
+    }
+
+    const leaderUserIds = leaderRows
+      .map(leader => leader.user_id)
+      .filter(Boolean);
+
+    const {
+      data: leaderUsers,
+      error: userError
+    } = await supabase
+      .from('user_profiles')
+      .select(`
+        id,
+        full_name,
+        username,
+        email,
+        membership_tier,
+        membership_source
+      `)
+      .in('id', leaderUserIds);
+
+    if (userError) {
+      throw userError;
+    }
+
+    const userMap = new Map(
+      (leaderUsers || []).map(user => [
+        user.id,
+        user
+      ])
+    );
+
+    const formattedLeaders = leaderRows.map(
+      leader => {
+        const user =
+          userMap.get(leader.user_id);
+
+        return {
+          id: leader.id,
+          userId: leader.user_id,
+
+          name:
+            user?.full_name ||
+            'Ministry Leader',
+
+          handle:
+            user?.username
+              ? `@${user.username}`
+              : '@user',
+
+          role:
+            leader.role || 'Leader',
+
+          dashboardAccess:
+            leader.dashboard_access || 'limited',
+
+          membershipTier:
+            user?.membership_tier ||
+            'Disciple',
+
+          membershipSource:
+            user?.membership_source ||
+            null,
+
+          appointedAt:
+            leader.appointed_at
+        };
+      }
+    );
+
+    setVerifiedMinistersList(formattedLeaders);
+
+  } catch (error) {
+    console.error(
+      'Failed to load Ministry leaders:',
+      error
+    );
+
+    setVerifiedMinistersList([]);
+
+  } finally {
+    setIsLoadingMinistryLeaders(false);
+  }
+};
+
+useEffect(() => {
+  if (
+    step !== 6 ||
+    userProfile?.account_type !== 'Ministry'
+  ) {
+    return;
+  }
+
+  loadMinistryLeaders();
+}, [
+  step,
+  userProfile?.id,
+  userProfile?.account_type
+]);
+
 
 // ==========================================
   // PROFILE EDIT & UPLOAD STATES
@@ -14681,6 +15016,39 @@ disabled={isUploadingBook}
     <LinkIcon />
   </button>
 
+{ministryLeaderships.length > 0 && (
+  <button
+    onClick={() =>
+      openMinistryWorkspace(
+        ministryLeaderships[0]
+      )
+    }
+    disabled={isOpeningMinistryWorkspace}
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '7px',
+      background: 'rgba(41, 190, 175, 0.10)',
+      border: '1px solid rgba(41, 190, 175, 0.35)',
+      color: '#29beaf',
+      padding: '9px 12px',
+      borderRadius: '12px',
+      fontSize: '12px',
+      fontWeight: '800',
+      cursor: isOpeningMinistryWorkspace
+        ? 'wait'
+        : 'pointer'
+    }}
+    title="Open Ministry Workspace"
+  >
+    <ChurchIcon />
+    {isOpeningMinistryWorkspace
+      ? 'Opening...'
+      : 'Ministry Workspace'}
+  </button>
+)}
+
   <button
     onClick={handleLogoutUser}
     title="Log out"
@@ -17465,6 +17833,383 @@ const displayName =
           <AppBottomNav />
         </div>
       )}
+
+{/* =========================================================
+    STEP 26: MINISTRY WORKSPACE
+   ========================================================= */}
+{step === 26 && activeMinistryWorkspace && (
+  <div
+    style={{
+      minHeight: '100vh',
+      width: '100%',
+      background: '#08111d',
+      color: '#fff',
+      display: 'flex',
+      flexDirection: 'column'
+    }}
+  >
+    {/* WORKSPACE HEADER */}
+    <div
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+        background: 'rgba(8,17,29,0.94)',
+        backdropFilter: 'blur(16px)',
+        borderBottom:
+          '1px solid rgba(255,255,255,0.07)',
+        padding: '14px 18px'
+      }}
+    >
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px'
+        }}
+      >
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            minWidth: 0
+          }}
+        >
+          <button
+            onClick={() => {
+              setActiveMinistryWorkspace(null);
+              setStep(6);
+            }}
+            style={{
+              width: '36px',
+              height: '36px',
+              borderRadius: '10px',
+              border:
+                '1px solid rgba(255,255,255,0.08)',
+              background:
+                'rgba(255,255,255,0.04)',
+              color: '#fff',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <BackArrowIcon />
+          </button>
+
+          <div
+            style={{
+              width: '40px',
+              height: '40px',
+              borderRadius: '12px',
+              overflow: 'hidden',
+              flexShrink: 0,
+              background:
+                'linear-gradient(135deg,#29beaf,#101926)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#f3ca58',
+              fontWeight: '900'
+            }}
+          >
+            {activeMinistryWorkspace.ministry.image ? (
+              <img
+                src={
+                  activeMinistryWorkspace.ministry.image
+                }
+                alt={
+                  activeMinistryWorkspace.ministry
+                    .ministry_name
+                }
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover'
+                }}
+              />
+            ) : (
+              <ChurchIcon />
+            )}
+          </div>
+
+          <div style={{ minWidth: 0 }}>
+            <div
+              style={{
+                fontSize: '15px',
+                fontWeight: '900',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis'
+              }}
+            >
+              {
+                activeMinistryWorkspace.ministry
+                  .ministry_name ||
+                activeMinistryWorkspace.ministry
+                  .username ||
+                'Ministry Workspace'
+              }
+            </div>
+
+            <div
+              style={{
+                color: '#8e9aab',
+                fontSize: '10px',
+                marginTop: '3px'
+              }}
+            >
+              {activeMinistryWorkspace.role}
+              {' • '}
+              {activeMinistryWorkspace.dashboardAccess}
+              {' access'}
+            </div>
+          </div>
+        </div>
+
+        <div
+          style={{
+            padding: '6px 9px',
+            borderRadius: '8px',
+            background:
+              'rgba(243,202,88,0.10)',
+            border:
+              '1px solid rgba(243,202,88,0.25)',
+            color: '#f3ca58',
+            fontSize: '10px',
+            fontWeight: '800',
+            whiteSpace: 'nowrap'
+          }}
+        >
+          Ministry
+        </div>
+      </div>
+    </div>
+
+    {/* WORKSPACE CONTENT */}
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '20px'
+      }}
+    >
+      <div
+        style={{
+          marginBottom: '20px'
+        }}
+      >
+        <div
+          style={{
+            color: '#29beaf',
+            fontSize: '10px',
+            fontWeight: '900',
+            letterSpacing: '1px',
+            textTransform: 'uppercase',
+            marginBottom: '6px'
+          }}
+        >
+          Ministry Command Center
+        </div>
+
+        <h1
+          style={{
+            margin: 0,
+            fontSize: '26px',
+            fontWeight: '900'
+          }}
+        >
+          Overview
+        </h1>
+
+        <p
+          style={{
+            color: '#8e9aab',
+            fontSize: '12px',
+            marginTop: '6px'
+          }}
+        >
+          Manage your Ministry, people,
+          content and Kingdom impact.
+        </p>
+      </div>
+
+      {/* OVERVIEW CARDS */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fit,minmax(150px,1fr))',
+          gap: '12px'
+        }}
+      >
+        {[
+          {
+            label: 'Members',
+            value: '0',
+            icon: '👥'
+          },
+          {
+            label: 'Active',
+            value: '0',
+            icon: '⚡'
+          },
+          {
+            label: 'Check-ins',
+            value: '0',
+            icon: '✅'
+          },
+          {
+            label: 'KPC Earned',
+            value: '0',
+            icon: '🪙'
+          }
+        ].map(card => (
+          <div
+            key={card.label}
+            style={{
+              background:
+                'rgba(255,255,255,0.035)',
+              border:
+                '1px solid rgba(255,255,255,0.07)',
+              borderRadius: '16px',
+              padding: '16px'
+            }}
+          >
+            <div
+              style={{
+                fontSize: '18px',
+                marginBottom: '10px'
+              }}
+            >
+              {card.icon}
+            </div>
+
+            <div
+              style={{
+                fontSize: '22px',
+                fontWeight: '900'
+              }}
+            >
+              {card.value}
+            </div>
+
+            <div
+              style={{
+                color: '#8e9aab',
+                fontSize: '11px',
+                marginTop: '4px'
+              }}
+            >
+              {card.label}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* MODULE GRID */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fit,minmax(220px,1fr))',
+          gap: '12px',
+          marginTop: '20px'
+        }}
+      >
+        {[
+          {
+            title: 'Members',
+            icon: '👥',
+            desc: 'Manage Ministry membership and activity.'
+          },
+          {
+            title: 'Leaders',
+            icon: '🛡️',
+            desc: 'Manage pastors, ministers and assigned access.'
+          },
+          {
+            title: 'Check-ins',
+            icon: '✅',
+            desc: 'Track attendance and community participation.'
+          },
+          {
+            title: 'Content',
+            icon: '📖',
+            desc: 'Publish devotionals, announcements and media.'
+          },
+          {
+            title: 'Events',
+            icon: '📅',
+            desc: 'Create and manage Ministry events.'
+          },
+          {
+            title: 'Growth',
+            icon: '📈',
+            desc: 'Monitor Ministry growth and engagement.'
+          },
+          {
+            title: 'KPC Rewards',
+            icon: '🪙',
+            desc: 'See Ministry rewards and growth milestones.'
+          },
+          {
+            title: 'Settings',
+            icon: '⚙️',
+            desc: 'Manage Ministry profile and configuration.'
+          }
+        ].map(module => (
+          <div
+            key={module.title}
+            style={{
+              background:
+                'rgba(255,255,255,0.035)',
+              border:
+                '1px solid rgba(255,255,255,0.07)',
+              borderRadius: '16px',
+              padding: '18px',
+              cursor: 'pointer'
+            }}
+          >
+            <div
+              style={{
+                fontSize: '22px',
+                marginBottom: '12px'
+              }}
+            >
+              {module.icon}
+            </div>
+
+            <div
+              style={{
+                color: '#fff',
+                fontSize: '14px',
+                fontWeight: '900'
+              }}
+            >
+              {module.title}
+            </div>
+
+            <div
+              style={{
+                color: '#8e9aab',
+                fontSize: '11px',
+                lineHeight: '1.5',
+                marginTop: '6px'
+              }}
+            >
+              {module.desc}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+)}
 
 
       {renderStreamPlayer()}
