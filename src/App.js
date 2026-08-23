@@ -5308,8 +5308,7 @@ membership_source
                 </div>
               ) : (
                 verifiedMinistersList.map((min, leader) => (
-                  <div
-  key={leader.id}
+                  <div key={leader.id || leader.userId || `${leader.handle}-${leader.name}`}
   onClick={() => handleViewProfile(leader.userId)}
   style={{
     display: 'flex',
@@ -6777,6 +6776,7 @@ const openMinistryWorkspace = async (leadership) => {
         ministry_type,
         membership_tier,
         image,
+        wallet_balance,
         country,
         city,
         street_address,
@@ -18109,47 +18109,34 @@ const displayName =
    ========================================================= */}
 {step === 26 && activeMinistryWorkspace && (
   <div
+    className="sanctuary-container"
     style={{
+      position: 'fixed',
+      inset: 0,
+      width: '100vw',
+      height: '100vh',
       minHeight: '100vh',
-      width: '100%',
-      minWidth: '100%',
-      background: '#101926',
-      color: '#fff',
-      display: 'flex',
-      flexDirection: 'column',
+      overflowY: 'auto',
+      overflowX: 'hidden',
+      zIndex: 10000,
+      paddingBottom: '90px',
       boxSizing: 'border-box'
     }}
   >
+
+  {/* WORKSPACE HEADER */}
     {/* WORKSPACE HEADER */}
-    <div
-      style={{
-        position: 'sticky',
-        top: 0,
-        zIndex: 50,
-        background: 'rgba(16,25,38,0.94)',
-        backdropFilter: 'blur(16px)',
-        borderBottom:
-          '1px solid rgba(255,255,255,0.07)',
-        padding: '14px 18px'
-      }}
-    >
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px'
-        }}
-      >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '12px',
-            minWidth: 0
-          }}
-        >
-          <button
+<div
+  className="hub-header"
+  style={{
+    position: 'sticky',
+    top: 0,
+    zIndex: 100,
+    width: '100%',
+    boxSizing: 'border-box'
+  }}
+>
+<button
             onClick={() => {
               setActiveMinistryWorkspace(null);
               setStep(18);
@@ -18171,127 +18158,215 @@ const displayName =
           >
             <BackArrowIcon />
           </button>
-
-          <div
-  style={{
-    width: '42px',
-    height: '42px',
-    borderRadius: '12px',
-    overflow: 'hidden',
-    flexShrink: 0,
-    background:
-      'linear-gradient(135deg,#29beaf,#101926)',
-    border:
-      '1px solid rgba(41,190,175,0.25)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    color: '#f3ca58',
-    fontWeight: '900'
-  }}
->
-  {activeMinistryWorkspace?.ministry?.image ? (
+  <div className="hub-logo-section">
     <img
-      src={activeMinistryWorkspace.ministry.image}
-      alt={
-        activeMinistryWorkspace.ministry
-          .ministry_name ||
-        'Ministry'
-      }
-      style={{
-        width: '100%',
-        height: '100%',
-        objectFit: 'cover',
-        display: 'block'
-      }}
+      src="/assets/logo.png"
+      alt="KingdomPlus"
+      className="logo-img"
     />
-  ) : (
+
     <div
       style={{
-        fontSize: '18px'
+        display: 'flex',
+        flexDirection: 'column'
       }}
     >
-      ⛪
+      <h1
+        className="metallic-gold-text"
+        style={{
+          fontSize: '15px',
+          margin: 0,
+          lineHeight: '1.1'
+        }}
+      >
+        KINGDOMPLUS
+      </h1>
+
+      <p
+        style={{
+          fontSize: '5px',
+          margin: 0,
+          color: '#9aa4b2',
+          letterSpacing: '0.5px'
+        }}
+      >
+        MINISTRY WORKSPACE
+      </p>
     </div>
-  )}
-</div>
+  </div>
 
-          <div style={{ minWidth: 0 }}>
-            <div
-              style={{
-                fontSize: '15px',
-                fontWeight: '900',
-                whiteSpace: 'nowrap',
-                overflow: 'hidden',
-                textOverflow: 'ellipsis'
-              }}
-            >
-              {
-                activeMinistryWorkspace.ministry
-                  .ministry_name ||
-                activeMinistryWorkspace.ministry
-                  .username ||
-                'Ministry Workspace'
-              }
-            </div>
+  <div className="hub-header-actions">
+    {/* MINISTRY KPC BALANCE */}
+    <div
+      className="balance-pill"
+      style={{
+        cursor: 'default'
+      }}
+    >
+      <WalletIcon />
 
-            <div
-              style={{
-                color: '#8e9aab',
-                fontSize: '10px',
-                marginTop: '3px'
-              }}
-            >
-              {activeMinistryWorkspace.role}
-              {' • '}
-              {activeMinistryWorkspace.dashboardAccess}
-              {' access'}
-            </div>
-          </div>
-        </div>
-
-        <div
+      <div className="balance-text">
+        <span
+          className="balance-kpc"
           style={{
-            padding: '6px 9px',
-            borderRadius: '8px',
-            background:
-              'rgba(243,202,88,0.10)',
-            border:
-              '1px solid rgba(243,202,88,0.25)',
-            color: '#f3ca58',
-            fontSize: '10px',
             fontWeight: '800',
-            whiteSpace: 'nowrap'
+            color: '#f3ca58'
           }}
         >
-          Ministry
-        </div>
+          {Number(
+            activeMinistryWorkspace?.ministry
+              ?.wallet_balance || 0
+          ).toLocaleString()} KPC
+        </span>
+
+        <span
+          className="balance-usd"
+          style={{
+            color: '#8e9aab',
+            fontSize: '11px'
+          }}
+        >
+          {' '}
+          / $
+          {(
+            Number(
+              activeMinistryWorkspace?.ministry
+                ?.wallet_balance || 0
+            ) * 0.001
+          ).toFixed(3)}
+        </span>
       </div>
     </div>
+
+    {/* NOTIFICATIONS */}
+    <div
+      className="icon-circle"
+      onClick={() =>
+        setIsNotifOpen(!isNotifOpen)
+      }
+      style={{
+        position: 'relative',
+        cursor: 'pointer',
+        color: '#fff',
+        display: 'flex',
+        alignItems: 'center',
+        padding: '5px'
+      }}
+    >
+      <BellIcon />
+
+      {unreadCount > 0 && (
+        <span
+          style={{
+            position: 'absolute',
+            top: '0px',
+            right: '0px',
+            background: '#e74c3c',
+            color: '#fff',
+            fontSize: '10px',
+            fontWeight: 'bold',
+            borderRadius: '50%',
+            padding: '2px 5px',
+            minWidth: '14px',
+            textAlign: 'center'
+          }}
+        >
+          {unreadCount > 99
+            ? '99+'
+            : unreadCount}
+        </span>
+      )}
+    </div>
+  </div>
+</div>
 
     {/* WORKSPACE CONTENT */}
     <div
   style={{
     width: '100%',
-    flex: 1,
+    minHeight: 'calc(100vh - 70px)',
     boxSizing: 'border-box',
-    padding: '24px 28px 40px',
+    padding: '28px 32px 90px',
     background: 'transparent'
   }}
 >
+     <div
+  style={{
+    marginBottom: '20px',
+    padding: '20px',
+    borderRadius: '18px',
+    background:
+      'linear-gradient(135deg, rgba(41,190,175,0.12), rgba(243,202,88,0.05))',
+    border:
+      '1px solid rgba(41,190,175,0.16)',
+    boxShadow:
+      '0 10px 30px rgba(0,0,0,0.12)'
+  }}
+>
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '18px',
+      flexWrap: 'wrap'
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '14px',
+        minWidth: 0
+      }}
+    >
       <div
         style={{
-          marginBottom: '20px'
+          width: '58px',
+          height: '58px',
+          borderRadius: '16px',
+          overflow: 'hidden',
+          flexShrink: 0,
+          background:
+            'linear-gradient(135deg,#29beaf,#f3ca58)',
+          border:
+            '2px solid rgba(243,202,88,0.25)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center'
         }}
       >
+        {activeMinistryWorkspace?.ministry?.image ? (
+          <img
+            src={
+              activeMinistryWorkspace.ministry.image
+            }
+            alt={
+              activeMinistryWorkspace.ministry
+                .ministry_name ||
+              'Ministry'
+            }
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover',
+              display: 'block'
+            }}
+          />
+        ) : (
+          <ChurchIcon />
+        )}
+      </div>
+
+      <div style={{ minWidth: 0 }}>
         <div
           style={{
             color: '#29beaf',
-            fontSize: '10px',
+            fontSize: '9px',
             fontWeight: '900',
-            letterSpacing: '1px',
+            letterSpacing: '1.2px',
             textTransform: 'uppercase',
-            marginBottom: '6px'
+            marginBottom: '5px'
           }}
         >
           Ministry Command Center
@@ -18300,24 +18375,62 @@ const displayName =
         <h1
           style={{
             margin: 0,
-            fontSize: '26px',
-            fontWeight: '900'
+            color: '#fff',
+            fontSize: '25px',
+            fontWeight: '900',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
           }}
         >
-          Overview
+          {activeMinistryWorkspace.ministry
+            .ministry_name ||
+            activeMinistryWorkspace.ministry
+              .username ||
+            'Ministry Workspace'}
         </h1>
 
-        <p
+        <div
           style={{
             color: '#8e9aab',
-            fontSize: '12px',
-            marginTop: '6px'
+            fontSize: '11px',
+            marginTop: '5px'
           }}
         >
-          Manage your Ministry, people,
-          content and Kingdom impact.
-        </p>
+          {activeMinistryWorkspace.role}
+          {' • '}
+          {activeMinistryWorkspace.dashboardAccess}
+          {' access'}
+        </div>
       </div>
+    </div>
+
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      }}
+    >
+      <span
+        style={{
+          padding: '6px 10px',
+          borderRadius: '8px',
+          background:
+            'rgba(243,202,88,0.10)',
+          border:
+            '1px solid rgba(243,202,88,0.22)',
+          color: '#f3ca58',
+          fontSize: '9px',
+          fontWeight: '900',
+          textTransform: 'uppercase'
+        }}
+      >
+        Ministry
+      </span>
+    </div>
+  </div>
+</div>
 
       {/* OVERVIEW CARDS */}
       <div
@@ -18325,40 +18438,47 @@ const displayName =
           display: 'grid',
           gridTemplateColumns:
             'repeat(auto-fit,minmax(150px,1fr))',
-          gap: '12px'
+          gap: '12px',
+          color: '#fff'
         }}
       >
         {[
-          {
-            label: 'Members',
-            value: '0',
-            icon: '👥'
-          },
-          {
-            label: 'Active',
-            value: '0',
-            icon: '⚡'
-          },
-          {
+  {
+    label: 'Members',
+    value: ministryMemberCount || 0,
+    icon: '👥'
+  },
+  {
+    label: 'Active',
+    value: ministryMembers.filter(
+      member => member.status === 'active'
+    ).length,
+    icon: '⚡'
+  },
+ {
             label: 'Check-ins',
             value: '0',
             icon: '✅'
           },
-          {
-            label: 'KPC Earned',
-            value: '0',
-            icon: '🪙'
-          }
-        ].map(card => (
+  {
+    label: 'KPC Balance',
+    value: Number(
+      userProfile?.wallet_balance || 0
+    ).toLocaleString(),
+    icon: '🪙'
+  }
+].map(card => (
           <div
             key={card.label}
             style={{
               background:
-                'rgba(255,255,255,0.035)',
+                'linear-gradient(145deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02))',
               border:
                 '1px solid rgba(255,255,255,0.07)',
               borderRadius: '16px',
-              padding: '16px'
+              padding: '16px',
+              boxShadow:
+  '0 8px 24px rgba(0,0,0,0.12)',
             }}
           >
             <div
