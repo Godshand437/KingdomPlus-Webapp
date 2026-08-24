@@ -6121,7 +6121,102 @@ alert(
   const [churchSubTab, setChurchSubTab] = useState('attendance'); // 'attendance' | 'timeline' | 'campaigns'
   const [isCheckInActive, setIsCheckInActive] = useState(false);
   const [checkInSessionTitle, setCheckInSessionTitle] = useState('Sunday Morning Gathering');
-  
+  const [activeCheckInSession, setActiveCheckInSession] = useState(null);
+  const [isLoadingCheckInSession, setIsLoadingCheckInSession] = useState(false);
+  const [checkInAttendanceCount, setCheckInAttendanceCount] = useState(0);
+const loadActiveMinistryCheckIn = async (
+  ministryIdOverride = null
+) => {
+  const ministryId =
+    ministryIdOverride ||
+    activeMinistryWorkspace?.ministry?.id ||
+    userProfile?.id;
+
+  if (!ministryId) {
+    setActiveCheckInSession(null);
+    setIsCheckInActive(false);
+    setCheckInAttendanceCount(0);
+    return;
+  }
+
+  setIsLoadingCheckInSession(true);
+
+  try {
+    const {
+      data: session,
+      error: sessionError
+    } = await supabase
+      .from('ministry_checkin_sessions')
+      .select(`
+        id,
+        ministry_id,
+        title,
+        session_type,
+        status,
+        started_at,
+        ended_at,
+        created_by,
+        created_at
+      `)
+      .eq('ministry_id', ministryId)
+      .eq('status', 'open')
+      .order('started_at', {
+        ascending: false
+      })
+      .limit(1)
+      .maybeSingle();
+
+    if (sessionError) {
+      throw sessionError;
+    }
+
+    if (!session) {
+      setActiveCheckInSession(null);
+      setIsCheckInActive(false);
+      setCheckInAttendanceCount(0);
+      return;
+    }
+
+    setActiveCheckInSession(session);
+    setIsCheckInActive(true);
+    setCheckInSessionTitle(session.title);
+
+    const {
+      count: attendanceCount,
+      error: attendanceError
+    } = await supabase
+      .from('ministry_checkins')
+      .select('id', {
+        count: 'exact',
+        head: true
+      })
+      .eq('session_id', session.id);
+
+    if (attendanceError) {
+      throw attendanceError;
+    }
+
+    setCheckInAttendanceCount(
+      attendanceCount || 0
+    );
+
+  } catch (error) {
+    console.error(
+      'Failed to load active Ministry check-in:',
+      error
+    );
+
+    setActiveCheckInSession(null);
+    setIsCheckInActive(false);
+    setCheckInAttendanceCount(0);
+
+  } finally {
+    setIsLoadingCheckInSession(false);
+  }
+};
+
+
+
   const [attendanceRoster, setAttendanceRoster] = useState([]);
 const [ministryMembers, setMinistryMembers] = useState([]);
 const [isLoadingMinistryMembers, setIsLoadingMinistryMembers] = useState(false);
@@ -6737,6 +6832,141 @@ const loadMoreMinistryMembers = () => {
   );
 };
 
+const [isMinistryLeadersModalOpen, setIsMinistryLeadersModalOpen] = useState(false);
+const [selectedMinistryLeader, setSelectedMinistryLeader] = useState(null);
+const [isSavingLeaderChanges, setIsSavingLeaderChanges] = useState(false);
+const saveMinistryLeaderChanges = async () => {
+  if (
+    !selectedMinistryLeader?.id ||
+    !userProfile?.id
+  ) {
+    return;
+  }
+
+  setIsSavingLeaderChanges(true);
+
+  try {
+    const {
+      error
+    } = await supabase
+      .from('ministry_leaders')
+      .update({
+        role:
+          selectedMinistryLeader.role ||
+          'Leader',
+
+        dashboard_access:
+          selectedMinistryLeader.dashboardAccess ||
+          'limited',
+
+        updated_at:
+          new Date().toISOString()
+      })
+      .eq(
+        'id',
+        selectedMinistryLeader.id
+      )
+      .eq(
+        'ministry_id',
+        userProfile.id
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    await loadMinistryLeaders();
+
+    setSelectedMinistryLeader(null);
+
+    alert(
+      'Ministry leader permissions updated successfully.'
+    );
+
+  } catch (error) {
+    console.error(
+      'Failed to update Ministry leader:',
+      error
+    );
+
+    alert(
+      `Failed to update leader: ${
+        error?.message ||
+        'Please try again.'
+      }`
+    );
+
+  } finally {
+    setIsSavingLeaderChanges(false);
+  }
+};
+
+const removeMinistryLeader = async (
+  leader
+) => {
+  if (
+    !leader?.id ||
+    !userProfile?.id
+  ) {
+    return;
+  }
+
+  const confirmed =
+    window.confirm(
+      `Remove ${leader.name} from Ministry leadership?`
+    );
+
+  if (!confirmed) {
+    return;
+  }
+
+  try {
+    const {
+      error
+    } = await supabase
+      .from('ministry_leaders')
+      .update({
+        status: 'suspended',
+        updated_at:
+          new Date().toISOString()
+      })
+      .eq(
+        'id',
+        leader.id
+      )
+      .eq(
+        'ministry_id',
+        userProfile.id
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    await loadMinistryLeaders();
+
+    setSelectedMinistryLeader(null);
+
+    alert(
+      `${leader.name} is no longer an active Ministry leader.`
+    );
+
+  } catch (error) {
+    console.error(
+      'Failed to remove Ministry leader:',
+      error
+    );
+
+    alert(
+      `Failed to remove leader: ${
+        error?.message ||
+        'Please try again.'
+      }`
+    );
+  }
+};
+
+
 const hasApostleAccess = (profile) => {
   return getEffectiveMembershipTier(profile) === 'Apostle';
 };
@@ -7014,11 +7244,12 @@ const openMinistryWorkspace = async (leadership) => {
     { id: 3, name: "Hillsong", isMain: false, img: "🕊️" }
   ];
 
-const loadMinistryLeaders = async () => {
-  if (
-    !userProfile?.id ||
-    userProfile?.account_type !== 'Ministry'
-  ) {
+const loadMinistryLeaders = async (ministryIdOverride = null) => {
+  const ministryId =
+    ministryIdOverride ||
+    userProfile?.id;
+
+  if (!ministryId) {
     setVerifiedMinistersList([]);
     return;
   }
@@ -7039,7 +7270,7 @@ const loadMinistryLeaders = async () => {
         status,
         appointed_at
       `)
-      .eq('ministry_id', userProfile.id)
+      .eq('ministry_id', ministryId)
       .eq('status', 'active')
       .order('appointed_at', {
         ascending: false
@@ -7068,6 +7299,7 @@ const loadMinistryLeaders = async () => {
         full_name,
         username,
         email,
+        avatar_url,
         membership_tier,
         membership_source
       `)
@@ -7092,6 +7324,9 @@ const loadMinistryLeaders = async () => {
         return {
           id: leader.id,
           userId: leader.user_id,
+
+          avatarUrl:
+            user?.avatar_url || null,
 
           name:
             user?.full_name ||
@@ -7138,20 +7373,34 @@ const loadMinistryLeaders = async () => {
 };
 
 useEffect(() => {
-  if (
-    step !== 6 ||
-    userProfile?.account_type !== 'Ministry'
-  ) {
+  if (!userProfile?.id) {
     return;
   }
 
-  loadMinistryLeaders();
+  if (
+    step === 6 &&
+    userProfile.account_type === 'Ministry'
+  ) {
+    loadMinistryLeaders(
+      userProfile.id
+    );
+    return;
+  }
+
+  if (
+    step === 26 &&
+    activeMinistryWorkspace?.ministry?.id
+  ) {
+    loadMinistryLeaders(
+      activeMinistryWorkspace.ministry.id
+    );
+  }
 }, [
   step,
   userProfile?.id,
-  userProfile?.account_type
+  userProfile?.account_type,
+  activeMinistryWorkspace?.ministry?.id
 ]);
-
 
 // ==========================================
   // PROFILE EDIT & UPLOAD STATES
@@ -18784,10 +19033,25 @@ const displayName =
   action: openMinistryMembersModal
 },
           {
-            title: 'Leaders',
-            icon: '🛡️',
-            desc: 'Manage pastors, ministers and assigned access.'
-          },
+  title: 'Leaders',
+  icon: '🛡️',
+  desc: 'Manage pastors, ministers and assigned access.',
+  action: async () => {
+  setSelectedMinistryLeader(null);
+
+  const ministryId =
+    activeMinistryWorkspace?.ministry?.id ||
+    userProfile?.id;
+
+  if (ministryId) {
+    await loadMinistryLeaders(
+      ministryId
+    );
+  }
+
+  setIsMinistryLeadersModalOpen(true);
+}
+},
           {
             title: 'Check-ins',
             icon: '✅',
@@ -18991,11 +19255,10 @@ const displayName =
               member.userId ||
               `member-${member.username || member.name}`
             }
-            onClick={() =>
-              handleViewProfile(
-                member.userId
-              )
-            }
+            onClick={() => {
+  setIsMinistryMembersModalOpen(false);
+  handleViewProfile(member.userId);
+}}
             style={{
               display: 'flex',
               alignItems: 'center',
@@ -19176,7 +19439,6 @@ const displayName =
       }}
     >
 
-      {/* MODAL HEADER */}
       <div
         style={{
           flexShrink: 0,
@@ -19431,7 +19693,6 @@ const displayName =
               )}
             </div>
 
-            {/* LOAD MORE */}
             {hasMoreMinistryMembers && (
               <div
                 style={{
@@ -19486,6 +19747,518 @@ const displayName =
               </div>
             )}
           </>
+        )}
+      </div>
+    </div>
+  </div>
+)}
+
+ {/* Ministry Leadership Modal */}
+
+{isMinistryLeadersModalOpen && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 25000,
+      background: 'rgba(3,8,15,0.88)',
+      backdropFilter: 'blur(10px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '18px',
+      boxSizing: 'border-box'
+    }}
+  >
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '920px',
+        height: 'min(88vh, 820px)',
+        minHeight: '520px',
+        background: '#101926',
+        border:
+          '1px solid rgba(255,255,255,0.10)',
+        borderRadius: '24px',
+        boxShadow:
+          '0 25px 80px rgba(0,0,0,0.55)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}
+    >
+      {/* HEADER */}
+      <div
+        style={{
+          flexShrink: 0,
+          padding: '18px 20px',
+          borderBottom:
+            '1px solid rgba(255,255,255,0.07)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '15px'
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: '#29beaf',
+              fontSize: '9px',
+              fontWeight: '900',
+              letterSpacing: '1px',
+              textTransform: 'uppercase'
+            }}
+          >
+            Ministry Management
+          </div>
+
+          <div
+            style={{
+              color: '#fff',
+              fontSize: '21px',
+              fontWeight: '900',
+              marginTop: '4px'
+            }}
+          >
+            Ministry Leaders
+          </div>
+
+          <div
+            style={{
+              color: '#8e9aab',
+              fontSize: '10px',
+              marginTop: '3px'
+            }}
+          >
+            {verifiedMinistersList.length} active leader
+            {verifiedMinistersList.length === 1 ? '' : 's'}
+          </div>
+        </div>
+
+        <button
+          onClick={() =>
+            setIsMinistryLeadersModalOpen(false)
+          }
+          style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '10px',
+            border:
+              '1px solid rgba(255,255,255,0.08)',
+            background:
+              'rgba(255,255,255,0.04)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0
+          }}
+        >
+          <XIcon />
+        </button>
+      </div>
+
+      {/* CONTENT */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '18px 20px 24px'
+        }}
+      >
+        {verifiedMinistersList.length === 0 ? (
+          <div
+            style={{
+              minHeight: '300px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#64748b',
+              fontSize: '12px'
+            }}
+          >
+            No active Ministry leaders yet.
+          </div>
+        ) : (
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fill,minmax(280px,1fr))',
+              gap: '10px'
+            }}
+          >
+            {verifiedMinistersList.map(
+              leader => (
+                <div
+                  key={
+                    leader.id ||
+                    leader.userId ||
+                    `${leader.handle}-${leader.name}`
+                  }
+                  style={{
+                    background:
+                      selectedMinistryLeader?.id === leader.id
+                        ? 'rgba(41,190,175,0.08)'
+                        : 'rgba(255,255,255,0.035)',
+                    border:
+                      selectedMinistryLeader?.id === leader.id
+                        ? '1px solid rgba(41,190,175,0.35)'
+                        : '1px solid rgba(255,255,255,0.06)',
+                    borderRadius: '15px',
+                    padding: '13px'
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '50%',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        background:
+                          'linear-gradient(135deg,#29beaf,#1f3752)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        fontWeight: '900',
+                        fontSize: '12px'
+                      }}
+                    >
+                      {leader.avatarUrl ? (
+                        <img
+                          src={leader.avatarUrl}
+                          alt={leader.name}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover'
+                          }}
+                        />
+                      ) : (
+                        leader.name
+                          ?.substring(0, 2)
+                          .toUpperCase() || 'U'
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        minWidth: 0,
+                        flex: 1
+                      }}
+                    >
+                      <div
+                        style={{
+                          color: '#fff',
+                          fontSize: '12px',
+                          fontWeight: '800',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {leader.name}
+                      </div>
+
+                      <div
+                        style={{
+                          color: '#8e9aab',
+                          fontSize: '9px',
+                          marginTop: '3px'
+                        }}
+                      >
+                        {leader.handle}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '6px',
+                      flexWrap: 'wrap',
+                      marginTop: '10px'
+                    }}
+                  >
+                    <span
+                      style={{
+                        padding: '4px 7px',
+                        borderRadius: '5px',
+                        background:
+                          'rgba(243,202,88,0.10)',
+                        color: '#f3ca58',
+                        fontSize: '8px',
+                        fontWeight: '800'
+                      }}
+                    >
+                      {leader.role}
+                    </span>
+
+                    <span
+                      style={{
+                        padding: '4px 7px',
+                        borderRadius: '5px',
+                        background:
+                          'rgba(41,190,175,0.10)',
+                        color: '#29beaf',
+                        fontSize: '8px',
+                        fontWeight: '800'
+                      }}
+                    >
+                      {leader.dashboardAccess}
+                    </span>
+
+                    <span
+                      style={{
+                        padding: '4px 7px',
+                        borderRadius: '5px',
+                        background:
+                          'rgba(255,255,255,0.05)',
+                        color:
+                          leader.membershipTier === 'Apostle'
+                            ? '#f3ca58'
+                            : '#8e9aab',
+                        fontSize: '8px',
+                        fontWeight: '800'
+                      }}
+                    >
+                      {leader.membershipTier}
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '7px',
+                      marginTop: '12px'
+                    }}
+                  >
+                    <button
+                      onClick={() =>
+                        setSelectedMinistryLeader(leader)
+                      }
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        borderRadius: '8px',
+                        border:
+                          '1px solid rgba(255,255,255,0.08)',
+                        background:
+                          'rgba(255,255,255,0.03)',
+                        color: '#fff',
+                        fontSize: '9px',
+                        fontWeight: '800',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Manage
+                    </button>
+
+                    <button
+                      onClick={() => {
+  setIsMinistryLeadersModalOpen(false);
+  setSelectedMinistryLeader(null);
+  handleViewProfile(leader.userId);
+}}
+                      style={{
+                        flex: 1,
+                        padding: '8px',
+                        borderRadius: '8px',
+                        border:
+                          '1px solid rgba(41,190,175,0.20)',
+                        background:
+                          'rgba(41,190,175,0.06)',
+                        color: '#29beaf',
+                        fontSize: '9px',
+                        fontWeight: '800',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      View Profile
+                    </button>
+                  </div>
+
+                  {selectedMinistryLeader?.id === leader.id && (
+                    <div
+                      style={{
+                        marginTop: '12px',
+                        paddingTop: '12px',
+                        borderTop:
+                          '1px solid rgba(255,255,255,0.06)'
+                      }}
+                    >
+                      <label
+                        style={{
+                          display: 'block',
+                          color: '#8e9aab',
+                          fontSize: '9px',
+                          fontWeight: '800',
+                          marginBottom: '5px'
+                        }}
+                      >
+                        ROLE
+                      </label>
+
+                      <select
+                        value={
+                          selectedMinistryLeader.role ||
+                          'Leader'
+                        }
+                        onChange={e =>
+                          setSelectedMinistryLeader(
+                            prev => ({
+                              ...prev,
+                              role: e.target.value
+                            })
+                          )
+                        }
+                        className="app-input"
+                        style={{
+                          margin: 0,
+                          width: '100%',
+                          background: '#111b28',
+                          color: '#fff'
+                        }}
+                      >
+                        <option value="Pastor">
+                          Pastor
+                        </option>
+                        <option value="Evangelist">
+                          Evangelist
+                        </option>
+                        <option value="Minister">
+                          Minister
+                        </option>
+                        <option value="Deacon">
+                          Deacon
+                        </option>
+                        <option value="Leader">
+                          Leader
+                        </option>
+                      </select>
+
+                      <label
+                        style={{
+                          display: 'block',
+                          color: '#8e9aab',
+                          fontSize: '9px',
+                          fontWeight: '800',
+                          margin:
+                            '10px 0 5px'
+                        }}
+                      >
+                        DASHBOARD ACCESS
+                      </label>
+
+                      <select
+                        value={
+                          selectedMinistryLeader.dashboardAccess ||
+                          'limited'
+                        }
+                        onChange={e =>
+                          setSelectedMinistryLeader(
+                            prev => ({
+                              ...prev,
+                              dashboardAccess:
+                                e.target.value
+                            })
+                          )
+                        }
+                        className="app-input"
+                        style={{
+                          margin: 0,
+                          width: '100%',
+                          background: '#111b28',
+                          color: '#fff'
+                        }}
+                      >
+                        <option value="limited">
+                          Limited Access
+                        </option>
+                        <option value="content">
+                          Content Access
+                        </option>
+                        <option value="members">
+                          Member Management
+                        </option>
+                        <option value="outreach">
+                          Outreach Access
+                        </option>
+                        <option value="checkins">
+                          Check-in Access
+                        </option>
+                        <option value="full">
+                          Full Dashboard
+                        </option>
+                      </select>
+
+                      <button
+                        disabled={isSavingLeaderChanges}
+                        onClick={() =>
+                          saveMinistryLeaderChanges()
+                        }
+                        style={{
+                          width: '100%',
+                          marginTop: '11px',
+                          padding: '9px',
+                          border: 'none',
+                          borderRadius: '8px',
+                          background:
+                            '#29beaf',
+                          color: '#08111d',
+                          fontSize: '9px',
+                          fontWeight: '900',
+                          cursor:
+                            isSavingLeaderChanges
+                              ? 'wait'
+                              : 'pointer'
+                        }}
+                      >
+                        {isSavingLeaderChanges
+                          ? 'Saving...'
+                          : 'Save Changes'}
+                      </button>
+
+                      <button
+                        onClick={() =>
+                          removeMinistryLeader(
+                            leader
+                          )
+                        }
+                        style={{
+                          width: '100%',
+                          marginTop: '7px',
+                          padding: '8px',
+                          border:
+                            '1px solid rgba(231,76,60,0.25)',
+                          borderRadius: '8px',
+                          background:
+                            'rgba(231,76,60,0.06)',
+                          color: '#e74c3c',
+                          fontSize: '9px',
+                          fontWeight: '800',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        Remove Leader
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )
+            )}
+          </div>
         )}
       </div>
     </div>
