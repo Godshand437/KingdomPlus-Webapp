@@ -6126,8 +6126,14 @@ alert(
 const [ministryMembers, setMinistryMembers] = useState([]);
 const [isLoadingMinistryMembers, setIsLoadingMinistryMembers] = useState(false);
 const [ministryMemberCount, setMinistryMemberCount] = useState(0);
+const [isMinistryMembersModalOpen, setIsMinistryMembersModalOpen] = useState(false);
+const [ministryDirectoryMembers, setMinistryDirectoryMembers] = useState([]);
+const [ministryMemberPage, setMinistryMemberPage] = useState(0);
+const [hasMoreMinistryMembers, setHasMoreMinistryMembers] = useState(true);
+const [isLoadingMemberDirectory, setIsLoadingMemberDirectory] = useState(false);
 
-  // Pastor toggles check-in open/closed for the congregation
+const MINISTRY_MEMBERS_PAGE_SIZE = 30;
+
   const handleToggleCheckInSession = () => {
     if (!isCheckInActive) {
       if (window.confirm(`Open Live Check-In for "${checkInSessionTitle}"? Believers will be able to check in and earn +5 KPC!`)) {
@@ -6416,7 +6422,7 @@ const loadMinistryMembers = async () => {
   setIsLoadingMinistryMembers(true);
 
   try {
-    // Get all active members belonging to this Ministry.
+
     const {
       data: memberRows,
       error: memberError
@@ -6547,10 +6553,190 @@ useEffect(() => {
   userProfile?.account_type
 ]);
 
+const loadMinistryMemberDirectory = async (
+  page = 0,
+  append = false
+) => {
+  const ministryId =
+    userProfile?.id;
+
+  if (
+    !ministryId ||
+    userProfile?.account_type !== 'Ministry'
+  ) {
+    return;
+  }
+
+  setIsLoadingMemberDirectory(true);
+
+  try {
+    const from =
+      page * MINISTRY_MEMBERS_PAGE_SIZE;
+
+    const to =
+      from +
+      MINISTRY_MEMBERS_PAGE_SIZE -
+      1;
+
+    const {
+      data: memberRows,
+      error: memberError
+    } = await supabase
+      .from('ministry_members')
+      .select(`
+        id,
+        user_id,
+        status,
+        joined_at,
+        updated_at
+      `)
+      .eq('ministry_id', ministryId)
+      .eq('status', 'active')
+      .order('joined_at', {
+        ascending: false
+      })
+      .range(from, to);
+
+    if (memberError) {
+      throw memberError;
+    }
+
+    if (
+      !memberRows ||
+      memberRows.length === 0
+    ) {
+      if (!append) {
+        setMinistryDirectoryMembers([]);
+      }
+
+      setHasMoreMinistryMembers(false);
+      return;
+    }
+
+    const userIds = memberRows
+      .map(member => member.user_id)
+      .filter(Boolean);
+
+    const {
+      data: memberUsers,
+      error: userError
+    } = await supabase
+      .from('user_profiles')
+      .select(`
+        id,
+        full_name,
+        username,
+        avatar_url,
+        membership_tier
+      `)
+      .in('id', userIds);
+
+    if (userError) {
+      throw userError;
+    }
+
+    const userMap =
+      new Map(
+        (memberUsers || []).map(user => [
+          user.id,
+          user
+        ])
+      );
+
+    const formattedMembers =
+      memberRows.map(member => {
+        const user =
+          userMap.get(
+            member.user_id
+          );
+
+        return {
+          id: member.id,
+          userId: member.user_id,
+
+          name:
+            user?.full_name ||
+            user?.username ||
+            'Kingdom Member',
+
+          username:
+            user?.username || null,
+
+          avatarUrl:
+            user?.avatar_url || null,
+
+          membershipTier:
+            user?.membership_tier ||
+            'Standard',
+
+          status:
+            member.status,
+
+          joinedAt:
+            member.joined_at
+        };
+      });
+
+    setMinistryDirectoryMembers(
+      previous =>
+        append
+          ? [
+              ...previous,
+              ...formattedMembers
+            ]
+          : formattedMembers
+    );
+
+    setHasMoreMinistryMembers(
+      memberRows.length ===
+        MINISTRY_MEMBERS_PAGE_SIZE
+    );
+
+  } catch (error) {
+    console.error(
+      'Failed to load Ministry member directory:',
+      error
+    );
+
+    if (!append) {
+      setMinistryDirectoryMembers([]);
+    }
+
+    setHasMoreMinistryMembers(false);
+
+  } finally {
+    setIsLoadingMemberDirectory(false);
+  }
+};
+
 
 const [ministryLeaderships, setMinistryLeaderships] = useState([]);
 const [activeMinistryWorkspace, setActiveMinistryWorkspace] = useState(null);
 const [isOpeningMinistryWorkspace, setIsOpeningMinistryWorkspace] = useState(false);
+const [ministryWorkspaceSection, setMinistryWorkspaceSection] = useState('overview');
+const openMinistryMembersModal = () => {
+  setIsMinistryMembersModalOpen(true);
+  setMinistryMemberPage(0);
+  setHasMoreMinistryMembers(true);
+  setMinistryDirectoryMembers([]);
+
+  loadMinistryMemberDirectory(0, false);
+};
+
+const loadMoreMinistryMembers = () => {
+  const nextPage =
+    ministryMemberPage + 1;
+
+  setMinistryMemberPage(
+    nextPage
+  );
+
+  loadMinistryMemberDirectory(
+    nextPage,
+    true
+  );
+};
+
 const hasApostleAccess = (profile) => {
   return getEffectiveMembershipTier(profile) === 'Apostle';
 };
@@ -6804,6 +6990,7 @@ const openMinistryWorkspace = async (leadership) => {
         leadership.dashboardAccess || 'limited'
     });
 
+    setMinistryWorkspaceSection('overview');
     setStep(26);
 
   } catch (error) {
@@ -18125,7 +18312,6 @@ const displayName =
   >
 
   {/* WORKSPACE HEADER */}
-    {/* WORKSPACE HEADER */}
 <div
   className="hub-header"
   style={{
@@ -18133,50 +18319,85 @@ const displayName =
     top: 0,
     zIndex: 100,
     width: '100%',
-    boxSizing: 'border-box'
+    height: '68px',
+    minHeight: '68px',
+    boxSizing: 'border-box',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 12px',
+    overflow: 'hidden',
+ marginTop: '10px'
   }}
 >
-<button
-            onClick={() => {
-              setActiveMinistryWorkspace(null);
-              setStep(18);
-            }}
-            style={{
-              width: '36px',
-              height: '36px',
-              borderRadius: '10px',
-              border:
-                '1px solid rgba(255,255,255,0.08)',
-              background:
-                'rgba(255,255,255,0.04)',
-              color: '#fff',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center'
-            }}
-          >
-            <BackArrowIcon />
-          </button>
-  <div className="hub-logo-section">
+
+  {userProfile?.account_type !== 'Ministry' && (
+    <button
+      onClick={() => {
+        setActiveMinistryWorkspace(null);
+        setStep(18);
+      }}
+      style={{
+        position: 'absolute',
+        left: '14px',
+        top: '50%',
+        transform: 'translateY(-50%)',
+        width: '36px',
+        height: '36px',
+        borderRadius: '10px',
+        border:
+          '1px solid rgba(255,255,255,0.08)',
+        background:
+          'rgba(255,255,255,0.04)',
+        color: '#fff',
+        cursor: 'pointer',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 3
+      }}
+      title="Back to Profile"
+    >
+      <BackArrowIcon />
+    </button>
+  )}
+
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: '7px',
+      minWidth: 0,
+      maxWidth: '48%'
+    }}
+  >
     <img
       src="/assets/logo.png"
       alt="KingdomPlus"
       className="logo-img"
+      style={{
+        width: '50px',
+        height: '50px',
+        objectFit: 'contain',
+        flexShrink: 0
+      }}
     />
 
     <div
       style={{
         display: 'flex',
-        flexDirection: 'column'
+        flexDirection: 'column',
+        minWidth: 0
       }}
     >
       <h1
         className="metallic-gold-text"
         style={{
-          fontSize: '15px',
+          fontSize: '20px',
           margin: 0,
-          lineHeight: '1.1'
+          lineHeight: '1.1',
+          whiteSpace: 'nowrap'
         }}
       >
         KINGDOMPLUS
@@ -18184,10 +18405,11 @@ const displayName =
 
       <p
         style={{
-          fontSize: '5px',
-          margin: 0,
+          fontSize: '8px',
+          margin: '2px 0 0',
           color: '#9aa4b2',
-          letterSpacing: '0.5px'
+          letterSpacing: '0.7px',
+          whiteSpace: 'nowrap'
         }}
       >
         MINISTRY WORKSPACE
@@ -18195,26 +18417,52 @@ const displayName =
     </div>
   </div>
 
-  <div className="hub-header-actions">
-    {/* MINISTRY KPC BALANCE */}
+  <div
+    style={{
+      position: 'absolute',
+      right: '27px',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '7px',
+      minWidth: 0,
+      zIndex: 3
+    }}
+  >
+
     <div
       className="balance-pill"
       style={{
-        cursor: 'default'
+        cursor: 'default',
+        display: 'flex',
+        alignItems: 'center',
+        minWidth: 0,
+        maxWidth: '145px',
+        padding: '6px 9px'
       }}
     >
       <WalletIcon />
 
-      <div className="balance-text">
+      <div
+        className="balance-text"
+        style={{
+          minWidth: 0,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden'
+        }}
+      >
         <span
           className="balance-kpc"
           style={{
             fontWeight: '800',
-            color: '#f3ca58'
+            color: '#f3ca58',
+            fontSize: '11px'
           }}
         >
           {Number(
-            activeMinistryWorkspace?.ministry
+            activeMinistryWorkspace
+              ?.ministry
               ?.wallet_balance || 0
           ).toLocaleString()} KPC
         </span>
@@ -18223,22 +18471,23 @@ const displayName =
           className="balance-usd"
           style={{
             color: '#8e9aab',
-            fontSize: '11px'
+            fontSize: '9px',
+            marginLeft: '3px'
           }}
         >
-          {' '}
-          / $
+          $
           {(
             Number(
-              activeMinistryWorkspace?.ministry
+              activeMinistryWorkspace
+                ?.ministry
                 ?.wallet_balance || 0
-            ) * 0.001
-          ).toFixed(3)}
+            ) *
+            0.25
+          ).toFixed(2)}
         </span>
       </div>
     </div>
 
-    {/* NOTIFICATIONS */}
     <div
       className="icon-circle"
       onClick={() =>
@@ -18250,7 +18499,10 @@ const displayName =
         color: '#fff',
         display: 'flex',
         alignItems: 'center',
-        padding: '5px'
+        justifyContent: 'center',
+        flexShrink: 0,
+        width: '34px',
+        height: '34px'
       }}
     >
       <BellIcon />
@@ -18259,15 +18511,15 @@ const displayName =
         <span
           style={{
             position: 'absolute',
-            top: '0px',
-            right: '0px',
+            top: '-2px',
+            right: '1px',
             background: '#e74c3c',
             color: '#fff',
-            fontSize: '10px',
+            fontSize: '8px',
             fontWeight: 'bold',
             borderRadius: '50%',
-            padding: '2px 5px',
-            minWidth: '14px',
+            padding: '2px 4px',
+            minWidth: '13px',
             textAlign: 'center'
           }}
         >
@@ -18462,8 +18714,10 @@ const displayName =
           },
   {
     label: 'KPC Balance',
-    value: Number(
-      userProfile?.wallet_balance || 0
+    value:  Number(
+              activeMinistryWorkspace
+                ?.ministry
+                ?.wallet_balance || 0
     ).toLocaleString(),
     icon: '🪙'
   }
@@ -18524,10 +18778,11 @@ const displayName =
       >
         {[
           {
-            title: 'Members',
-            icon: '👥',
-            desc: 'Manage Ministry membership and activity.'
-          },
+  title: 'Members',
+  icon: '👥',
+  desc: 'Manage Ministry membership and activity.',
+  action: openMinistryMembersModal
+},
           {
             title: 'Leaders',
             icon: '🛡️',
@@ -18565,7 +18820,8 @@ const displayName =
           }
         ].map(module => (
           <div
-            key={module.title}
+  key={module.title}
+  onClick={module.action}
             style={{
               background:
                 'rgba(255,255,255,0.035)',
@@ -18573,7 +18829,9 @@ const displayName =
                 '1px solid rgba(255,255,255,0.07)',
               borderRadius: '16px',
               padding: '18px',
-              cursor: 'pointer'
+              cursor: module.action
+  ? 'pointer'
+  : 'default'
             }}
           >
             <div
@@ -18607,6 +18865,628 @@ const displayName =
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  </div>
+)}
+
+{ministryWorkspaceSection === 'members' && (
+  <div
+    style={{
+      marginTop: '20px',
+      background:
+        'rgba(255,255,255,0.035)',
+      border:
+        '1px solid rgba(255,255,255,0.07)',
+      borderRadius: '18px',
+      padding: '20px'
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        marginBottom: '18px',
+        flexWrap: 'wrap'
+      }}
+    >
+      <div>
+        <div
+          style={{
+            color: '#29beaf',
+            fontSize: '9px',
+            fontWeight: '900',
+            letterSpacing: '1px',
+            textTransform: 'uppercase'
+          }}
+        >
+          Ministry Management
+        </div>
+
+        <h2
+          style={{
+            margin: '5px 0 0',
+            color: '#fff',
+            fontSize: '20px',
+            fontWeight: '900'
+          }}
+        >
+          Members
+        </h2>
+
+        <div
+          style={{
+            color: '#8e9aab',
+            fontSize: '11px',
+            marginTop: '4px'
+          }}
+        >
+          {ministryMemberCount} active
+          {ministryMemberCount === 1
+            ? ' member'
+            : ' members'}
+        </div>
+      </div>
+
+      <button
+        onClick={() =>
+          setMinistryWorkspaceSection('overview')
+        }
+        style={{
+          padding: '8px 12px',
+          borderRadius: '9px',
+          border:
+            '1px solid rgba(255,255,255,0.10)',
+          background:
+            'rgba(255,255,255,0.03)',
+          color: '#fff',
+          fontSize: '10px',
+          fontWeight: '800',
+          cursor: 'pointer'
+        }}
+      >
+        Back to Overview
+      </button>
+    </div>
+
+    {isLoadingMinistryMembers ? (
+      <div
+        style={{
+          padding: '35px 15px',
+          textAlign: 'center',
+          color: '#8e9aab',
+          fontSize: '12px'
+        }}
+      >
+        Loading Ministry members...
+      </div>
+    ) : ministryMembers.length === 0 ? (
+      <div
+        style={{
+          padding: '45px 15px',
+          textAlign: 'center',
+          color: '#64748b',
+          fontSize: '12px'
+        }}
+      >
+        This Ministry does not have any active members yet.
+      </div>
+    ) : (
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fill,minmax(240px,1fr))',
+          gap: '10px'
+        }}
+      >
+        {ministryMembers
+  .slice(0, 6)
+  .map(member => (
+          <div
+            key={
+              member.id ||
+              member.userId ||
+              `member-${member.username || member.name}`
+            }
+            onClick={() =>
+              handleViewProfile(
+                member.userId
+              )
+            }
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '11px',
+              padding: '11px',
+              borderRadius: '13px',
+              background:
+                'rgba(255,255,255,0.025)',
+              border:
+                '1px solid rgba(255,255,255,0.06)',
+              cursor: 'pointer'
+            }}
+          >
+            <div
+              style={{
+                width: '42px',
+                height: '42px',
+                borderRadius: '50%',
+                overflow: 'hidden',
+                flexShrink: 0,
+                background:
+                  'linear-gradient(135deg,#29beaf,#1f3752)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#fff',
+                fontSize: '12px',
+                fontWeight: '900'
+              }}
+            >
+              {member.avatarUrl ? (
+                <img
+                  src={member.avatarUrl}
+                  alt={member.name}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover',
+                    display: 'block'
+                  }}
+                />
+              ) : (
+                member.name
+                  ?.substring(0, 2)
+                  .toUpperCase() || 'U'
+              )}
+            </div>
+
+            <div
+              style={{
+                minWidth: 0,
+                flex: 1
+              }}
+            >
+              <div
+                style={{
+                  color: '#fff',
+                  fontSize: '12px',
+                  fontWeight: '800',
+                  whiteSpace: 'nowrap',
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis'
+                }}
+              >
+                {member.name}
+              </div>
+
+              <div
+                style={{
+                  color: '#8e9aab',
+                  fontSize: '9px',
+                  marginTop: '2px'
+                }}
+              >
+                {member.username
+                  ? `@${member.username}`
+                  : 'Kingdom Member'}
+              </div>
+
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  marginTop: '6px',
+                  flexWrap: 'wrap'
+                }}
+              >
+                <span
+                  style={{
+                    padding: '3px 6px',
+                    borderRadius: '5px',
+                    background:
+                      'rgba(41,190,175,0.10)',
+                    color: '#29beaf',
+                    fontSize: '8px',
+                    fontWeight: '800'
+                  }}
+                >
+                  {member.membershipTier}
+                </span>
+
+                <span
+                  style={{
+                    color:
+                      member.status === 'active'
+                        ? '#2ecc71'
+                        : '#64748b',
+                    fontSize: '8px',
+                    fontWeight: '700'
+                  }}
+                >
+                  {member.status}
+                </span>
+              </div>
+            </div>
+
+            <ChevronRightIcon />
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
+
+{ministryMemberCount > 6 && (
+  <button
+    onClick={openMinistryMembersModal}
+    style={{
+      marginTop: '12px',
+      width: '100%',
+      padding: '10px',
+      borderRadius: '10px',
+      border:
+        '1px solid rgba(41,190,175,0.25)',
+      background:
+        'rgba(41,190,175,0.06)',
+      color: '#29beaf',
+      fontSize: '10px',
+      fontWeight: '900',
+      cursor: 'pointer'
+    }}
+  >
+    See More · {ministryMemberCount - 6} more
+  </button>
+)}
+{isMinistryMembersModalOpen && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 25000,
+      background:
+        'rgba(3,8,15,0.88)',
+      backdropFilter: 'blur(10px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '18px',
+      boxSizing: 'border-box'
+    }}
+  >
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '980px',
+        height: 'min(88vh, 900px)',
+        minHeight: '520px',
+        background: '#101926',
+        border:
+          '1px solid rgba(255,255,255,0.10)',
+        borderRadius: '24px',
+        boxShadow:
+          '0 25px 80px rgba(0,0,0,0.55)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}
+    >
+
+      {/* MODAL HEADER */}
+      <div
+        style={{
+          flexShrink: 0,
+          padding: '18px 20px',
+          borderBottom:
+            '1px solid rgba(255,255,255,0.07)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '15px'
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: '#29beaf',
+              fontSize: '9px',
+              fontWeight: '900',
+              letterSpacing: '1px',
+              textTransform: 'uppercase'
+            }}
+          >
+            Ministry Management
+          </div>
+
+          <div
+            style={{
+              color: '#fff',
+              fontSize: '21px',
+              fontWeight: '900',
+              marginTop: '4px'
+            }}
+          >
+            Members
+          </div>
+
+          <div
+            style={{
+              color: '#8e9aab',
+              fontSize: '10px',
+              marginTop: '3px'
+            }}
+          >
+            {ministryMemberCount.toLocaleString()}
+            {' '}
+            active member
+            {ministryMemberCount !== 1
+              ? 's'
+              : ''}
+          </div>
+        </div>
+
+        <button
+          onClick={() =>
+            setIsMinistryMembersModalOpen(false)
+          }
+          style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '10px',
+            border:
+              '1px solid rgba(255,255,255,0.08)',
+            background:
+              'rgba(255,255,255,0.04)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0
+          }}
+        >
+          <XIcon />
+        </button>
+      </div>
+
+      {/* MEMBER CONTENT */}
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          padding: '18px 20px 24px'
+        }}
+      >
+
+        {ministryDirectoryMembers.length === 0 &&
+        isLoadingMemberDirectory ? (
+          <div
+            style={{
+              minHeight: '300px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#8e9aab',
+              fontSize: '12px'
+            }}
+          >
+            Loading Ministry members...
+          </div>
+        ) : ministryDirectoryMembers.length === 0 ? (
+          <div
+            style={{
+              minHeight: '300px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: '#64748b',
+              fontSize: '12px'
+            }}
+          >
+            No active members found.
+          </div>
+        ) : (
+          <>
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns:
+                  'repeat(auto-fill,minmax(280px,1fr))',
+                gap: '10px'
+              }}
+            >
+              {ministryDirectoryMembers.map(
+                member => (
+                  <div
+                    key={
+                      member.id ||
+                      member.userId
+                    }
+                    onClick={() =>
+                      handleViewProfile(
+                        member.userId
+                      )
+                    }
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                      padding: '12px',
+                      borderRadius: '14px',
+                      background:
+                        'rgba(255,255,255,0.035)',
+                      border:
+                        '1px solid rgba(255,255,255,0.06)',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: '44px',
+                        height: '44px',
+                        borderRadius: '50%',
+                        overflow: 'hidden',
+                        flexShrink: 0,
+                        background:
+                          'linear-gradient(135deg,#29beaf,#1f3752)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        color: '#fff',
+                        fontWeight: '900',
+                        fontSize: '12px'
+                      }}
+                    >
+                      {member.avatarUrl ? (
+                        <img
+                          src={member.avatarUrl}
+                          alt={member.name}
+                          style={{
+                            width: '100%',
+                            height: '100%',
+                            objectFit: 'cover',
+                            display: 'block'
+                          }}
+                        />
+                      ) : (
+                        member.name
+                          ?.substring(0, 2)
+                          .toUpperCase() ||
+                        'U'
+                      )}
+                    </div>
+
+                    <div
+                      style={{
+                        minWidth: 0,
+                        flex: 1
+                      }}
+                    >
+                      <div
+                        style={{
+                          color: '#fff',
+                          fontSize: '12px',
+                          fontWeight: '800',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis'
+                        }}
+                      >
+                        {member.name}
+                      </div>
+
+                      <div
+                        style={{
+                          color: '#8e9aab',
+                          fontSize: '9px',
+                          marginTop: '3px'
+                        }}
+                      >
+                        {member.username
+                          ? `@${member.username}`
+                          : 'Kingdom Member'}
+                      </div>
+
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          marginTop: '6px'
+                        }}
+                      >
+                        <span
+                          style={{
+                            padding: '3px 6px',
+                            borderRadius: '5px',
+                            background:
+                              'rgba(41,190,175,0.10)',
+                            color: '#29beaf',
+                            fontSize: '8px',
+                            fontWeight: '800'
+                          }}
+                        >
+                          {member.membershipTier}
+                        </span>
+
+                        <span
+                          style={{
+                            color: '#2ecc71',
+                            fontSize: '8px',
+                            fontWeight: '800'
+                          }}
+                        >
+                          Active
+                        </span>
+                      </div>
+                    </div>
+
+                    <ChevronRightIcon />
+                  </div>
+                )
+              )}
+            </div>
+
+            {/* LOAD MORE */}
+            {hasMoreMinistryMembers && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'center',
+                  paddingTop: '20px'
+                }}
+              >
+                <button
+                  onClick={
+                    loadMoreMinistryMembers
+                  }
+                  disabled={
+                    isLoadingMemberDirectory
+                  }
+                  style={{
+                    minWidth: '160px',
+                    padding: '10px 16px',
+                    borderRadius: '10px',
+                    border:
+                      '1px solid rgba(41,190,175,0.28)',
+                    background:
+                      'rgba(41,190,175,0.08)',
+                    color: '#29beaf',
+                    fontSize: '10px',
+                    fontWeight: '900',
+                    cursor:
+                      isLoadingMemberDirectory
+                        ? 'wait'
+                        : 'pointer'
+                  }}
+                >
+                  {isLoadingMemberDirectory
+                    ? 'Loading...'
+                    : 'Load More Members'}
+                </button>
+              </div>
+            )}
+
+            {!hasMoreMinistryMembers && (
+              <div
+                style={{
+                  textAlign: 'center',
+                  paddingTop: '18px',
+                  color: '#64748b',
+                  fontSize: '9px'
+                }}
+              >
+                All {ministryMemberCount.toLocaleString()}
+                {' '}
+                active members are displayed.
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   </div>
