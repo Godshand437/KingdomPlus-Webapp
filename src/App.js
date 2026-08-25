@@ -10059,6 +10059,116 @@ const handleCloseModal = () => {
   setSelectedAnnouncement(null);
 };
 
+const ministryMembersCount =
+  Number(ministryMemberCount || 0);
+
+const ministryMilestones = [
+  {
+    min: 1000,
+    title: 'Kingdom Giant',
+    description: 'Your Ministry has built a 1,000+ member Kingdom community.',
+    icon: '👑',
+    reward: 1000
+  },
+  {
+    min: 500,
+    title: 'Kingdom Network',
+    description: 'Your Ministry has reached 500 members.',
+    icon: '/ministry-icons/kingdom-network.png',
+    reward: 500
+  },
+  {
+    min: 250,
+    title: 'Kingdom Builder',
+    description: 'Your Ministry has reached 250 members.',
+    icon: '/ministry-icons/kingdom-builder.png',
+    reward: 250
+  },
+  {
+    min: 120,
+    title: 'Influential Ministry',
+    description: 'Your Ministry has reached 120 members.',
+    icon: '/ministry-icons/influential.png',
+    reward: 150
+  },
+  {
+    min: 50,
+    title: 'Impact Ministry',
+    description: 'Your Ministry has reached 50 members.',
+    icon: '/ministry-icons/impact.png',
+    reward: 100
+  },
+  {
+    min: 25,
+    title: 'Rising Ministry',
+    description: 'Your Ministry has reached 25 members.',
+    icon: '/ministry-icons/rising.png',
+    reward: 50
+  },
+  {
+    min: 10,
+    title: 'Growing Fellowship',
+    description: 'Your Ministry has reached 10 members.',
+    icon: '/ministry-icons/growing.png',
+    reward: 25
+  },
+  {
+    min: 0,
+    title: 'Ministry Pioneer',
+    description: 'Begin building your KingdomPlus community.',
+    icon: '/ministry-icons/pioneer.png',
+    reward: 10
+  }
+];
+
+const currentMilestone =
+  ministryMilestones.find(
+    milestone =>
+      ministryMembersCount >= milestone.min
+  ) ||
+  ministryMilestones[
+    ministryMilestones.length - 1
+  ];
+
+const nextMilestone =
+  ministryMilestones
+    .filter(
+      milestone =>
+        milestone.min > ministryMembersCount
+    )
+    .sort(
+      (a, b) =>
+        a.min - b.min
+    )[0] || null;
+
+const milestoneProgress =
+  nextMilestone
+    ? Math.min(
+        100,
+        Math.max(
+          0,
+          (
+            (
+              ministryMembersCount -
+              currentMilestone.min
+            ) /
+            (
+              nextMilestone.min -
+              currentMilestone.min
+            )
+          ) * 100
+        )
+      )
+    : 100;
+
+const membersToNextMilestone =
+  nextMilestone
+    ? Math.max(
+        0,
+        nextMilestone.min -
+          ministryMembersCount
+      )
+    : 0;
  
 
   
@@ -10552,7 +10662,7 @@ const handleCloseModal = () => {
                   </div>
 
 {/* =========================================================
-    PREMIUM CHURCH ANNOUNCEMENT CARD
+    CHURCH ANNOUNCEMENT CARD
     ========================================================= */}
 
 {(() => {
@@ -10613,7 +10723,6 @@ const handleCloseModal = () => {
       }}
     >
 
-      {/* BACKGROUND IMAGE */}
       <img
         src={image}
         alt="Church announcement"
@@ -10638,7 +10747,6 @@ const handleCloseModal = () => {
         }}
       />
 
-      {/* DARK CINEMATIC OVERLAY */}
       <div
         style={{
           position: 'absolute',
@@ -10651,7 +10759,6 @@ const handleCloseModal = () => {
         }}
       />
 
-      {/* ACCENT GLOW */}
       <div
         style={{
           position: 'absolute',
@@ -10664,7 +10771,6 @@ const handleCloseModal = () => {
         }}
       />
 
-      {/* CONTENT */}
       <div
         style={{
           position: 'relative',
@@ -10681,7 +10787,6 @@ const handleCloseModal = () => {
         }}
       >
 
-        {/* TOP ROW */}
         <div
           style={{
             display: 'flex',
@@ -10690,7 +10795,6 @@ const handleCloseModal = () => {
           }}
         >
 
-          {/* TYPE BADGE */}
           <span
             style={{
               display: 'inline-flex',
@@ -10738,8 +10842,6 @@ const handleCloseModal = () => {
 
           </span>
 
-
-          {/* ARROW */}
           <span
             style={{
               width: '36px',
@@ -10767,15 +10869,12 @@ const handleCloseModal = () => {
 
         </div>
 
-
-        {/* BOTTOM CONTENT */}
         <div
           style={{
             maxWidth: '94%'
           }}
         >
 
-          {/* TITLE */}
           <h3
             style={{
               margin: '0 0 7px',
@@ -10798,8 +10897,6 @@ const handleCloseModal = () => {
               'Your Church Announcement'}
           </h3>
 
-
-          {/* DESCRIPTION */}
           <p
             style={{
               margin: '0 0 13px',
@@ -10824,8 +10921,6 @@ const handleCloseModal = () => {
               'Share an announcement with your church community.'}
           </p>
 
-
-          {/* FOOTER */}
           <div
             style={{
               display: 'flex',
@@ -10839,7 +10934,6 @@ const handleCloseModal = () => {
             }}
           >
 
-            {/* CHURCH */}
             <div
               style={{
                 minWidth: 0
@@ -10885,8 +10979,6 @@ const handleCloseModal = () => {
 
             </div>
 
-
-            {/* VIEW BUTTON */}
             <span
               style={{
                 flexShrink: 0,
@@ -10956,7 +11048,7 @@ const handleCloseModal = () => {
       }}
       onClick={(e) => e.stopPropagation()} 
     >
-      {/* Close Button */}
+
       <button 
         onClick={handleCloseModal} 
         style={{
@@ -11402,7 +11494,6 @@ const handleCloseModal = () => {
                   ))}
                 </div>
 
-{/* --- FULL SCREEN KINGDOM NEWS READER --- */}
 {activeNewsArticle && (
   <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: '#0a0f1a', zIndex: 99999, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
     
@@ -11451,7 +11542,6 @@ const handleCloseModal = () => {
       </div>
     </div>
 
-    {/* --- BLOG STYLE COMMENTS SECTION --- */}
     <div style={{ padding: '20px', background: '#101926', flexGrow: 1, borderTop: '1px solid rgba(255,255,255,0.05)' }}>
       <h3 style={{ color: '#fff', fontSize: '18px', marginBottom: '24px', fontWeight: 'bold' }}>All Comments</h3>
       
@@ -11464,7 +11554,6 @@ const handleCloseModal = () => {
         <div style={{ color: '#8e9aab', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }}>{comment.author_name}</div>
         <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.5' }}>{comment.content}</div>
         
-        {/* New Action Bar for Likes */}
         <div style={{ display: 'flex', alignItems: 'center', marginTop: '10px' }}>
           <button 
             onClick={() => handleLikeComment(comment.id)}
@@ -11474,7 +11563,6 @@ const handleCloseModal = () => {
               cursor: 'pointer', fontSize: '12px', padding: 0 
             }}
           >
-            {/* Heart SVG */}
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
             </svg>
@@ -11488,7 +11576,6 @@ const handleCloseModal = () => {
 </div>
 </div>
 
-{/* --- STICKY COMMENT INPUT BAR --- */}
 <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: '#101926', padding: '15px 20px', borderTop: '1px solid rgba(255,255,255,0.1)', display: 'flex', alignItems: 'center', zIndex: 10 }}>
   <img src={currentUser?.formData?.avatar || currentUser?.image || 'https://ui-avatars.com/api/?name=Me&background=f3ca58&color=000'} alt="Me" style={{ width: '36px', height: '36px', borderRadius: '50%', marginRight: '12px' }} />
   
@@ -11528,7 +11615,6 @@ const handleCloseModal = () => {
     <div className="card-icon" style={{ color: '#8e9aab' }}><ChatIcon /></div>
   </div>
   
-  {/* NEW DYNAMIC ACTIVITY INDICATOR */}
   <div style={{ marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
     <div style={{ display: 'flex' }}>
       <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#29beaf', border: '2px solid #101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', zIndex: 3 }}>⛪</div>
@@ -11830,7 +11916,6 @@ const handleCloseModal = () => {
 </div>
 
 
-        {/* BODY */}
         <div>
 
   <label className="input-label">
@@ -11865,8 +11950,6 @@ const handleCloseModal = () => {
 
 </div>
 
-
-        {/* COVER */}
         <div>
 
           <label className="input-label">
@@ -11979,8 +12062,6 @@ const handleCloseModal = () => {
           </>
         )}
 
-
-        {/* REWARD */}
         <div
   style={{
     background:
@@ -12004,8 +12085,6 @@ const handleCloseModal = () => {
   Publishers cannot change the reward amount.
 </div>
 
-
-        {/* INFO */}
         <div
           style={{
             background:
@@ -12024,8 +12103,6 @@ const handleCloseModal = () => {
             : 'The devotional is saved to the Kingdom database and can be rewarded once per believer.'}
         </div>
 
-
-        {/* SUBMIT */}
         <button
           type="submit"
           disabled={
@@ -18732,6 +18809,7 @@ const displayName =
   >
 
   {/* WORKSPACE HEADER */}
+
 <div
   className="hub-header"
   style={{
@@ -18739,15 +18817,12 @@ const displayName =
     top: 0,
     zIndex: 100,
     width: '100%',
-    height: '68px',
-    minHeight: '68px',
+    minHeight: '82px',
+    padding: '12px 16px',
     boxSizing: 'border-box',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: '0 12px',
-    overflow: 'hidden',
- marginTop: '10px'
+    gap: '10px'
   }}
 >
 
@@ -18758,25 +18833,17 @@ const displayName =
         setStep(18);
       }}
       style={{
-        position: 'absolute',
-        left: '14px',
-        top: '50%',
-        transform: 'translateY(-50%)',
-        width: '36px',
-        height: '36px',
-        borderRadius: '10px',
-        border:
-          '1px solid rgba(255,255,255,0.08)',
-        background:
-          'rgba(255,255,255,0.04)',
+        width: '40px',
+        height: '40px',
+        flexShrink: 0,
+        borderRadius: '12px',
+        border: '1px solid rgba(255,255,255,0.10)',
+        background: 'rgba(255,255,255,0.05)',
         color: '#fff',
-        cursor: 'pointer',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 3
+        justifyContent: 'center'
       }}
-      title="Back to Profile"
     >
       <BackArrowIcon />
     </button>
@@ -18784,172 +18851,90 @@ const displayName =
 
   <div
     style={{
+      flex: 1,
+      minWidth: 0,
       display: 'flex',
       alignItems: 'center',
-      justifyContent: 'center',
-      gap: '7px',
-      minWidth: 0,
-      maxWidth: '48%'
+      gap: '9px'
     }}
   >
     <img
       src="/assets/logo.png"
       alt="KingdomPlus"
-      className="logo-img"
       style={{
-        width: '50px',
-        height: '50px',
+        width: '42px',
+        height: '42px',
         objectFit: 'contain',
         flexShrink: 0
       }}
     />
 
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        minWidth: 0
-      }}
-    >
-      <h1
+    <div style={{ minWidth: 0 }}>
+      <div
         className="metallic-gold-text"
         style={{
-          fontSize: '20px',
-          margin: 0,
-          lineHeight: '1.1',
-          whiteSpace: 'nowrap'
+          fontSize: '16px',
+          fontWeight: '900',
+          lineHeight: 1
         }}
       >
         KINGDOMPLUS
-      </h1>
+      </div>
 
-      <p
+      <div
         style={{
+          marginTop: '4px',
+          color: '#8e9aab',
           fontSize: '8px',
-          margin: '2px 0 0',
-          color: '#9aa4b2',
-          letterSpacing: '0.7px',
-          whiteSpace: 'nowrap'
+          letterSpacing: '1px'
         }}
       >
         MINISTRY WORKSPACE
-      </p>
+      </div>
     </div>
   </div>
 
-  <div
-    style={{
-      position: 'absolute',
-      right: '27px',
-      top: '50%',
-      transform: 'translateY(-50%)',
-      display: 'flex',
-      alignItems: 'center',
-      gap: '7px',
-      minWidth: 0,
-      zIndex: 3
-    }}
-  >
+<div
+  className="icon-circle"
+  onClick={() => setIsNotifOpen(!isNotifOpen)}
+  style={{
+    width: '40px',
+    height: '40px',
+    flexShrink: 0,
+    position: 'relative',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    boxSizing: 'border-box',
+    marginRight: '9px'
+  }}
+>
+  <BellIcon />
 
-    <div
-      className="balance-pill"
+  {unreadCount > 0 && (
+    <span
       style={{
-        cursor: 'default',
-        display: 'flex',
-        alignItems: 'center',
-        minWidth: 0,
-        maxWidth: '145px',
-        padding: '6px 9px'
-      }}
-    >
-      <WalletIcon />
-
-      <div
-        className="balance-text"
-        style={{
-          minWidth: 0,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden'
-        }}
-      >
-        <span
-          className="balance-kpc"
-          style={{
-            fontWeight: '800',
-            color: '#f3ca58',
-            fontSize: '11px'
-          }}
-        >
-          {Number(
-            activeMinistryWorkspace
-              ?.ministry
-              ?.wallet_balance || 0
-          ).toLocaleString()} KPC
-        </span>
-
-        <span
-          className="balance-usd"
-          style={{
-            color: '#8e9aab',
-            fontSize: '9px',
-            marginLeft: '3px'
-          }}
-        >
-          $
-          {(
-            Number(
-              activeMinistryWorkspace
-                ?.ministry
-                ?.wallet_balance || 0
-            ) *
-            0.25
-          ).toFixed(2)}
-        </span>
-      </div>
-    </div>
-
-    <div
-      className="icon-circle"
-      onClick={() =>
-        setIsNotifOpen(!isNotifOpen)
-      }
-      style={{
-        position: 'relative',
-        cursor: 'pointer',
+        position: 'absolute',
+        top: '-2px',
+        right: '-2px',
+        minWidth: '16px',
+        height: '16px',
+        padding: '0 3px',
+        borderRadius: '999px',
+        background: '#e74c3c',
         color: '#fff',
+        fontSize: '9px',
+        fontWeight: '900',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        flexShrink: 0,
-        width: '34px',
-        height: '34px'
+        boxSizing: 'border-box'
       }}
     >
-      <BellIcon />
-
-      {unreadCount > 0 && (
-        <span
-          style={{
-            position: 'absolute',
-            top: '-2px',
-            right: '1px',
-            background: '#e74c3c',
-            color: '#fff',
-            fontSize: '8px',
-            fontWeight: 'bold',
-            borderRadius: '50%',
-            padding: '2px 4px',
-            minWidth: '13px',
-            textAlign: 'center'
-          }}
-        >
-          {unreadCount > 99
-            ? '99+'
-            : unreadCount}
-        </span>
-      )}
-    </div>
-  </div>
+      {unreadCount > 99 ? '99+' : unreadCount}
+    </span>
+  )}
+</div>
 </div>
 
     {/* WORKSPACE CONTENT */}
@@ -18962,144 +18947,330 @@ const displayName =
     background: 'transparent'
   }}
 >
-     <div
+    <div
   style={{
-    marginBottom: '20px',
-    padding: '20px',
-    borderRadius: '18px',
+    position: 'relative',
+    overflow: 'hidden',
+    borderRadius: '24px',
+    padding: '22px',
     background:
-      'linear-gradient(135deg, rgba(41,190,175,0.12), rgba(243,202,88,0.05))',
+      'linear-gradient(135deg, rgba(35,45,75,0.92), rgba(10,54,53,0.90))',
     border:
-      '1px solid rgba(41,190,175,0.16)',
+      '1px solid rgba(67,205,191,0.18)',
     boxShadow:
-      '0 10px 30px rgba(0,0,0,0.12)'
+      '0 20px 50px rgba(0,0,0,0.22)',
+    marginBottom: '12px'
   }}
 >
+
   <div
     style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '18px',
-      flexWrap: 'wrap'
+      position: 'absolute',
+      width: '180px',
+      height: '180px',
+      borderRadius: '50%',
+      right: '-70px',
+      top: '-80px',
+      background:
+        'rgba(41,190,175,0.10)',
+      filter: 'blur(25px)',
+      pointerEvents: 'none'
+    }}
+  />
+
+  <div
+    style={{
+      position: 'relative',
+      zIndex: 1
     }}
   >
+
     <div
       style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: '14px',
-        minWidth: 0
+        color: '#29beaf',
+        fontSize: '10px',
+        fontWeight: '900',
+        letterSpacing: '1.5px',
+        marginBottom: '16px'
       }}
     >
-      <div
-        style={{
-          width: '58px',
-          height: '58px',
-          borderRadius: '16px',
-          overflow: 'hidden',
-          flexShrink: 0,
-          background:
-            'linear-gradient(135deg,#29beaf,#f3ca58)',
-          border:
-            '2px solid rgba(243,202,88,0.25)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center'
-        }}
-      >
-        {activeMinistryWorkspace?.ministry?.image ? (
-          <img
-            src={
-              activeMinistryWorkspace.ministry.image
-            }
-            alt={
-              activeMinistryWorkspace.ministry
-                .ministry_name ||
-              'Ministry'
-            }
-            style={{
-              width: '100%',
-              height: '100%',
-              objectFit: 'cover',
-              display: 'block'
-            }}
-          />
-        ) : (
-          <ChurchIcon />
-        )}
-      </div>
-
-      <div style={{ minWidth: 0 }}>
-        <div
-          style={{
-            color: '#29beaf',
-            fontSize: '9px',
-            fontWeight: '900',
-            letterSpacing: '1.2px',
-            textTransform: 'uppercase',
-            marginBottom: '5px'
-          }}
-        >
-          Ministry Command Center
-        </div>
-
-        <h1
-          style={{
-            margin: 0,
-            color: '#fff',
-            fontSize: '25px',
-            fontWeight: '900',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
-          }}
-        >
-          {activeMinistryWorkspace.ministry
-            .ministry_name ||
-            activeMinistryWorkspace.ministry
-              .username ||
-            'Ministry Workspace'}
-        </h1>
-
-        <div
-          style={{
-            color: '#8e9aab',
-            fontSize: '11px',
-            marginTop: '5px'
-          }}
-        >
-          {activeMinistryWorkspace.role}
-          {' • '}
-          {activeMinistryWorkspace.dashboardAccess}
-          {' access'}
-        </div>
-      </div>
+      MINISTRY COMMAND CENTER
     </div>
 
     <div
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: '8px'
+        gap: '14px'
       }}
     >
-      <span
+      <div
         style={{
-          padding: '6px 10px',
-          borderRadius: '8px',
+          width: '70px',
+          height: '70px',
+          flexShrink: 0,
+          borderRadius: '20px',
+          padding: '3px',
           background:
-            'rgba(243,202,88,0.10)',
-          border:
-            '1px solid rgba(243,202,88,0.22)',
-          color: '#f3ca58',
-          fontSize: '9px',
-          fontWeight: '900',
-          textTransform: 'uppercase'
+            'linear-gradient(135deg, #f3ca58, #29beaf)'
         }}
       >
-        Ministry
-      </span>
+        <div
+          style={{
+            width: '100%',
+            height: '100%',
+            borderRadius: '17px',
+            background: '#111827',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            overflow: 'hidden'
+          }}
+        >
+          <img
+            src={
+              activeMinistryWorkspace?.ministry?.image ||
+              '/assets/default-ministry.png'
+            }
+            alt="Ministry"
+            style={{
+              width: '100%',
+              height: '100%',
+              objectFit: 'cover'
+            }}
+          />
+        </div>
+      </div>
+
+      <div style={{ minWidth: 0 }}>
+        <h1
+          style={{
+            margin: 0,
+            color: '#fff',
+            fontSize: '25px',
+            fontWeight: '900',
+            lineHeight: '1.05'
+          }}
+        >
+          {activeMinistryWorkspace?.ministry?.ministry_name ||
+            activeMinistryWorkspace?.ministry?.username ||
+            'Ministry'}
+        </h1>
+
+        <div
+          style={{
+            marginTop: '7px',
+            color: '#a8b1c0',
+            fontSize: '11px'
+          }}
+        >
+          {activeMinistryWorkspace?.dashboardAccess === 'full'
+            ? 'Leader • Full Access'
+            : 'Ministry Leader'}
+        </div>
+      </div>
+    </div>
+
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: '8px',
+        marginTop: '22px'
+      }}
+    >
+      <div>
+        <div
+          style={{
+            color: '#fff',
+            fontSize: '17px',
+            fontWeight: '900'
+          }}
+        >
+          {ministryMemberCount || 0}
+        </div>
+
+        <div
+          style={{
+            color: '#8e9aab',
+            fontSize: '9px',
+            marginTop: '3px'
+          }}
+        >
+          MEMBERS
+        </div>
+      </div>
+
+      <div>
+        <div
+          style={{
+            color: '#fff',
+            fontSize: '17px',
+            fontWeight: '900'
+          }}
+        >
+          {verifiedMinistersList.length}
+        </div>
+
+        <div
+          style={{
+            color: '#8e9aab',
+            fontSize: '9px',
+            marginTop: '3px'
+          }}
+        >
+          LEADERS
+        </div>
+      </div>
+
+      <div>
+        <div
+          style={{
+            color: '#f3ca58',
+            fontSize: '17px',
+            fontWeight: '900'
+          }}
+        >
+          {Number(
+            activeMinistryWorkspace?.ministry?.wallet_balance || 0
+          ).toLocaleString()}
+        </div>
+
+        <div
+          style={{
+            color: '#8e9aab',
+            fontSize: '9px',
+            marginTop: '3px'
+          }}
+        >
+          KPC
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '15px',
+    borderRadius: '18px',
+    background:
+      'linear-gradient(135deg, rgba(243,202,88,0.09), rgba(41,190,175,0.06))',
+    border:
+      '1px solid rgba(243,202,88,0.16)',
+    marginBottom: '20px'
+  }}
+>
+  <div
+    style={{
+      width: '46px',
+      height: '46px',
+      borderRadius: '14px',
+      flexShrink: 0,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      background:
+        'rgba(243,202,88,0.10)',
+      fontSize: '23px'
+    }}
+  >
+    <img
+  src={currentMilestone.icon}
+  alt={currentMilestone.title}
+  style={{
+    width: '40px',
+    height: '40px',
+    objectFit: 'contain',
+    display: 'block'
+  }}
+/>
+  </div>
+
+  <div
+    style={{
+      flex: 1,
+      minWidth: 0
+    }}
+  >
+    <div
+      style={{
+        color: '#f3ca58',
+        fontSize: '9px',
+        fontWeight: '900',
+        letterSpacing: '1.2px'
+      }}
+    >
+      MINISTRY MILESTONE
+    </div>
+
+    <div
+      style={{
+        color: '#fff',
+        fontSize: '14px',
+        fontWeight: '900',
+        marginTop: '3px'
+      }}
+    >
+      {currentMilestone.title}
+    </div>
+
+    <div
+      style={{
+        color: '#8e9aab',
+        fontSize: '9px',
+        marginTop: '3px'
+      }}
+    >
+      {nextMilestone
+        ? `${membersToNextMilestone} more member${
+            membersToNextMilestone === 1
+              ? ''
+              : 's'
+          } to ${nextMilestone.title}`
+        : 'You have reached the highest current milestone.'}
+    </div>
+
+    {nextMilestone && (
+      <div
+        style={{
+          marginTop: '9px',
+          height: '5px',
+          width: '100%',
+          borderRadius: '999px',
+          background:
+            'rgba(255,255,255,0.08)',
+          overflow: 'hidden'
+        }}
+      >
+        <div
+          style={{
+            height: '100%',
+            width: `${milestoneProgress}%`,
+            borderRadius: '999px',
+            background:
+              'linear-gradient(90deg, #29beaf, #f3ca58)',
+            transition:
+              'width 0.5s ease'
+          }}
+        />
+      </div>
+    )}
+
+    <div
+      style={{
+        marginTop: '5px',
+        color: '#64748b',
+        fontSize: '8px'
+      }}
+    >
+      {ministryMembersCount}
+      {nextMilestone
+        ? ` / ${nextMilestone.min} members`
+        : ' members'}
     </div>
   </div>
 </div>
@@ -19115,7 +19286,6 @@ const displayName =
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: '12px',
     flexShrink: 0
   }}
 >
@@ -20140,7 +20310,6 @@ const displayName =
         </button>
       </div>
 
-      {/* CONTENT */}
       <div
         style={{
           flex: 1,
