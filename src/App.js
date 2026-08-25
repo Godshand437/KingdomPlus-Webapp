@@ -3447,27 +3447,53 @@ const shuffleArray = (items) => {
   setIsPlayerExpanded(false);
 };
 
-const playNextMusicTrack = () => {
+const playNextMusicTrack = async () => {
   if (!musicQueue.length) {
     setIsPlaying(false);
     return;
   }
 
   if (repeatEnabled) {
+  const audio = mediaRef.current;
+
+  if (!audio) {
+    setIsPlaying(false);
+    return;
+  }
+
+  try {
+    // Stop the ended state first.
+    audio.pause();
+
+    // Reset the actual audio position.
+    audio.currentTime = 0;
+
     setCurrentTime(0);
 
-    if (mediaRef.current) {
-      mediaRef.current.currentTime = 0;
+    if (Number.isFinite(audio.duration)) {
+      setDuration(audio.duration);
+    }
 
-      mediaRef.current
-        .play()
-        .catch(() => {});
+    // Explicitly start the audio again.
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+      await playPromise;
     }
 
     setIsPlaying(true);
 
-    return;
+  } catch (error) {
+    console.error(
+      'Repeat playback failed:',
+      error
+    );
+
+    setIsPlaying(false);
   }
+
+  return;
+}
 
   let nextIndex =
     musicQueueIndex + 1;
@@ -3539,22 +3565,23 @@ useEffect(() => {
 
   const audio = mediaRef.current;
 
+  audio.src = activeMedia.src;
+  audio.currentTime = 0;
   audio.load();
 
   if (isPlaying) {
-    audio
-      .play()
-      .catch(error => {
+    const playPromise = audio.play();
+
+    if (playPromise !== undefined) {
+      playPromise.catch(error => {
         console.warn(
           'Audio autoplay was prevented:',
           error
         );
       });
+    }
   }
-}, [
-  activeMedia,
-  mediaType
-]);
+}, [activeMedia, mediaType]);
 
 const playPreviousMusicTrack = () => {
   if (!musicQueue.length) return;
@@ -3646,34 +3673,221 @@ const playPreviousMusicTrack = () => {
   const [isUploading, setIsUploading] = useState(false);
 
   const handleFileUpload = async (event, fieldToUpdate) => {
-    const file = event.target.files[0];
-    if (!file) return;
+  const file = event.target.files?.[0];
 
-    setIsUploading(true);
-    
-    const fileExt = file.name.split('.').pop();
-    const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
-    const filePath = `${adminTab.toLowerCase()}/${fileName}`;
+  if (!file) return;
 
-    try {
-      const { data, error } = await supabase.storage
-        .from('kingdom_media')
-        .upload(filePath, file);
+  setIsUploading(true);
 
-      if (error) throw error;
-      const { data: { publicUrl } } = supabase.storage
-        .from('kingdom_media')
+  try {
+
+    if (
+      adminTab === 'Music' &&
+      fieldToUpdate === 'src'
+    ) {
+
+      if (!file.type.startsWith('audio/')) {
+        throw new Error(
+          'Please select a valid audio file.'
+        );
+      }
+
+      const fileExt =
+        file.name
+          .split('.')
+          .pop()
+          ?.toLowerCase() || 'mp3';
+
+      const safeName =
+        file.name
+          .replace(/\.[^/.]+$/, '')
+          .replace(/[^a-zA-Z0-9-_]/g, '-')
+          .toLowerCase();
+
+      const fileName =
+        `${Date.now()}-${safeName}.${fileExt}`;
+
+      const filePath =
+        `music/${fileName}`;
+
+      const {
+        error: uploadError
+      } = await supabase.storage
+        .from('kingdom_music')
+        .upload(
+          filePath,
+          file,
+          {
+            cacheControl: '3600',
+            upsert: false,
+            contentType:
+              file.type || 'audio/mpeg'
+          }
+        );
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const {
+        data: publicUrlData
+      } = supabase.storage
+        .from('kingdom_music')
         .getPublicUrl(filePath);
 
-      setAdminUpload(prev => ({ ...prev, [fieldToUpdate]: publicUrl }));
-      alert("File uploaded successfully!");
+      const publicUrl =
+        publicUrlData?.publicUrl;
 
-    } catch (error) {
-      alert("Error uploading file: " + error.message);
-    } finally {
-      setIsUploading(false);
+      if (!publicUrl) {
+        throw new Error(
+          'Could not create the music URL.'
+        );
+      }
+
+      setAdminUpload(prev => ({
+        ...prev,
+        src: publicUrl
+      }));
+
+      alert(
+        'Music file uploaded successfully!'
+      );
+
+      return;
     }
-  };
+
+    if (
+      adminTab === 'Music' &&
+      fieldToUpdate === 'img'
+    ) {
+
+      if (!file.type.startsWith('image/')) {
+        throw new Error(
+          'Please select a valid image file.'
+        );
+      }
+
+      const fileExt =
+        file.name
+          .split('.')
+          .pop()
+          ?.toLowerCase() || 'jpg';
+
+      const fileName =
+        `${Date.now()}-cover.${fileExt}`;
+
+      const filePath =
+        `covers/${fileName}`;
+
+      const {
+        error: uploadError
+      } = await supabase.storage
+        .from('kingdom_music')
+        .upload(
+          filePath,
+          file,
+          {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type
+          }
+        );
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+      const {
+        data: publicUrlData
+      } = supabase.storage
+        .from('kingdom_music')
+        .getPublicUrl(filePath);
+
+      const publicUrl =
+        publicUrlData?.publicUrl;
+
+      if (!publicUrl) {
+        throw new Error(
+          'Could not create the cover URL.'
+        );
+      }
+
+      setAdminUpload(prev => ({
+        ...prev,
+        img: publicUrl
+      }));
+
+      alert(
+        'Music cover uploaded successfully!'
+      );
+
+      return;
+    }
+
+    const fileExt =
+      file.name.split('.').pop();
+
+    const fileName =
+      `${Date.now()}-${Math.random()
+        .toString(36)
+        .substring(7)}.${fileExt}`;
+
+    const filePath =
+      `${adminTab.toLowerCase()}/${fileName}`;
+
+    const {
+      error
+    } = await supabase.storage
+      .from('kingdom_media')
+      .upload(
+        filePath,
+        file
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    const {
+      data: {
+        publicUrl
+      }
+    } = supabase.storage
+      .from('kingdom_media')
+      .getPublicUrl(
+        filePath
+      );
+
+    setAdminUpload(prev => ({
+      ...prev,
+      [fieldToUpdate]: publicUrl
+    }));
+
+    alert(
+      'File uploaded successfully!'
+    );
+
+  } catch (error) {
+
+    console.error(
+      'Media upload error:',
+      error
+    );
+
+    alert(
+      `Error uploading file: ${
+        error?.message ||
+        'Unknown error'
+      }`
+    );
+
+  } finally {
+
+    setIsUploading(false);
+
+  }
+};
+
 
   const [adminUpload, setAdminUpload] = useState({
     title: '',
@@ -4006,7 +4220,7 @@ const playPreviousMusicTrack = () => {
               ref={mediaRef} src={activeMedia.src} autoPlay playsInline
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={(e) => setDuration(e.target.duration)}
-              onEnded={playNextMusicTrack}
+              onEnded={() => setIsPlaying(false)}
               style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             />
           </div>
@@ -4019,29 +4233,77 @@ const playPreviousMusicTrack = () => {
   crossOrigin="anonymous"
   onTimeUpdate={handleTimeUpdate}
   onLoadedMetadata={(e) => setDuration(e.target.duration)}
-  onEnded={() => setIsPlaying(false)}
+  onEnded={playNextMusicTrack}
   style={{ display: 'none' }}
 />
         )}
 
         {/* --- 1. UNIVERSAL MINI PLAYER --- */}
+
         {!isPlayerExpanded && (
-          <div className="mini-player-container" onClick={() => setIsPlayerExpanded(true)}>
-            <img src={activeMedia.img} alt="cover" className="mini-player-img" />
-            <div className="mini-player-info">
-              <div className="mini-player-title">{activeMedia.title}</div>
-              <div className="mini-player-artist">{activeMedia.artist || 'KingdomPlus'}</div>
-            </div>
-            <div className="mini-player-actions">
-              <button className="mini-player-btn" onClick={togglePlayPauseEvent}>
-                {isPlaying ? <PauseSolidIcon /> : <PlaySolidIcon />}
-              </button>
-              <button className="mini-player-btn mini-player-close" onClick={closePlayerEvent}>
-                <XIcon />
-              </button>
-            </div>
-          </div>
-        )}
+  <div
+    className="mini-player-container"
+    onClick={() => setIsPlayerExpanded(true)}
+  >
+
+    <img
+      src={activeMedia.img}
+      alt="cover"
+      className="mini-player-img"
+    />
+
+    <div className="mini-player-info">
+      <div className="mini-player-title">
+        {activeMedia.title}
+      </div>
+
+      <div className="mini-player-artist">
+        {activeMedia.artist || 'KingdomPlus'}
+      </div>
+    </div>
+
+    <div className="mini-player-actions">
+
+      <button
+        className="mini-player-btn"
+        onClick={togglePlayPauseEvent}
+      >
+        {isPlaying
+          ? <PauseSolidIcon />
+          : <PlaySolidIcon />
+        }
+      </button>
+
+      <button
+        className="mini-player-btn mini-player-close"
+        onClick={closePlayerEvent}
+      >
+        <XIcon />
+      </button>
+
+    </div>
+
+
+    {/* ========================================
+        MINI PLAYER PASSIVE PROGRESS BAR
+        ======================================== */}
+
+    <div
+      className="mini-player-progress"
+      style={{
+        '--music-progress': `${
+          duration > 0
+            ? Math.min(
+                100,
+                (currentTime / duration) * 100
+              )
+            : 0
+        }%`
+      }}
+      aria-hidden="true"
+    />
+  </div>
+)}
 
         {/* --- 2. SPOTIFY AUDIO UI (Scrollable with Integrated Comments) --- */}
         {isPlayerExpanded && mediaType === 'audio' && (
@@ -11747,7 +12009,11 @@ const membersToNextMilestone =
                 </div>
                 <div className="horizontal-scroll">
                   {musicData
-                    .filter(track => track.category === 'Trending Now')
+                    .filter(
+  track =>
+    track.category === 'Trending Now' ||
+    track.category === 'Hymns'
+)
                     .map((track) => (
                     <div
                       key={track.id}
@@ -11757,7 +12023,7 @@ const membersToNextMilestone =
                         openPlayer(
   track,
   'audio',
-  'Trending Now'
+  track.category
 );
                         setIsPlaying(true);
                       }}
@@ -11769,7 +12035,11 @@ const membersToNextMilestone =
                       </div>
                     </div>
                   ))}
-                  {musicData.filter(track => track.category === 'Trending Now').length === 0 && (
+                  {musicData.filter(
+  track =>
+    track.category === 'Trending Now' ||
+    track.category === 'Hymns'
+).length === 0 && (
                     <div style={{ color: '#8e9aab', fontSize: '12px', padding: '10px' }}>No trending songs yet.</div>
                   )}
                 </div>
@@ -16017,7 +16287,7 @@ disabled={isUploadingBook}
                 )}
 
                 {/* REGIONAL / CATEGORY CAROUSELS */}
-                {['Nigerian Gospel', 'South African Gospel', 'Ghanaian Gospel', 'American Gospel', 'Most Popular'].map(categoryName => {
+                {['Nigerian Gospel', 'South African Gospel', 'Ghanaian Gospel', 'American Gospel', 'Most Popular', 'Hymns'].map(categoryName => {
                   const categorySongs = musicData.filter(song => song.category === categoryName);
                   if (categorySongs.length === 0) return null;
 
@@ -18742,6 +19012,7 @@ const displayName =
                             <option value="Ghanaian Gospel">Ghanaian Gospel</option>
                             <option value="Most Popular">Most Popular</option>
                             <option value="Trending Now">Trending Now</option>
+                            <option value="Hymns">Hymns</option>
                             <option value="Afro Gospel">Afro Gospel</option>
                             <option value="Rising Gospel">Rising Gospel</option>
 
@@ -18787,7 +19058,9 @@ const displayName =
                     </>
                   ) : (
                     <>
-                      <label className="dream-input-label">SOURCE MEDIA (URL OR FILE)</label>
+                      <label className="dream-input-label">
+  MUSIC FILE (MP3 / WAV / M4A)
+</label>
                       <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
                         <input type="text" className="dream-input" placeholder="Paste media link..." value={adminUpload.src} onChange={(e) => setAdminUpload({...adminUpload, src: e.target.value})} style={{ marginBottom: 0, flex: 1 }} />
                         <div style={{ position: 'relative', width: '45px', height: '45px', flexShrink: 0, borderRadius: '12px', background: 'rgba(243, 202, 88, 0.1)', border: '1px solid #f3ca58', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#f3ca58', cursor: 'pointer', overflow: 'hidden' }}>
