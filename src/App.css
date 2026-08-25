@@ -5471,6 +5471,33 @@ to {
   background: rgba(255, 255, 255, 0.1);
 }
 
+.music-seek-container {
+  width: 100%;
+  margin: 10px 0 4px;
+}
+
+.music-seek-range {
+  width: 100%;
+  height: 6px;
+
+  margin: 0;
+
+  cursor: pointer;
+
+  accent-color: #f3ca58;
+}
+
+.music-time-row {
+  display: flex;
+  justify-content: space-between;
+
+  margin-top: 7px;
+
+  color: #8e9aab;
+  font-size: 11px;
+  font-weight: 700;
+}
+
 .reward-badge {
   font-size: 12px;
   font-weight: 800;

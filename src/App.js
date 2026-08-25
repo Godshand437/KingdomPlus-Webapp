@@ -3321,14 +3321,18 @@ const handleUpgradeMembershipTier = async () => {
   };
 
   // --- STREAM-TO-EARN PLAYER STATE ---
-  const [activeMedia, setActiveMedia] = useState(null);
-  const [mediaType, setMediaType] = useState('');
-  const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const mediaRef = useRef(null);
+const [activeMedia, setActiveMedia] = useState(null);
+const [mediaType, setMediaType] = useState('');
+const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
+const [currentTime, setCurrentTime] = useState(0);
+const [duration, setDuration] = useState(0);
+const mediaRef = useRef(null);
+const [musicQueue, setMusicQueue] = useState([]);
+const [musicQueueIndex, setMusicQueueIndex] = useState(-1);
+const [shuffleEnabled, setShuffleEnabled] = useState(true);
+const [repeatEnabled, setRepeatEnabled] = useState(false);
 
-  // --- MEDIA SOCIAL & COMMENTS STATE (Safely declared after activeMedia) ---
+  // --- MEDIA SOCIAL & COMMENTS STATE ---
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
   const [isTipping, setIsTipping] = useState(false);
@@ -3360,13 +3364,218 @@ useEffect(() => {
 
   const REWARD_THRESHOLD_SECONDS = 15;
 
-  const openPlayer = (item, type) => {
+const shuffleArray = (items) => {
+  const array = [...items];
+
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+
+    [array[i], array[j]] =
+      [array[j], array[i]];
+  }
+
+  return array;
+};
+
+  const openPlayer = (
+  item,
+  type,
+  playlistCategory = null
+) => {
+
+  if (type === 'video') {
     setActiveMedia(item);
     setMediaType(type);
     setIsPlaying(true);
     setCurrentTime(0);
-    setIsPlayerExpanded(type === 'video');
-  };
+    setDuration(0);
+    setIsPlayerExpanded(true);
+
+    return;
+  }
+
+  const category =
+    playlistCategory ||
+    item.category ||
+    'Trending Now';
+
+  let categorySongs =
+    musicData.filter(
+      song => song.category === category
+    );
+
+  if (
+    !categorySongs.some(song => song.id === item.id)
+  ) {
+    categorySongs = [
+      item,
+      ...categorySongs
+    ];
+  }
+
+  categorySongs = categorySongs.filter(
+    (song, index, array) =>
+      index ===
+      array.findIndex(
+        other => other.id === song.id
+      )
+  );
+
+  const remainingSongs =
+    categorySongs.filter(
+      song => song.id !== item.id
+    );
+
+  const newQueue = shuffleEnabled
+    ? [
+        item,
+        ...shuffleArray(remainingSongs)
+      ]
+    : [
+        item,
+        ...remainingSongs
+      ];
+
+  setMusicQueue(newQueue);
+  setMusicQueueIndex(0);
+
+  setActiveMedia(newQueue[0]);
+  setMediaType('audio');
+  setIsPlaying(true);
+  setCurrentTime(0);
+  setDuration(0);
+  setIsPlayerExpanded(false);
+};
+
+const playNextMusicTrack = () => {
+  if (!musicQueue.length) {
+    setIsPlaying(false);
+    return;
+  }
+
+  if (repeatEnabled) {
+    setCurrentTime(0);
+
+    if (mediaRef.current) {
+      mediaRef.current.currentTime = 0;
+
+      mediaRef.current
+        .play()
+        .catch(() => {});
+    }
+
+    setIsPlaying(true);
+
+    return;
+  }
+
+  let nextIndex =
+    musicQueueIndex + 1;
+
+  if (nextIndex >= musicQueue.length) {
+
+    if (shuffleEnabled) {
+
+      let reshuffled =
+        shuffleArray(musicQueue);
+
+      if (
+        reshuffled.length > 1 &&
+        reshuffled[0].id === activeMedia?.id
+      ) {
+        const swapIndex =
+          reshuffled.findIndex(
+            song =>
+              song.id !== activeMedia?.id
+          );
+
+        if (swapIndex > 0) {
+          [
+            reshuffled[0],
+            reshuffled[swapIndex]
+          ] = [
+            reshuffled[swapIndex],
+            reshuffled[0]
+          ];
+        }
+      }
+
+      setMusicQueue(reshuffled);
+      setMusicQueueIndex(0);
+      setActiveMedia(reshuffled[0]);
+      setCurrentTime(0);
+      setDuration(0);
+      setIsPlaying(true);
+
+      return;
+    }
+
+    nextIndex = 0;
+  }
+
+  const nextSong =
+    musicQueue[nextIndex];
+
+  if (!nextSong) {
+    setIsPlaying(false);
+    return;
+  }
+
+  setMusicQueueIndex(nextIndex);
+  setActiveMedia(nextSong);
+  setCurrentTime(0);
+  setDuration(0);
+  setIsPlaying(true);
+};
+
+useEffect(() => {
+  if (
+    mediaType !== 'audio' ||
+    !activeMedia?.src ||
+    !mediaRef.current
+  ) {
+    return;
+  }
+
+  const audio = mediaRef.current;
+
+  audio.load();
+
+  if (isPlaying) {
+    audio
+      .play()
+      .catch(error => {
+        console.warn(
+          'Audio autoplay was prevented:',
+          error
+        );
+      });
+  }
+}, [
+  activeMedia,
+  mediaType
+]);
+
+const playPreviousMusicTrack = () => {
+  if (!musicQueue.length) return;
+
+  let previousIndex =
+    musicQueueIndex - 1;
+
+  if (previousIndex < 0) {
+    previousIndex =
+      musicQueue.length - 1;
+  }
+
+  const previousSong =
+    musicQueue[previousIndex];
+
+  setMusicQueueIndex(previousIndex);
+  setActiveMedia(previousSong);
+  setCurrentTime(0);
+  setDuration(0);
+  setIsPlaying(true);
+};
 
   const closePlayer = () => {
     if (mediaRef.current) mediaRef.current.pause();
@@ -3797,7 +4006,7 @@ useEffect(() => {
               ref={mediaRef} src={activeMedia.src} autoPlay playsInline
               onTimeUpdate={handleTimeUpdate}
               onLoadedMetadata={(e) => setDuration(e.target.duration)}
-              onEnded={() => setIsPlaying(false)}
+              onEnded={playNextMusicTrack}
               style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             />
           </div>
@@ -3866,30 +4075,123 @@ useEffect(() => {
               </div>
             </div>
 
-            {/* Progress Bar */}
-            <div className="progress-container">
-              <div className="progress-bar-bg" onClick={(e) => {
-                if (!mediaRef.current) return;
-                const rect = e.currentTarget.getBoundingClientRect();
-                mediaRef.current.currentTime = ((e.clientX - rect.left) / rect.width) * duration;
-              }}>
-                <div className="progress-bar-fill" style={{ width: `${progressPercent}%`, background: '#fff' }}></div>
-              </div>
-              <div className="time-indicators">
-                <span>{formatTime(currentTime)}</span>
-                <span>{formatTime(duration)}</span>
-              </div>
-            </div>
+            {/* Seek Bar */}
+
+<div className="music-seek-container">
+
+  <input
+    type="range"
+    min="0"
+    max={duration || 0}
+    step="0.1"
+    value={Math.min(
+      currentTime,
+      duration || 0
+    )}
+    onChange={(e) => {
+      const newTime =
+        Number(e.target.value);
+
+      setCurrentTime(newTime);
+
+      if (mediaRef.current) {
+        mediaRef.current.currentTime =
+          newTime;
+      }
+    }}
+    className="music-seek-range"
+    aria-label="Music progress"
+  />
+
+  <div className="music-time-row">
+    <span>
+      {formatTime(currentTime)}
+    </span>
+
+    <span>
+      {formatTime(duration)}
+    </span>
+  </div>
+
+</div>
 
             {/* Media Controls */}
             <div className="spotify-controls">
-              <button className="mini-player-btn" style={{ color: '#29beaf' }}><ShuffleIcon /></button>
-              <button className="mini-player-btn" onClick={() => skipTime(-10)}><SkipBackIcon /></button>
+              <button
+  className="mini-player-btn"
+  onClick={(e) => {
+    e.stopPropagation();
+
+    setShuffleEnabled(
+      prev => !prev
+    );
+  }}
+  style={{
+    color:
+      shuffleEnabled
+        ? '#29beaf'
+        : '#8e9aab',
+
+    background:
+      shuffleEnabled
+        ? 'rgba(41,190,175,0.12)'
+        : 'transparent',
+
+    borderRadius: '10px'
+  }}
+  title={
+    shuffleEnabled
+      ? 'Shuffle is on'
+      : 'Shuffle is off'
+  }
+>
+  <ShuffleIcon />
+</button>
+              <button
+  className="mini-player-btn"
+  onClick={playPreviousMusicTrack}
+>
+  <SkipBackIcon />
+</button>
               <button className="spotify-play-btn" onClick={togglePlayPause}>
                 {isPlaying ? <PauseSolidIcon /> : <PlaySolidIcon />}
               </button>
-              <button className="mini-player-btn" onClick={() => skipTime(10)}><SkipForwardIcon /></button>
-              <button className="mini-player-btn"><RepeatIcon /></button>
+              <button
+  className="mini-player-btn"
+  onClick={playNextMusicTrack}
+>
+  <SkipForwardIcon />
+</button>
+              <button
+  className="mini-player-btn"
+  onClick={(e) => {
+    e.stopPropagation();
+
+    setRepeatEnabled(
+      prev => !prev
+    );
+  }}
+  style={{
+    color:
+      repeatEnabled
+        ? '#f3ca58'
+        : '#8e9aab',
+
+    background:
+      repeatEnabled
+        ? 'rgba(243,202,88,0.12)'
+        : 'transparent',
+
+    borderRadius: '10px'
+  }}
+  title={
+    repeatEnabled
+      ? 'Repeat current song'
+      : 'Repeat off'
+  }
+>
+  <RepeatIcon />
+</button>
             </div>
 
             {/* --- INTEGRATED MODERN SOCIAL COMMENTS SEGMENT --- */}
@@ -11452,7 +11754,11 @@ const membersToNextMilestone =
                       className="media-card"
                       style={{ cursor: 'pointer' }}
                       onClick={() => {
-                        openPlayer(track, 'audio');
+                        openPlayer(
+  track,
+  'audio',
+  'Trending Now'
+);
                         setIsPlaying(true);
                       }}
                     >
@@ -15692,7 +15998,13 @@ disabled={isUploadingBook}
                   <div
                     className="music-hero-card"
                     style={{ backgroundImage: `url('${musicData[0]?.img}')`, cursor: 'pointer' }}
-                    onClick={() => openPlayer(musicData[0], 'audio')}
+                    onClick={() =>
+  openPlayer(
+    musicData[0],
+    'audio',
+    musicData[0]?.category
+  )
+}
                   >
                     <div className="music-hero-overlay"></div>
                     <div className="music-hero-content">
@@ -15722,7 +16034,13 @@ disabled={isUploadingBook}
                             key={song.id}
                             className="music-square-card scroll-snap-item"
                             style={{ cursor: 'pointer' }}
-                            onClick={() => openPlayer(song, 'audio')}
+                            onClick={() =>
+  openPlayer(
+    song,
+    'audio',
+    categoryName
+  )
+}
                           >
                             <div className="music-square-img-box">
                               <img src={song.img} alt={song.title} className="media-cover-img" />
