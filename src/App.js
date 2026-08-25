@@ -339,7 +339,6 @@ const IconCalendar = () => <svg width="16" height="16" viewBox="0 0 24 24" fill=
 const IconGlobe = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>;
 
 
-
 export default function App() {
   const [step, setStep] = useState(() => {
   const saved = localStorage.getItem('kp_current_user');
@@ -6128,9 +6127,8 @@ const loadActiveMinistryCheckIn = async (
   ministryIdOverride = null
 ) => {
   const ministryId =
-    ministryIdOverride ||
-    activeMinistryWorkspace?.ministry?.id ||
-    userProfile?.id;
+  ministryIdOverride ||
+  userProfile?.id;
 
   if (!ministryId) {
     setActiveCheckInSession(null);
@@ -6217,6 +6215,7 @@ const loadActiveMinistryCheckIn = async (
 
 
 
+
   const [attendanceRoster, setAttendanceRoster] = useState([]);
 const [ministryMembers, setMinistryMembers] = useState([]);
 const [isLoadingMinistryMembers, setIsLoadingMinistryMembers] = useState(false);
@@ -6229,17 +6228,161 @@ const [isLoadingMemberDirectory, setIsLoadingMemberDirectory] = useState(false);
 
 const MINISTRY_MEMBERS_PAGE_SIZE = 30;
 
-  const handleToggleCheckInSession = () => {
-    if (!isCheckInActive) {
-      if (window.confirm(`Open Live Check-In for "${checkInSessionTitle}"? Believers will be able to check in and earn +5 KPC!`)) {
-        setIsCheckInActive(true);
+  const handleToggleCheckInSession = async () => {
+  const ministryId =
+    activeMinistryWorkspace?.ministry?.id ||
+    (
+      userProfile?.account_type === 'Ministry'
+        ? userProfile.id
+        : null
+    );
+
+  if (!ministryId) {
+    alert(
+      'No Ministry is currently selected.'
+    );
+    return;
+  }
+
+  const dashboardAccess =
+    activeMinistryWorkspace?.dashboardAccess ||
+    'full';
+
+  const canManageCheckIns =
+    userProfile?.account_type === 'Ministry' ||
+    dashboardAccess === 'full' ||
+    dashboardAccess === 'checkins';
+
+  if (!canManageCheckIns) {
+    alert(
+      'You do not have permission to manage Ministry check-ins.'
+    );
+    return;
+  }
+
+  setIsLoadingCheckInSession(true);
+
+  try {
+
+    if (activeCheckInSession) {
+      const confirmed = window.confirm(
+        `Close "${activeCheckInSession.title}"?`
+      );
+
+      if (!confirmed) {
+        return;
       }
-    } else {
-      if (window.confirm("Close current check-in session? Roster will be archived to permanent church analytics.")) {
-        setIsCheckInActive(false);
+
+      const {
+        error
+      } = await supabase
+        .from('ministry_checkin_sessions')
+        .update({
+          status: 'closed',
+          ended_at:
+            new Date().toISOString(),
+          updated_at:
+            new Date().toISOString()
+        })
+        .eq(
+          'id',
+          activeCheckInSession.id
+        )
+        .eq(
+          'ministry_id',
+          ministryId
+        );
+
+      if (error) {
+        throw error;
       }
+
+      setActiveCheckInSession(null);
+      setIsCheckInActive(false);
+      setCheckInAttendanceCount(0);
+
+      alert(
+        'Check-in session closed successfully.'
+      );
+
+      return;
     }
-  };
+
+    const title =
+      checkInSessionTitle.trim() ||
+      'Sunday Morning Gathering';
+
+    const {
+      data: {
+        user
+      }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error(
+        'You must be signed in to open a check-in session.'
+      );
+    }
+
+    const {
+      data: newSession,
+      error
+    } = await supabase
+      .from('ministry_checkin_sessions')
+      .insert([
+        {
+          ministry_id:
+            ministryId,
+
+          title,
+
+          session_type:
+            'service',
+
+          status:
+            'open',
+
+          started_at:
+            new Date().toISOString(),
+
+          created_by:
+            user.id
+        }
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    setActiveCheckInSession(
+      newSession
+    );
+
+    setIsCheckInActive(true);
+
+    setCheckInSessionTitle(
+      newSession.title
+    );
+
+    setCheckInAttendanceCount(0);
+
+  } catch (error) {
+    console.error(
+      'Failed to update Ministry check-in:',
+      error
+    );
+
+    alert(
+      error?.message ||
+      'Unable to update the check-in session.'
+    );
+
+  } finally {
+    setIsLoadingCheckInSession(false);
+  }
+};
 
   // Simulate a believer checking in (for demonstration/testing on the dashboard)
   const handleSimulateMemberCheckIn = () => {
@@ -6472,6 +6615,7 @@ useEffect(() => {
   const [profileTab, setProfileTab] = useState('All');
   const [userProfile, setUserProfile] = useState(null);
   const [authUserId, setAuthUserId] = useState(null);
+  
 
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const getEffectiveMembershipTier = (profile) => {
@@ -6808,6 +6952,33 @@ const loadMinistryMemberDirectory = async (
 const [ministryLeaderships, setMinistryLeaderships] = useState([]);
 const [activeMinistryWorkspace, setActiveMinistryWorkspace] = useState(null);
 const [isOpeningMinistryWorkspace, setIsOpeningMinistryWorkspace] = useState(false);
+useEffect(() => {
+  if (!userProfile?.id) {
+    return;
+  }
+
+  const ministryId =
+    userProfile.account_type === 'Ministry'
+      ? userProfile.id
+      : activeMinistryWorkspace?.ministry?.id;
+
+  if (
+    !ministryId ||
+    (step !== 6 && step !== 26)
+  ) {
+    return;
+  }
+
+  loadActiveMinistryCheckIn(
+    ministryId
+  );
+}, [
+  step,
+  userProfile?.id,
+  userProfile?.account_type,
+  activeMinistryWorkspace?.ministry?.id
+]);
+
 const [ministryWorkspaceSection, setMinistryWorkspaceSection] = useState('overview');
 const openMinistryMembersModal = () => {
   setIsMinistryMembersModalOpen(true);
@@ -18934,7 +19105,36 @@ const displayName =
 </div>
 
       {/* OVERVIEW CARDS */}
-      <div
+      
+
+<div
+  style={{
+    width: '48px',
+    height: '48px',
+    borderRadius: '13px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: '12px',
+    flexShrink: 0
+  }}
+>
+  {typeof module.icon === 'string' ? (
+    <img
+      src={module.icon}
+      alt={module.title}
+      style={{
+        width: '30px',
+        height: '30px',
+        objectFit: 'contain',
+        display: 'block'
+      }}
+    />
+  ) : (
+    module.icon
+  )}
+</div>
+<div
         style={{
           display: 'grid',
           gridTemplateColumns:
@@ -18947,19 +19147,19 @@ const displayName =
   {
     label: 'Members',
     value: ministryMemberCount || 0,
-    icon: '👥'
+    icon: '/ministry-icons/members.png'
   },
   {
     label: 'Active',
     value: ministryMembers.filter(
       member => member.status === 'active'
     ).length,
-    icon: '⚡'
+    icon: '/ministry-icons/active.png'
   },
  {
             label: 'Check-ins',
             value: '0',
-            icon: '✅'
+            icon: '/ministry-icons/checkins.png'
           },
   {
     label: 'KPC Balance',
@@ -18968,7 +19168,7 @@ const displayName =
                 ?.ministry
                 ?.wallet_balance || 0
     ).toLocaleString(),
-    icon: '🪙'
+    icon: '/ministry-icons/balance.png'
   }
 ].map(card => (
           <div
@@ -18985,13 +19185,25 @@ const displayName =
             }}
           >
             <div
-              style={{
-                fontSize: '18px',
-                marginBottom: '10px'
-              }}
-            >
-              {card.icon}
-            </div>
+  style={{
+    width: '38px',
+    height: '38px',
+    borderRadius: '10px',
+    display: 'flex',
+    marginBottom: '10px'
+  }}
+>
+  <img
+    src={card.icon}
+    alt={card.label}
+    style={{
+      width: '38px',
+      height: '38px',
+      objectFit: 'contain',
+      display: 'block'
+    }}
+  />
+</div>
 
             <div
               style={{
@@ -19028,13 +19240,13 @@ const displayName =
         {[
           {
   title: 'Members',
-  icon: '👥',
+  icon: '/ministry-icons/members.png',
   desc: 'Manage Ministry membership and activity.',
   action: openMinistryMembersModal
 },
           {
   title: 'Leaders',
-  icon: '🛡️',
+  icon: '/ministry-icons/leaders.png',
   desc: 'Manage pastors, ministers and assigned access.',
   action: async () => {
   setSelectedMinistryLeader(null);
@@ -19052,34 +19264,36 @@ const displayName =
   setIsMinistryLeadersModalOpen(true);
 }
 },
-          {
-            title: 'Check-ins',
-            icon: '✅',
-            desc: 'Track attendance and community participation.'
-          },
+         {
+  title: 'Check-ins',
+  icon:  '/ministry-icons/checkins.png',
+  desc: 'Track attendance and community participation.',
+  action: handleToggleCheckInSession,
+ checkIn: true
+},
           {
             title: 'Content',
-            icon: '📖',
+            icon: '/ministry-icons/content.png',
             desc: 'Publish devotionals, announcements and media.'
           },
           {
             title: 'Events',
-            icon: '📅',
+            icon: '/ministry-icons/events.png',
             desc: 'Create and manage Ministry events.'
           },
           {
             title: 'Growth',
-            icon: '📈',
+            icon: '/ministry-icons/growth.png',
             desc: 'Monitor Ministry growth and engagement.'
           },
           {
             title: 'KPC Rewards',
-            icon: '🪙',
+            icon: '/ministry-icons/rewards.png',
             desc: 'See Ministry rewards and growth milestones.'
           },
           {
             title: 'Settings',
-            icon: '⚙️',
+            icon: '/ministry-icons/settings.png',
             desc: 'Manage Ministry profile and configuration.'
           }
         ].map(module => (
@@ -19099,13 +19313,28 @@ const displayName =
             }}
           >
             <div
-              style={{
-                fontSize: '22px',
-                marginBottom: '12px'
-              }}
-            >
-              {module.icon}
-            </div>
+  style={{
+    width: '49px',
+    height: '49px',
+    borderRadius: '13px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: '12px',
+    flexShrink: 0
+  }}
+>
+  <img
+    src={module.icon}
+    alt={module.title}
+    style={{
+      width: '49px',
+      height: '49px',
+      objectFit: 'contain',
+      display: 'block'
+    }}
+  />
+</div>
 
             <div
               style={{
@@ -19125,7 +19354,58 @@ const displayName =
                 marginTop: '6px'
               }}
             >
-              {module.desc}
+              {module.checkIn ? (
+  <div
+    style={{
+      marginTop: '7px'
+    }}
+  >
+    <div
+      style={{
+        color: isLoadingCheckInSession
+          ? '#8e9aab'
+          : isCheckInActive
+            ? '#2ecc71'
+            : '#64748b',
+        fontSize: '10px',
+        fontWeight: '900'
+      }}
+    >
+      {isLoadingCheckInSession
+        ? 'Checking...'
+        : isCheckInActive
+          ? '● LIVE'
+          : '● CLOSED'}
+    </div>
+
+    <div
+      style={{
+        color: '#8e9aab',
+        fontSize: '9px',
+        marginTop: '4px',
+        lineHeight: '1.4'
+      }}
+    >
+      {activeCheckInSession?.title ||
+        'No active session'}
+    </div>
+
+    <div
+      style={{
+        color: '#fff',
+        fontSize: '9px',
+        fontWeight: '800',
+        marginTop: '4px'
+      }}
+    >
+      {checkInAttendanceCount}
+      {' '}
+      checked in
+    </div>
+  </div>
+) : (
+  module.desc
+)}
             </div>
           </div>
         ))}
