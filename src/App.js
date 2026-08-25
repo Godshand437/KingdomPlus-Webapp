@@ -2058,6 +2058,7 @@ const handleStep1Validation = (e) => {
   const [dreamStepModal, setDreamStepModal] = useState(1);
   const [newDream, setNewDream] = useState({ title: '', desc: '', mood: '', requestInterpretation: false });
   const [isSubmittingDream, setIsSubmittingDream] = useState(false);
+  const [isAiComingSoonOpen, setIsAiComingSoonOpen] = useState(false);
 
   const [dreams, setDreams] = useState([
     {
@@ -2087,43 +2088,201 @@ const handleStep1Validation = (e) => {
   ];
 
   const getMoodConfig = (moodName) => moods.find(m => m.name === moodName) || moods[5];
+  const formatDreamDateTime = (dateValue) => {
+  if (!dateValue) return 'Date unavailable';
 
-  const handleDreamSave = async () => {
-    if (newDream.requestInterpretation) {
-      if (kpcBalance < 25) { alert("Insufficient KPC."); return; }
-      setIsSubmittingDream(true);
-      try {
-        const KPC_MINT = new PublicKey(GLOBAL_KPC_MINT);
-        const feePayer = Keypair.fromSecretKey(GLOBAL_TREASURY_KEY);
-        const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
-        const userPub = new PublicKey(generatedAddress);
-        const src = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, userPub);
-        const dest = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, feePayer.publicKey);
-        await transfer(connection, feePayer, src.address, dest.address, feePayer.publicKey, 25 * Math.pow(10, 8));
-        setKpcBalance(prev => prev - 25);
-      } catch (error) {
-        alert("Simulating payment success for app demonstration!");
-        setKpcBalance(prev => prev - 25);
-      }
-      setIsSubmittingDream(false);
+  const date = new Date(dateValue);
+
+  if (Number.isNaN(date.getTime())) {
+    return 'Date unavailable';
+  }
+
+  return date.toLocaleString('en-NG', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  });
+};
+
+const handleDreamSave = async () => {
+  let interpretationRequested = false;
+
+  if (newDream.requestInterpretation) {
+
+    if (kpcBalance < 25) {
+      alert("Insufficient KPC balance.");
+      return;
     }
 
-   const newDreamObj = {
+    if (!generatedAddress || !walletKeypair) {
+      alert(
+        "Your Kingdom wallet is not ready. Please return to your wallet screen and try again."
+      );
+      return;
+    }
+
+    setIsSubmittingDream(true);
+
+    try {
+
+      const KPC_MINT =
+        new PublicKey(GLOBAL_KPC_MINT);
+
+      const connection =
+        new Connection(
+          clusterApiUrl('devnet'),
+          'confirmed'
+        );
+
+      const userPublicKey =
+        walletKeypair.publicKey;
+
+      const sourceTokenAccount =
+        await getOrCreateAssociatedTokenAccount(
+          connection,
+          walletKeypair,
+          KPC_MINT,
+          userPublicKey
+        );
+
+      const treasuryKeypair =
+        Keypair.fromSecretKey(
+          GLOBAL_TREASURY_KEY
+        );
+
+      const destinationTokenAccount =
+        await getOrCreateAssociatedTokenAccount(
+          connection,
+          treasuryKeypair,
+          KPC_MINT,
+          treasuryKeypair.publicKey
+        );
+
+      const paymentAmount =
+        25 * Math.pow(10, 8);
+
+      const txSignature =
+        await transfer(
+          connection,
+          walletKeypair,
+          sourceTokenAccount.address,
+          destinationTokenAccount.address,
+          walletKeypair.publicKey,
+          paymentAmount
+        );
+
+      setKpcBalance(
+        prev => Math.max(0, prev - 25)
+      );
+
+      interpretationRequested = true;
+
+      console.log(
+        'Dream interpretation payment successful:',
+        txSignature
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Dream interpretation payment failed:',
+        error
+      );
+
+      alert(
+        `Payment failed: ${
+          error?.message ||
+          'Unable to complete the KPC payment.'
+        }`
+      );
+
+      setIsSubmittingDream(false);
+
+      return;
+    }
+  }
+
+  const submittedAt =
+    new Date().toISOString();
+
+  const newDreamObj = {
     id: Date.now(),
-    user_id: currentUser.id,
-    date: 'TODAY',
-    title: newDream.title || 'Untitled Dream',
-    desc: newDream.desc,
-    status: newDream.requestInterpretation ? 'PENDING' : null,
-    mood: newDream.mood || 'Mystery'
+
+    user_id:
+      currentUser.id,
+
+    created_at:
+      submittedAt,
+
+    date:
+      submittedAt,
+
+    title:
+      newDream.title.trim() ||
+      'Untitled Dream',
+
+    desc:
+      newDream.desc.trim(),
+
+    status:
+      interpretationRequested
+        ? 'pending'
+        : null,
+
+    mood:
+      newDream.mood ||
+      'Mystery'
   };
 
-  setDreams([newDreamObj, ...dreams]);
-  setNewDream({ title: '', desc: '', mood: '', requestInterpretation: false });
+  const {
+    data: savedDream,
+    error: dreamInsertError
+  } = await supabase
+    .from('dreams')
+    .insert([newDreamObj])
+    .select()
+    .single();
+
+  if (dreamInsertError) {
+
+    console.error(
+      'Dream submission failed:',
+      dreamInsertError
+    );
+
+    alert(
+      `Dream could not be saved: ${
+        dreamInsertError.message
+      }`
+    );
+
+    setIsSubmittingDream(false);
+
+    return;
+  }
+
+  setDreams(prev => [
+    savedDream || newDreamObj,
+    ...prev
+  ]);
+
+  setNewDream({
+    title: '',
+    desc: '',
+    mood: '',
+    requestInterpretation: false
+  });
+
   setDreamStepModal(1);
+
   setIsDreamModalOpen(false);
 
-  await supabase.from('dreams').insert([newDreamObj]);
+  setIsSubmittingDream(false);
+
+  alert(
+    interpretationRequested
+      ? 'Dream submitted for interpretation.'
+      : 'Dream saved to your diary.'
+  );
 };
 
 useEffect(() => {
@@ -2140,6 +2299,138 @@ useEffect(() => {
     fetchMyDreams();
   }
 }, [step, currentUser]);
+
+const handleSubmitSavedDream = async (dream) => {
+
+  if (!dream?.id) {
+    alert('Dream record not found.');
+    return;
+  }
+
+  if (dream.status) {
+    return;
+  }
+
+  if (kpcBalance < 25) {
+    alert('You need 25 KPC to request an interpretation.');
+    return;
+  }
+
+  if (!generatedAddress || !walletKeypair) {
+    alert(
+      'Your Kingdom wallet is not ready. Please try again.'
+    );
+    return;
+  }
+
+  setIsSubmittingDream(true);
+
+  try {
+
+    const KPC_MINT =
+      new PublicKey(GLOBAL_KPC_MINT);
+
+    const connection =
+      new Connection(
+        clusterApiUrl('devnet'),
+        'confirmed'
+      );
+
+    const treasuryKeypair =
+      Keypair.fromSecretKey(
+        GLOBAL_TREASURY_KEY
+      );
+
+    const sourceTokenAccount =
+      await getOrCreateAssociatedTokenAccount(
+        connection,
+        walletKeypair,
+        KPC_MINT,
+        walletKeypair.publicKey
+      );
+
+    const destinationTokenAccount =
+      await getOrCreateAssociatedTokenAccount(
+        connection,
+        treasuryKeypair,
+        KPC_MINT,
+        treasuryKeypair.publicKey
+      );
+
+    const txSignature =
+      await transfer(
+        connection,
+        walletKeypair,
+        sourceTokenAccount.address,
+        destinationTokenAccount.address,
+        walletKeypair.publicKey,
+        25 * Math.pow(10, 8)
+      );
+
+    const {
+      data: updatedDream,
+      error
+    } = await supabase
+      .from('dreams')
+      .update({
+        status: 'pending',
+        submitted_at: new Date().toISOString()
+      })
+      .eq('id', dream.id)
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    setKpcBalance(
+      prev => Math.max(0, prev - 25)
+    );
+
+    setDreams(prev =>
+      prev.map(item =>
+        item.id === dream.id
+          ? {
+              ...item,
+              ...(updatedDream || {}),
+              status: 'pending'
+            }
+          : item
+      )
+    );
+
+    setSelectedDreamToView(
+      updatedDream || {
+        ...dream,
+        status: 'pending'
+      }
+    );
+
+    alert(
+      `Dream submitted successfully.\nTransaction: ${txSignature}`
+    );
+
+  } catch (error) {
+
+    console.error(
+      'Dream submission payment failed:',
+      error
+    );
+
+    alert(
+      `Submission failed: ${
+        error?.message ||
+        'Unable to complete payment.'
+      }`
+    );
+
+  } finally {
+
+    setIsSubmittingDream(false);
+
+  }
+};
 
 
 const handlePostComment = async (commentText) => {
@@ -10561,6 +10852,12 @@ const fetchPendingDreams = async () => {
     if (data) setPendingDreams(data);
   };
 
+useEffect(() => {
+  if (step === 24 && adminTab === 'Dreams') {
+    fetchPendingDreams();
+  }
+}, [step, adminTab]);
+
   const handleSendInterpretation = async (dreamId) => {
     if (!dreamReply) return alert("Please type an interpretation.");
     
@@ -12009,12 +12306,10 @@ const membersToNextMilestone =
                 </div>
                 <div className="horizontal-scroll">
                   {musicData
-                    .filter(
-  track =>
-    track.category === 'Trending Now' ||
-    track.category === 'Hymns'
-)
-                    .map((track) => (
+  .filter(
+    track => track.category === 'Trending Now'
+  )
+  .map((track) => (
                     <div
                       key={track.id}
                       className="media-card"
@@ -12036,13 +12331,89 @@ const membersToNextMilestone =
                     </div>
                   ))}
                   {musicData.filter(
-  track =>
-    track.category === 'Trending Now' ||
-    track.category === 'Hymns'
+  track => track.category === 'Trending Now'
 ).length === 0 && (
                     <div style={{ color: '#8e9aab', fontSize: '12px', padding: '10px' }}>No trending songs yet.</div>
                   )}
                 </div>
+
+{/* =========================================
+    HYMNS
+   ========================================= */}
+
+<div className="section-header" style={{ marginTop: '24px' }}>
+  <h3>Hymns</h3>
+</div>
+
+<div className="horizontal-scroll">
+
+  {musicData
+    .filter(
+      track => track.category === 'Hymns'
+    )
+    .map((track) => (
+
+      <div
+        key={track.id}
+        className="media-card"
+        style={{ cursor: 'pointer' }}
+        onClick={() => {
+          openPlayer(
+            track,
+            'audio',
+            'Hymns'
+          );
+
+          setIsPlaying(true);
+        }}
+      >
+
+        <img
+          src={track.img}
+          alt={track.title}
+          className="media-bg"
+        />
+
+        <div className="media-overlay" />
+
+        <div className="media-info">
+          <h4 className="media-title">
+            {track.title}
+          </h4>
+
+          <span className="media-subtitle">
+            <span style={{ color: '#29beaf' }}>
+              |
+            </span>{' '}
+            {track.artist}
+          </span>
+        </div>
+
+        <div className="music-play-btn">
+          <PlaySolidIcon />
+        </div>
+
+      </div>
+
+    ))}
+
+  {musicData.filter(
+    track => track.category === 'Hymns'
+  ).length === 0 && (
+
+    <div
+      style={{
+        color: '#8e9aab',
+        fontSize: '12px',
+        padding: '10px'
+      }}
+    >
+      No hymns available yet.
+    </div>
+
+  )}
+
+</div>
 
                 {/* Kingdom Happenings Section */}
                 <div className="section-header" style={{ marginTop: '10px' }}>
@@ -15531,7 +15902,7 @@ disabled={isUploadingBook}
                     <span className="dream-stat-label">DREAMS</span>
                   </div>
                   <div className="dream-stat" style={{ borderLeft: '1px solid rgba(255,255,255,0.2)', paddingLeft: '20px' }}>
-                    <span className="dream-stat-num">{dreams.filter(d => d.status === 'PENDING').length}</span>
+                    <span className="dream-stat-num">{dreams.filter(d => d.status === 'pending').length}</span>
                     <span className="dream-stat-label">IN REVIEW</span>
                   </div>
                 </div>
@@ -15568,10 +15939,15 @@ disabled={isUploadingBook}
 
                   return (
                     <div key={dream.id} className={`dream-list-card ${moodConfig.bgClass}`}>
-                      {dream.status === 'PENDING' && (
+                      {dream.status === 'pending' && (
                         <div className="dream-badge-pending"><SparklesIcon /> PENDING</div>
                       )}
-                      <span className="dream-card-date">{dream.date}</span>
+                      <span className="dream-card-date">
+  {formatDreamDateTime(
+    dream.created_at ||
+    dream.date
+  )}
+</span>
                       <h3 className="dream-card-title">{dream.title}</h3>
                       <p className="dream-card-desc">{dream.desc}</p>
 
@@ -15587,9 +15963,18 @@ disabled={isUploadingBook}
                           <CopyIcon /> Copy
                         </button>
                         {!dream.status && (
-                          <button className="dream-action-btn submit-btn" onClick={() => alert('Sending to prophets...')}>
-                            <LinkIcon /> Submit
-                          </button>
+                          <button
+  className="dream-action-btn submit-btn"
+  onClick={() =>
+    handleSubmitSavedDream(dream)
+  }
+  disabled={isSubmittingDream}
+>
+  <LinkIcon />
+  {isSubmittingDream
+    ? 'Submitting...'
+    : 'Submit for Interpretation'}
+</button>
                         )}
                       </div>
                     </div>
@@ -15607,7 +15992,14 @@ disabled={isUploadingBook}
               ========================================================= */}
           {selectedDreamToView && (
             <div className="constrained-overlay">
-              <div className={`view-modal-content ${getMoodConfig(selectedDreamToView.mood).bgClass}`}>
+              <div
+  className={`view-modal-content ${getMoodConfig(selectedDreamToView.mood).bgClass}`}
+  style={{
+    maxHeight: '82vh',
+    overflowY: 'auto',
+    paddingBottom: '24px'
+  }}
+>
 
                 <div className="view-modal-header">
                   <div className="view-mood-icon" style={{ color: getMoodConfig(selectedDreamToView.mood).color }}>
@@ -15622,9 +16014,115 @@ disabled={isUploadingBook}
 
                 <h2 className="view-title">{selectedDreamToView.title}</h2>
                 <div className="view-body">{selectedDreamToView.desc}</div>
+                 
+
+<div
+  style={{
+    marginTop: '18px',
+    padding: '16px',
+    borderRadius: '16px',
+    background:
+      'linear-gradient(135deg, rgba(243,202,88,0.10), rgba(41,190,175,0.08))',
+    border:
+      '1px solid rgba(243,202,88,0.25)'
+  }}
+>
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      gap: '10px',
+      marginBottom: '8px'
+    }}
+  >
+    <div
+      style={{
+        width: '38px',
+        height: '38px',
+        borderRadius: '12px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background:
+          'linear-gradient(135deg, rgba(243,202,88,0.18), rgba(41,190,175,0.18))',
+        color: '#f3ca58'
+      }}
+    >
+      <SparklesIcon />
+    </div>
+
+    <div style={{ flex: 1 }}>
+      <div
+        style={{
+          color: '#fff',
+          fontSize: '14px',
+          fontWeight: '800'
+        }}
+      >
+        AI Dream Interpretation
+      </div>
+
+      <div
+        style={{
+          color: '#8e9aab',
+          fontSize: '11px',
+          marginTop: '3px'
+        }}
+      >
+        Get an AI-powered reflection on the symbols,
+        emotions and themes in your dream.
+      </div>
+    </div>
+
+    <span
+      style={{
+        padding: '4px 8px',
+        borderRadius: '20px',
+        background: 'rgba(243,202,88,0.12)',
+        color: '#f3ca58',
+        fontSize: '9px',
+        fontWeight: '900'
+      }}
+    >
+      PREMIUM
+    </span>
+  </div>
+
+  <button
+    className="modal-btn-primary"
+    style={{
+      width: '100%',
+      marginTop: '10px'
+    }}
+    onClick={() => {
+
+      if (!hasDiscipleAccess(userProfile)) {
+        setIsAiComingSoonOpen(true);
+        return;
+      }
+
+      setIsAiComingSoonOpen(true);
+    }}
+  >
+    {hasDiscipleAccess(userProfile)
+      ? (
+        <>
+          <SparklesIcon />
+          Try AI Interpretation
+        </>
+      )
+      : (
+        <>
+          <LockIcon />
+          Premium Feature
+        </>
+      )
+    }
+  </button>
+</div>
 
                 {/* --- PENDING STATE --- */}
-                {selectedDreamToView.status === 'PENDING' && (
+                {selectedDreamToView.status === 'pending' && (
                   <div className="pending-banner">
                     <div className="pending-banner-title"><SparklesIcon /> Interpretation pending</div>
                     <div className="pending-banner-desc">Our prophets are seeking insight for your dream.</div>
@@ -15632,18 +16130,26 @@ disabled={isUploadingBook}
                 )}
 
                 {/* --- INTERPRETED STATE --- */}
-                {selectedDreamToView.status === 'INTERPRETED' && (
+                {selectedDreamToView.status === 'answered' && (
                   <div className="interpretation-banner" style={{ marginTop: '15px', padding: '16px', background: 'rgba(41, 190, 175, 0.1)', border: '1px solid #29beaf', borderRadius: '16px' }}>
                     <div className="interpretation-title" style={{ color: '#29beaf', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <SparklesIcon /> Prophetic Insight
                     </div>
                     <div className="interpretation-text" style={{ fontSize: '14px', color: '#e2e8f0', lineHeight: '1.6' }}>
-                      {selectedDreamToView.interpretation_text}
+                      {selectedDreamToView.interpretation}
                     </div>
                   </div>
                 )}
 
-                <div className="dream-card-actions" style={{ marginTop: 'auto' }}>
+                <div
+  className="dream-card-actions"
+  style={{
+    marginTop: '20px',
+    paddingTop: '14px',
+    borderTop:
+      '1px solid rgba(255,255,255,0.06)'
+  }}
+>
                   <button className="dream-action-btn">
                     <CopyIcon /> Copy
                   </button>
@@ -15657,6 +16163,79 @@ disabled={isUploadingBook}
               </div>
             </div>
           )}
+{isAiComingSoonOpen && (
+  <div className="constrained-overlay">
+    <div
+      style={{
+        width: 'calc(100% - 40px)',
+        maxWidth: '430px',
+        background: '#101926',
+        borderRadius: '24px',
+        padding: '28px 22px',
+        border: '1px solid rgba(243,202,88,0.22)',
+        boxShadow:
+          '0 25px 80px rgba(0,0,0,0.55)',
+        textAlign: 'center'
+      }}
+    >
+
+      <div
+        style={{
+          width: '64px',
+          height: '64px',
+          margin: '0 auto 16px',
+          borderRadius: '20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background:
+            'linear-gradient(135deg, rgba(243,202,88,0.18), rgba(41,190,175,0.18))',
+          color: '#f3ca58'
+        }}
+      >
+        <SparklesIcon />
+      </div>
+
+      <h3
+        style={{
+          color: '#fff',
+          fontSize: '20px',
+          fontWeight: '900',
+          marginBottom: '10px'
+        }}
+      >
+        AI Dream Interpretation
+      </h3>
+
+      <p
+        style={{
+          color: '#8e9aab',
+          fontSize: '13px',
+          lineHeight: '1.6',
+          marginBottom: '20px'
+        }}
+      >
+        Our AI-powered dream interpretation
+        experience is being prepared for the
+        Kingdom.
+        <br />
+        <br />
+        This feature is coming soon.
+      </p>
+
+      <button
+        className="modal-btn-primary"
+        style={{ width: '100%' }}
+        onClick={() =>
+          setIsAiComingSoonOpen(false)
+        }
+      >
+        Got it
+      </button>
+
+    </div>
+  </div>
+)}
 
           {/* =========================================================
               DREAM CREATION MODAL
@@ -18963,7 +19542,7 @@ const displayName =
                       </div>
                       <h4 style={{ color: '#fff', fontSize: '16px', marginBottom: '8px' }}>{dream.title}</h4>
                       <p style={{ color: '#e2e8f0', fontSize: '13px', marginBottom: '15px', lineHeight: '1.5' }}>
-                        {dream.content}
+                        {dream.desc}
                       </p>
                       
                       <textarea 
@@ -19384,20 +19963,23 @@ const displayName =
    ========================================================= */}
 {step === 26 && activeMinistryWorkspace && (
   <div
-    className="sanctuary-container"
-    style={{
-      position: 'fixed',
-      inset: 0,
-      width: '100vw',
-      height: '100vh',
-      minHeight: '100vh',
-      overflowY: 'auto',
-      overflowX: 'hidden',
-      zIndex: 10000,
-      paddingBottom: '90px',
-      boxSizing: 'border-box'
-    }}
-  >
+  className="sanctuary-container"
+  onScroll={handleBottomNavScroll}
+  style={{
+    position: 'fixed',
+    inset: 0,
+    width: '100vw',
+    height: '100vh',
+    minHeight: '100vh',
+    overflowY: 'auto',
+    overflowX: 'hidden',
+    zIndex: 10000,
+
+    paddingBottom: '140px',
+
+    boxSizing: 'border-box'
+  }}
+>
 
   {/* WORKSPACE HEADER */}
 
@@ -21302,6 +21884,7 @@ const displayName =
         )}
       </div>
     </div>
+<AppBottomNav />
   </div>
 )}
 
