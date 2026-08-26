@@ -4430,6 +4430,183 @@ const playPreviousMusicTrack = () => {
     </div>
   );
 
+const handleMinistryWorkspaceHome = () => {
+  if (
+    userProfile?.account_type === 'Ministry'
+  ) {
+    setActiveTab('sanctuary');
+    setStep(26);
+    return;
+  }
+
+  setActiveMinistryWorkspace(null);
+  setActiveTab('sanctuary');
+  setStep(6);
+};
+
+const MinistryBottomNav = () => (
+  <div
+    style={{
+      position: 'fixed',
+      left: '8px',
+      right: '8px',
+      bottom: '8px',
+      width: 'auto',
+      height: '68px',
+      paddingBottom:
+        'env(safe-area-inset-bottom, 0px)',
+      background:
+        'rgba(9,16,26,0.97)',
+      backdropFilter: 'blur(18px)',
+      WebkitBackdropFilter: 'blur(18px)',
+      border:
+        '1px solid rgba(255,255,255,0.10)',
+      borderRadius: '28px',
+      boxShadow:
+        '0 12px 35px rgba(0,0,0,0.35)',
+      zIndex: 50000,
+      display: 'flex',
+      alignItems: 'stretch',
+      justifyContent: 'space-around',
+      boxSizing: 'border-box'
+    }}
+  >
+    <div
+      className={`nav-item ${
+        step === 26 ? 'active' : ''
+      }`}
+      onClick={handleMinistryWorkspaceHome}
+    >
+      <div className="nav-icon-wrapper">
+        <HomeIcon />
+      </div>
+      <span className="nav-label">
+        Sanctuary
+      </span>
+    </div>
+
+    <div
+      className={`nav-item ${
+        activeTab === 'media' ? 'active' : ''
+      }`}
+      onClick={() => {
+        setActiveTab('media');
+        setStep(17);
+      }}
+    >
+      <div className="nav-icon-wrapper">
+        <VolumeIcon />
+      </div>
+      <span className="nav-label">
+        Media
+      </span>
+    </div>
+
+    <div
+      className={`nav-item ${
+        activeTab === 'chat' ? 'active' : ''
+      }`}
+      onClick={() => {
+        setActiveTab('chat');
+        setStep(23);
+        setHubTab('INBOX');
+      }}
+    >
+      <div
+        className="nav-icon-wrapper"
+        style={{
+          position: 'relative'
+        }}
+      >
+        <ChatIcon />
+
+        {unreadChatCount > 0 && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '-4px',
+              right: '-6px',
+              background: '#e74c3c',
+              color: '#fff',
+              fontSize: '9px',
+              fontWeight: '900',
+              width: '16px',
+              height: '16px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border:
+                '2px solid #09101a'
+            }}
+          >
+            {unreadChatCount > 9
+              ? '9+'
+              : unreadChatCount}
+          </div>
+        )}
+      </div>
+
+      <span className="nav-label">
+        Chat
+      </span>
+    </div>
+
+    <div
+      className={`nav-item ${
+        activeTab === 'kingdom' ? 'active' : ''
+      }`}
+      onClick={() => {
+        setActiveTab('kingdom');
+        setKingdomTab('Devotions');
+        setStep(10);
+      }}
+    >
+      <div className="nav-icon-wrapper">
+        <GlobeIcon />
+      </div>
+      <span className="nav-label">
+        Kingdom
+      </span>
+    </div>
+
+    <div
+      className={`nav-item ${
+        activeTab === 'treasury' ? 'active' : ''
+      }`}
+      onClick={() => {
+        setActiveTab('treasury');
+        setStep(11);
+      }}
+    >
+      <div className="nav-icon-wrapper">
+        <WalletIcon2 />
+      </div>
+      <span className="nav-label">
+        Treasury
+      </span>
+    </div>
+
+    <div
+      className={`nav-item ${
+        activeTab === 'profile' ? 'active' : ''
+      }`}
+      onClick={() => {
+        setActiveTab('profile');
+        setStep(18);
+      }}
+    >
+      <div className="nav-icon-wrapper">
+        <ProfileIcon />
+      </div>
+      <span className="nav-label">
+        Profile
+      </span>
+    </div>
+  </div>
+);
+
+
   // --- THE PLAYER RENDER FUNCTION (SCROLLABLE & INTEGRATED SOCIAL COMMENTS) ---
   const renderStreamPlayer = () => {
     if (!activeMedia) return null;
@@ -20453,7 +20630,7 @@ const displayName =
       'linear-gradient(135deg, rgba(243,202,88,0.09), rgba(41,190,175,0.06))',
     border:
       '1px solid rgba(243,202,88,0.16)',
-    marginBottom: '20px'
+    marginBottom: '0'
   }}
 >
   <div
@@ -22003,10 +22180,13 @@ const displayName =
         )}
       </div>
     </div>
-<AppBottomNav />
+
   </div>
 )}
 
+{step === 26 && activeMinistryWorkspace && (
+  <MinistryBottomNav />
+)}
 
       {renderStreamPlayer()}
 
