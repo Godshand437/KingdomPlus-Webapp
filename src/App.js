@@ -2585,28 +2585,35 @@ const handleSubmitSavedDream = async (dream) => {
     }
 
     const {
+  data: updatedDreamRows,
   error: dreamError
 } = await supabase
   .from('dreams')
   .update({
     status: 'pending',
-    submitted_at:
-      new Date().toISOString()
+    submitted_at: new Date().toISOString()
   })
-  .eq(
-    'id',
-    dream.id
-  );
+  .eq('id', dream.id)
+  .select('id, status, submitted_at');
 
 if (dreamError) {
   throw dreamError;
 }
 
+if (!updatedDreamRows || updatedDreamRows.length !== 1) {
+  throw new Error(
+    'The dream could not be marked as pending.'
+  );
+}
+
 const updatedDream = {
   ...dream,
-  status: 'pending',
-  submitted_at: new Date().toISOString()
+  ...updatedDreamRows[0]
 };
+
+if (dreamError) {
+  throw dreamError;
+}
 
     setKpcBalance(
       newUserBalance
@@ -11404,8 +11411,23 @@ const rewardStreamKPC = async (amount) => {
 const [pendingDreams, setPendingDreams] = useState([]);
 const [dreamReply, setDreamReply] = useState('');
 const fetchPendingDreams = async () => {
-    const { data } = await supabase.from('dreams').select('*').eq('status', 'pending');
-    if (data) setPendingDreams(data);
+    const {
+  data,
+  error
+} = await supabase
+  .from('dreams')
+  .select('*')
+  .eq('status', 'pending');
+
+if (error) {
+  console.error(
+    'Failed to load pending dreams:',
+    error
+  );
+  return;
+}
+
+setPendingDreams(data || []);
   };
 
 useEffect(() => {
@@ -11415,21 +11437,69 @@ useEffect(() => {
 }, [step, adminTab]);
 
   const handleSendInterpretation = async (dreamId) => {
-    if (!dreamReply) return alert("Please type an interpretation.");
-    
-    const { error } = await supabase.from('dreams').update({ 
-      interpretation: dreamReply, 
-      status: 'answered' 
-    }).eq('id', dreamId);
+  if (!dreamReply.trim()) {
+    return alert("Please type an interpretation.");
+  }
+
+  try {
+    const {
+      data,
+      error
+    } = await supabase
+      .from('dreams')
+      .update({
+        interpretation_text: dreamReply.trim(), 
+        status: 'answered'
+      })
+      .eq('id', dreamId)
+      .select('id, status, interpretation_text');
 
     if (error) {
-      alert("Error sending interpretation.");
-    } else {
-      alert("Interpretation sent!");
-      setDreamReply('');
-      fetchPendingDreams();
+      console.error(
+        'Error sending interpretation:',
+        error
+      );
+
+      alert(
+        `Error sending interpretation: ${
+          error.message || 'Unknown error'
+        }`
+      );
+
+      return;
     }
-  };
+
+    if (!data || data.length !== 1) {
+      console.error(
+        'Interpretation update affected no dream:',
+        dreamId
+      );
+
+      alert(
+        'The interpretation was not saved because the dream could not be updated.'
+      );
+
+      return;
+    }
+
+    alert("Interpretation sent!");
+
+    setDreamReply('');
+    await fetchPendingDreams();
+
+  } catch (error) {
+    console.error(
+      'Unexpected interpretation error:',
+      error
+    );
+
+    alert(
+      `Error sending interpretation: ${
+        error?.message || 'Unknown error'
+      }`
+    );
+  }
+};
 
 const handleJoinGroup = async (group) => {
     try {
@@ -16626,15 +16696,24 @@ disabled={isUploadingBook}
               DETAILED VIEW MODAL
               ========================================================= */}
           {selectedDreamToView && (
-            <div className="constrained-overlay">
+            <div
+    className="constrained-overlay"
+    style={{
+      overflow: 'hidden',
+      height: '100dvh'
+    }}
+  >
               <div
   className={`view-modal-content ${getMoodConfig(selectedDreamToView.mood).bgClass}`}
   style={{
-  maxHeight: 'calc(100vh - 150px)',
+  height: 'calc(100dvh - 40px)',
+  maxHeight: 'calc(100dvh - 40px)',
   overflowY: 'auto',
-  paddingBottom: '145px',
+  overflowX: 'hidden',
+  paddingBottom: '30px',
   boxSizing: 'border-box',
-  WebkitOverflowScrolling: 'touch'
+  WebkitOverflowScrolling: 'touch',
+  overscrollBehavior: 'contain'
 }}
 >
 
@@ -16773,7 +16852,7 @@ disabled={isUploadingBook}
                       <SparklesIcon /> Prophetic Insight
                     </div>
                     <div className="interpretation-text" style={{ fontSize: '14px', color: '#e2e8f0', lineHeight: '1.6' }}>
-                      {selectedDreamToView.interpretation}
+                      {selectedDreamToView.interpretation_text}
                     </div>
                   </div>
                 )}
