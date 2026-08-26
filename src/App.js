@@ -1229,13 +1229,20 @@ const handleTapTransaction = async (status) => {
   };
 
 useEffect(() => {
-    if (step === 6) setActiveTab('sanctuary');
-    else if (step === 10) setActiveTab('kingdom');
-    else if (step >= 11 && step <= 16) setActiveTab('treasury');
-    else if (step === 17) setActiveTab('media');
-    else if (step === 18) setActiveTab('profile');
-    else if (step === 23) setActiveTab('chat');
-  }, [step]);
+  if (step === 6) {
+    setActiveTab('sanctuary');
+  } else if (step === 10) {
+    setActiveTab('kingdom');
+  } else if (step >= 11 && step <= 16) {
+    setActiveTab('treasury');
+  } else if (step === 17) {
+    setActiveTab('media');
+  } else if (step === 18) {
+    setActiveTab('profile');
+  } else if (step === 23) {
+    setActiveTab('chat');
+  }
+}, [step]);
 
   useEffect(() => {
     const fetchTestimonies = async () => {
@@ -2103,6 +2110,113 @@ const handleStep1Validation = (e) => {
   });
 };
 
+const sendKpcFromUserToProfile = async ({
+  amount,
+  recipientProfile,
+  title
+}) => {
+  if (!generatedAddress) {
+    throw new Error(
+      'Your Kingdom wallet address is not available.'
+    );
+  }
+
+  if (!recipientProfile?.wallet_address) {
+    throw new Error(
+      'The recipient does not have a wallet address.'
+    );
+  }
+
+  const connection =
+    new Connection(
+      'https://rpc.ankr.com/solana_devnet',
+      'confirmed'
+    );
+
+  const senderKeypair =
+    Keypair.fromSecretKey(
+      GLOBAL_TREASURY_KEY
+    );
+
+  const KPC_MINT =
+    new PublicKey(
+      GLOBAL_KPC_MINT
+    );
+
+  const sourceAddress =
+    new PublicKey(
+      String(generatedAddress).trim()
+    );
+
+  const targetAddress =
+    new PublicKey(
+      String(
+        recipientProfile.wallet_address
+      ).trim()
+    );
+
+  const sourceTokenAccount =
+    await getOrCreateAssociatedTokenAccount(
+      connection,
+      senderKeypair,
+      KPC_MINT,
+      sourceAddress
+    );
+
+  const destinationTokenAccount =
+    await getOrCreateAssociatedTokenAccount(
+      connection,
+      senderKeypair,
+      KPC_MINT,
+      targetAddress
+    );
+
+  const signature =
+    await transfer(
+      connection,
+      senderKeypair,
+      sourceTokenAccount.address,
+      destinationTokenAccount.address,
+      senderKeypair.publicKey,
+      amount * Math.pow(10, 8)
+    );
+
+  const newRecipientBalance =
+    Number(
+      recipientProfile.wallet_balance || 0
+    ) + amount;
+
+  const recipientTable =
+    recipientProfile.church_name
+      ? 'church_profiles'
+      : 'user_profiles';
+
+  const {
+    error: recipientBalanceError
+  } = await supabase
+    .from(recipientTable)
+    .update({
+      wallet_balance:
+        newRecipientBalance
+    })
+    .eq(
+      'id',
+      recipientProfile.id
+    );
+
+  if (recipientBalanceError) {
+    console.error(
+      `KPC transferred successfully, but ${title} recipient balance update failed:`,
+      recipientBalanceError
+    );
+  }
+
+  return {
+    signature,
+    newRecipientBalance
+  };
+};
+
 const handleDreamSave = async () => {
   let interpretationRequested = false;
 
@@ -2301,6 +2415,7 @@ useEffect(() => {
 }, [step, currentUser]);
 
 const handleSubmitSavedDream = async (dream) => {
+  const amount = 25;
 
   if (!dream?.id) {
     alert('Dream record not found.');
@@ -2308,17 +2423,20 @@ const handleSubmitSavedDream = async (dream) => {
   }
 
   if (dream.status) {
+    alert('This dream has already been submitted.');
     return;
   }
 
-  if (kpcBalance < 25) {
-    alert('You need 25 KPC to request an interpretation.');
-    return;
-  }
-
-  if (!generatedAddress || !walletKeypair) {
+  if (Number(kpcBalance) < amount) {
     alert(
-      'Your Kingdom wallet is not ready. Please try again.'
+      `You need ${amount} KPC to request an interpretation.`
+    );
+    return;
+  }
+
+  if (!generatedAddress) {
+    alert(
+      'Your Kingdom wallet address is not available.'
     );
     return;
   }
@@ -2327,65 +2445,171 @@ const handleSubmitSavedDream = async (dream) => {
 
   try {
 
-    const KPC_MINT =
-      new PublicKey(GLOBAL_KPC_MINT);
-
-    const connection =
-      new Connection(
-        clusterApiUrl('devnet'),
-        'confirmed'
-      );
-
-    const treasuryKeypair =
-      Keypair.fromSecretKey(
-        GLOBAL_TREASURY_KEY
-      );
-
-    const sourceTokenAccount =
-      await getOrCreateAssociatedTokenAccount(
-        connection,
-        walletKeypair,
-        KPC_MINT,
-        walletKeypair.publicKey
-      );
-
-    const destinationTokenAccount =
-      await getOrCreateAssociatedTokenAccount(
-        connection,
-        treasuryKeypair,
-        KPC_MINT,
-        treasuryKeypair.publicKey
-      );
-
-    const txSignature =
-      await transfer(
-        connection,
-        walletKeypair,
-        sourceTokenAccount.address,
-        destinationTokenAccount.address,
-        walletKeypair.publicKey,
-        25 * Math.pow(10, 8)
-      );
-
     const {
-      data: updatedDream,
-      error
+      data: adminProfile,
+      error: adminProfileError
     } = await supabase
-      .from('dreams')
-      .update({
-        status: 'pending',
-        submitted_at: new Date().toISOString()
-      })
-      .eq('id', dream.id)
-      .select()
+      .from('user_profiles')
+      .select(`
+        id,
+        username,
+        full_name,
+        email,
+        wallet_address,
+        wallet_balance
+      `)
+      .eq(
+        'id',
+        DREAM_ADMIN_PROFILE_ID
+      )
       .single();
 
-    if (error) {
-      throw error;
+    if (adminProfileError) {
+      throw adminProfileError;
     }
 
+    if (!adminProfile) {
+      throw new Error(
+        'Dream administrator profile could not be found.'
+      );
+    }
+
+    if (!adminProfile.wallet_address) {
+      throw new Error(
+        'The Dream administrator has no wallet address.'
+      );
+    }
+
+    if (
+      adminProfile.id === currentUser?.id
+    ) {
+      alert(
+        'The Dream administrator profile cannot be the same as the submitting account.'
+      );
+
+      return;
+    }
+
+    const {
+      data: {
+        user
+      }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error(
+        'You must be signed in to submit a dream.'
+      );
+    }
+  
+    const {
+      data: submittingProfile,
+      error: submittingProfileError
+    } = await supabase
+      .from('user_profiles')
+      .select('wallet_balance')
+      .eq('id', user.id)
+      .single();
+
+    if (submittingProfileError) {
+      throw submittingProfileError;
+    }
+
+    const currentUserBalance =
+      Number(
+        submittingProfile?.wallet_balance || 0
+      );
+
+    if (currentUserBalance < amount) {
+      throw new Error(
+        'Your KPC balance is too low for this submission.'
+      );
+    }
+
+    const newUserBalance =
+      currentUserBalance - amount;
+
+    const {
+      error: userBalanceError
+    } = await supabase
+      .from('user_profiles')
+      .update({
+        wallet_balance:
+          newUserBalance
+      })
+      .eq('id', user.id);
+
+    if (userBalanceError) {
+      throw userBalanceError;
+    }
+
+    const newAdminBalance =
+      Number(
+        adminProfile.wallet_balance || 0
+      ) + amount;
+
+    const {
+      error: adminBalanceError
+    } = await supabase
+      .from('user_profiles')
+      .update({
+        wallet_balance:
+          newAdminBalance
+      })
+      .eq(
+        'id',
+        adminProfile.id
+      );
+
+    if (adminBalanceError) {
+      throw adminBalanceError;
+    }
+
+    const {
+      error: transactionError
+    } = await supabase
+      .from('transactions')
+      .insert([{
+        sender_id: user.id,
+        receiver_id: adminProfile.id,
+        amount: amount,
+        tx_type: 'SPEND',
+        title: 'Dream Interpretation Request'
+      }]);
+
+    if (transactionError) {
+      console.error(
+        'Dream transaction log failed:',
+        transactionError
+      );
+    }
+
+    const {
+  error: dreamError
+} = await supabase
+  .from('dreams')
+  .update({
+    status: 'pending',
+    submitted_at:
+      new Date().toISOString()
+  })
+  .eq(
+    'id',
+    dream.id
+  );
+
+if (dreamError) {
+  throw dreamError;
+}
+
+const updatedDream = {
+  ...dream,
+  status: 'pending',
+  submitted_at: new Date().toISOString()
+};
+
     setKpcBalance(
-      prev => Math.max(0, prev - 25)
+      newUserBalance
     );
 
     setDreams(prev =>
@@ -2407,21 +2631,42 @@ const handleSubmitSavedDream = async (dream) => {
       }
     );
 
+    if (currentUser) {
+      const updatedCurrentUser = {
+        ...currentUser,
+        wallet_balance:
+          newUserBalance,
+        kpcBalance:
+          newUserBalance
+      };
+
+      setCurrentUser(
+        updatedCurrentUser
+      );
+
+      localStorage.setItem(
+        'kp_current_user',
+        JSON.stringify(
+          updatedCurrentUser
+        )
+      );
+    }
+
     alert(
-      `Dream submitted successfully.\nTransaction: ${txSignature}`
+      `Dream submitted successfully.\n\n25 KPC has been sent to the KingdomPlus Dream Ministry.`
     );
 
   } catch (error) {
 
     console.error(
-      'Dream submission payment failed:',
+      'Dream interpretation payment failed:',
       error
     );
 
     alert(
-      `Submission failed: ${
+      `Dream submission failed: ${
         error?.message ||
-        'Unable to complete payment.'
+        'Unable to complete the transaction.'
       }`
     );
 
@@ -2431,7 +2676,6 @@ const handleSubmitSavedDream = async (dream) => {
 
   }
 };
-
 
 const handlePostComment = async (commentText) => {
     if (!commentText.trim()) return;
@@ -2784,6 +3028,12 @@ useEffect(() => {
         
         try {
           const newKeypair = Keypair.generate();
+          const secretKeyArray = Array.from(newKeypair.secretKey);
+
+localStorage.setItem(
+  'kp_wallet_secret',
+  JSON.stringify(secretKeyArray)
+);
           const newAddress = newKeypair.publicKey.toString();
           
           setWalletKeypair(newKeypair);
@@ -2808,7 +3058,7 @@ useEffect(() => {
 
   const truncateAddress = (addr) => !addr ? '' : `${addr.slice(0, 6)}...${addr.slice(-6)}`;
 
-  // --- UPGRADED AIRDROP & PERMANENT ACCOUNT REGISTRATION ---
+  // --- AIRDROP & PERMANENT ACCOUNT REGISTRATION ---
   const requestKPCAirdrop = async () => {
     if (!generatedAddress) return;
     setIsAirdropping(true);
@@ -2816,7 +3066,6 @@ useEffect(() => {
     let finalBalance = kpcBalance + 50;
     let airdropSignature = null;
 
-    // 1. Handle the Solana Token Airdrop
     try {
       const KPC_MINT_ADDRESS = new PublicKey(GLOBAL_KPC_MINT);
       const faucetKeypair = Keypair.fromSecretKey(GLOBAL_TREASURY_KEY);
@@ -2835,7 +3084,6 @@ useEffect(() => {
       alert("Devnet Airdrop timeout. Simulating 50 KPC deposit for app demonstration!");
     } 
 
-    // 2. Handle Supabase Registration and State Updates
     try {
       setKpcBalance(finalBalance);
       logTransaction('Welcome Vault Airdrop', +50, 'AIRDROP', airdropSignature);
@@ -5240,6 +5488,8 @@ useEffect(() => {
   const [isTransferring, setIsTransferring] = useState(false);
   const [selectedService, setSelectedService] = useState(null);
   const [selectedTier, setSelectedTier] = useState('Disciple');
+  const DREAM_ADMIN_PROFILE_ID =
+  '8da85fd9-c923-4bd2-8d1e-1d317e0d9fde';
 
   // 1. GIVE / SEND BY USERNAME OR WALLET ADDRESS
   const handleSendByUsername = async (e) => {
@@ -7149,12 +7399,14 @@ alert(
 
 
 // --- CHURCH CRM & GAMIFIED ATTENDANCE STATE ---
-  const [churchSubTab, setChurchSubTab] = useState('attendance'); // 'attendance' | 'timeline' | 'campaigns'
+  const [churchSubTab, setChurchSubTab] = useState('attendance');
   const [isCheckInActive, setIsCheckInActive] = useState(false);
   const [checkInSessionTitle, setCheckInSessionTitle] = useState('Sunday Morning Gathering');
   const [activeCheckInSession, setActiveCheckInSession] = useState(null);
   const [isLoadingCheckInSession, setIsLoadingCheckInSession] = useState(false);
   const [checkInAttendanceCount, setCheckInAttendanceCount] = useState(0);
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [hasCheckedIntoCurrentSession, setHasCheckedIntoCurrentSession] = useState(false);
 const loadActiveMinistryCheckIn = async (
   ministryIdOverride = null
 ) => {
@@ -7207,9 +7459,28 @@ const loadActiveMinistryCheckIn = async (
       return;
     }
 
+    setHasCheckedIntoCurrentSession(false);
     setActiveCheckInSession(session);
     setIsCheckInActive(true);
     setCheckInSessionTitle(session.title);
+
+const {
+  data: existingCheckIn,
+  error: existingCheckInError
+} = await supabase
+  .from('ministry_checkins')
+  .select('id')
+  .eq('session_id', session.id)
+  .eq('user_id', authUserId)
+  .maybeSingle();
+
+if (existingCheckInError) {
+  throw existingCheckInError;
+}
+
+setHasCheckedIntoCurrentSession(
+  Boolean(existingCheckIn)
+);
 
     const {
       count: attendanceCount,
@@ -7242,6 +7513,108 @@ const loadActiveMinistryCheckIn = async (
 
   } finally {
     setIsLoadingCheckInSession(false);
+  }
+};
+
+useEffect(() => {
+  const sessionId = activeCheckInSession?.id;
+
+  if (!sessionId) return;
+
+  const channel = supabase
+    .channel(`ministry-checkin-${sessionId}`)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'ministry_checkins',
+        filter: `session_id=eq.${sessionId}`
+      },
+      (payload) => {
+        console.log(
+          'New Ministry check-in:',
+          payload.new
+        );
+
+        setCheckInAttendanceCount(
+          prev => prev + 1
+        );
+      }
+    )
+    .subscribe();
+
+  return () => {
+    supabase.removeChannel(channel);
+  };
+}, [
+  activeCheckInSession?.id
+]);
+
+const handleMemberCheckIn = async () => {
+  if (!activeCheckInSession?.id) {
+    alert('There is no active check-in session.');
+    return;
+  }
+
+  if (!authUserId) {
+    alert('Please sign in before checking in.');
+    return;
+  }
+
+  if (hasCheckedIntoCurrentSession) {
+    alert('You have already checked in for this session.');
+    return;
+  }
+
+  setIsCheckingIn(true);
+
+  try {
+    const ministryId =
+      activeCheckInSession.ministry_id ||
+      activeMinistryWorkspace?.ministry?.id;
+
+    if (!ministryId) {
+      throw new Error(
+        'The Ministry for this session could not be identified.'
+      );
+    }
+
+    const { error } = await supabase
+      .from('ministry_checkins')
+      .insert({
+        session_id: activeCheckInSession.id,
+        ministry_id: ministryId,
+        user_id: authUserId,
+        method: 'self'
+      });
+
+    if (error) {
+      if (error.code === '23505') {
+        setHasCheckedIntoCurrentSession(true);
+        return;
+      }
+
+      throw error;
+    }
+
+    setHasCheckedIntoCurrentSession(true);
+
+    setCheckInAttendanceCount(prev => prev + 1);
+
+  } catch (error) {
+    console.error(
+      'Failed to check into Ministry session:',
+      error
+    );
+
+    alert(
+      error?.message ||
+      'Unable to complete your check-in.'
+    );
+
+  } finally {
+    setIsCheckingIn(false);
   }
 };
 
@@ -8417,14 +8790,20 @@ const openMinistryWorkspace = async (leadership) => {
     }
 
     setActiveMinistryWorkspace({
-      ministry,
-      role: leadership.role,
-      dashboardAccess:
-        leadership.dashboardAccess || 'limited'
-    });
+  ministry,
+  role: leadership.role,
+  dashboardAccess:
+    leadership.dashboardAccess || 'limited'
+});
 
-    setMinistryWorkspaceSection('overview');
-    setStep(26);
+setMinistryWorkspaceSection('overview');
+if (userProfile?.account_type === 'Ministry') {
+  setActiveTab('sanctuary');
+} else {
+  setActiveTab('profile');
+}
+
+setStep(26);
 
   } catch (error) {
     console.error(
@@ -12525,70 +12904,54 @@ const membersToNextMilestone =
 <div className="horizontal-scroll">
 
   {musicData
-    .filter(
-      track => track.category === 'Hymns'
-    )
-    .map((track) => (
+  .filter(
+    track => track.category === 'Hymns'
+  )
+  .map((track) => (
+    <div
+      key={track.id}
+      className="media-card"
+      style={{
+        cursor: 'pointer'
+      }}
+      onClick={() => {
+        openPlayer(
+          track,
+          'audio',
+          track.category
+        );
 
-      <div
-        key={track.id}
-        className="media-card"
-        style={{ cursor: 'pointer' }}
-        onClick={() => {
-          openPlayer(
-            track,
-            'audio',
-            'Hymns'
-          );
+        setIsPlaying(true);
+      }}
+    >
 
-          setIsPlaying(true);
-        }}
-      >
+      <img
+        src={track.img}
+        alt={track.title}
+        className="media-bg"
+      />
 
-        <img
-          src={track.img}
-          alt={track.title}
-          className="media-bg"
-        />
+      <div className="media-content">
 
-        <div className="media-overlay" />
+        <h4 className="media-title">
+          {track.title}
+        </h4>
 
-        <div className="media-info">
-          <h4 className="media-title">
-            {track.title}
-          </h4>
-
-          <span className="media-subtitle">
-            <span style={{ color: '#29beaf' }}>
-              |
-            </span>{' '}
-            {track.artist}
-          </span>
-        </div>
-
-        <div className="music-play-btn">
-          <PlaySolidIcon />
-        </div>
+        <span className="media-subtitle">
+          <span
+            style={{
+              color: '#29beaf'
+            }}
+          >
+            |
+          </span>{' '}
+          {track.artist}
+        </span>
 
       </div>
 
-    ))}
-
-  {musicData.filter(
-    track => track.category === 'Hymns'
-  ).length === 0 && (
-
-    <div
-      style={{
-        color: '#8e9aab',
-        fontSize: '12px',
-        padding: '10px'
-      }}
-    >
-      No hymns available yet.
     </div>
-
-  )}
+  ))}
 
 </div>
 
@@ -16267,10 +16630,12 @@ disabled={isUploadingBook}
               <div
   className={`view-modal-content ${getMoodConfig(selectedDreamToView.mood).bgClass}`}
   style={{
-    maxHeight: '82vh',
-    overflowY: 'auto',
-    paddingBottom: '24px'
-  }}
+  maxHeight: 'calc(100vh - 150px)',
+  overflowY: 'auto',
+  paddingBottom: '145px',
+  boxSizing: 'border-box',
+  WebkitOverflowScrolling: 'touch'
+}}
 >
 
                 <div className="view-modal-header">
@@ -16414,13 +16779,7 @@ disabled={isUploadingBook}
                 )}
 
                 <div
-  className="dream-card-actions"
-  style={{
-    marginTop: '20px',
-    paddingTop: '14px',
-    borderTop:
-      '1px solid rgba(255,255,255,0.06)'
-  }}
+  className="dream-card-actions dream-modal-actions"
 >
                   <button
   className="dream-action-btn dream-action-copy"

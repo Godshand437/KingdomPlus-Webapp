@@ -4255,158 +4255,62 @@ to {
    DREAM DIARY — HERO DASHBOARD
    ========================================================= */
 
+/* =========================================================
+   DREAM DIARY — DREAM SKY HERO
+   ========================================================= */
+
 .dream-dashboard-hero {
   position: relative;
 
-  margin:
-    14px
-    0
-    20px;
+  width: calc(100% - 20px);
+  margin: 12px auto 18px;
 
-  min-height: 205px;
+  min-height: 168px;
+  height: 168px;
 
   overflow: hidden;
 
-  border-radius: 26px;
+  border-radius: 24px;
 
   background:
     linear-gradient(
       135deg,
-      #18213c 0%,
-      #182d45 52%,
-      #0b3838 100%
+      #d9f3f5 0%,
+      #bfe7ed 38%,
+      #a9d9e7 68%,
+      #c9dff2 100%
     );
 
   border:
-    1px solid rgba(255,255,255,0.08);
+    1px solid rgba(255,255,255,0.65);
 
   box-shadow:
-    0 18px 45px rgba(0,0,0,0.24);
+    0 16px 35px rgba(34, 86, 110, 0.18);
+
+  box-sizing: border-box;
 }
 
-.dream-dashboard-content {
-  position: relative;
-  z-index: 2;
+/* Soft glassy light layer */
+.dream-dashboard-hero::before {
+  content: '';
 
-  padding: 24px 20px 18px;
-}
-
-.dream-dashboard-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-
-  color: #f3ca58;
-
-  font-size: 9px;
-  font-weight: 900;
-
-  letter-spacing: 1.5px;
-}
-
-.dream-dashboard-label svg {
-  width: 14px;
-  height: 14px;
-}
-
-.dream-dashboard-content h2 {
-  max-width: 300px;
-
-  margin:
-    14px
-    0
-    8px;
-
-  color: #ffffff;
-
-  font-family: Georgia, 'Times New Roman', serif;
-
-  font-size: 27px;
-  line-height: 1.08;
-}
-
-.dream-dashboard-content p {
-  max-width: 320px;
-
-  margin: 0;
-
-  color: #aeb9c9;
-
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.dream-dashboard-bottom {
-  display: flex;
-  align-items: center;
-
-  gap: 12px;
-
-  margin-top: 22px;
-}
-
-.dream-mini-stat {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.dream-mini-stat strong {
-  color: #ffffff;
-
-  font-size: 18px;
-  font-weight: 900;
-}
-
-.dream-mini-stat span {
-  color: #7f8ca3;
-
-  font-size: 8px;
-  font-weight: 800;
-
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-}
-
-.dream-mini-divider {
-  width: 1px;
-  height: 30px;
+  position: absolute;
+  inset: 0;
 
   background:
-    rgba(255,255,255,0.12);
+    linear-gradient(
+      135deg,
+      rgba(255,255,255,0.42),
+      rgba(255,255,255,0.05) 55%,
+      rgba(255,255,255,0.25)
+    );
+
+  pointer-events: none;
 }
 
-.dream-dashboard-new {
-  margin-left: auto;
-
-  display: flex;
-  align-items: center;
-  gap: 6px;
-
-  padding:
-    10px
-    12px;
-
-  border-radius: 14px;
-
-  border:
-    1px solid rgba(243,202,88,0.30);
-
-  background:
-    rgba(243,202,88,0.10);
-
-  color: #f3ca58;
-
-  font-size: 10px;
-  font-weight: 900;
-
-  white-space: nowrap;
-}
-
-.dream-dashboard-new svg {
-  width: 15px;
-  height: 15px;
-}
+/* =========================================================
+   FLOATING DREAM ORBS
+   ========================================================= */
 
 .dream-orb {
   position: absolute;
@@ -4415,7 +4319,276 @@ to {
 
   pointer-events: none;
 
-  filter: blur(2px);
+  filter: blur(1px);
+
+  z-index: 1;
+}
+
+/* Large soft golden orb */
+.dream-orb-one {
+  width: 115px;
+  height: 115px;
+
+  right: -25px;
+  top: -45px;
+
+  background:
+    radial-gradient(
+      circle at 35% 35%,
+      rgba(255,255,255,0.9),
+      rgba(243,202,88,0.45) 35%,
+      rgba(243,202,88,0.04) 72%
+    );
+
+  animation:
+    dreamOrbFloatOne 7s ease-in-out infinite;
+}
+
+/* Smaller turquoise orb */
+.dream-orb-two {
+  width: 82px;
+  height: 82px;
+
+  left: -18px;
+  bottom: -30px;
+
+  background:
+    radial-gradient(
+      circle at 40% 35%,
+      rgba(255,255,255,0.85),
+      rgba(41,190,175,0.38) 40%,
+      rgba(41,190,175,0.03) 75%
+    );
+
+  animation:
+    dreamOrbFloatTwo 6s ease-in-out infinite;
+}
+
+/* Third atmospheric orb */
+.dream-dashboard-hero::after {
+  content: '';
+
+  position: absolute;
+
+  width: 65px;
+  height: 65px;
+
+  right: 30%;
+  bottom: -35px;
+
+  border-radius: 50%;
+
+  background:
+    radial-gradient(
+      circle,
+      rgba(255,255,255,0.65),
+      rgba(135,190,220,0.15) 55%,
+      transparent 75%
+    );
+
+  animation:
+    dreamOrbFloatThree 8s ease-in-out infinite;
+
+  pointer-events: none;
+
+  z-index: 1;
+}
+
+/* =========================================================
+   ORB ANIMATIONS
+   ========================================================= */
+
+@keyframes dreamOrbFloatOne {
+  0%,
+  100% {
+    transform:
+      translate3d(0, 0, 0)
+      scale(1);
+  }
+
+  50% {
+    transform:
+      translate3d(-18px, 20px, 0)
+      scale(1.08);
+  }
+}
+
+@keyframes dreamOrbFloatTwo {
+  0%,
+  100% {
+    transform:
+      translate3d(0, 0, 0)
+      scale(1);
+  }
+
+  50% {
+    transform:
+      translate3d(22px, -18px, 0)
+      scale(1.1);
+  }
+}
+
+@keyframes dreamOrbFloatThree {
+  0%,
+  100% {
+    transform:
+      translate3d(0, 0, 0)
+      scale(0.9);
+  }
+
+  50% {
+    transform:
+      translate3d(-20px, -25px, 0)
+      scale(1.15);
+  }
+}
+
+.dream-dashboard-content {
+  position: relative;
+
+  z-index: 3;
+
+  height: 100%;
+
+  padding:
+    18px
+    18px
+    14px;
+
+  display: flex;
+  flex-direction: column;
+
+  box-sizing: border-box;
+}
+
+.dream-dashboard-label {
+  display: inline-flex;
+  align-items: center;
+
+  gap: 6px;
+
+  color: #356d78;
+
+  font-size: 8px;
+  font-weight: 900;
+
+  letter-spacing: 1.4px;
+}
+
+.dream-dashboard-label svg {
+  width: 13px;
+  height: 13px;
+}
+
+.dream-dashboard-content h2 {
+  max-width: 285px;
+
+  margin:
+    8px
+    0
+    5px;
+
+  color: #173c49;
+
+  font-family:
+    Georgia,
+    'Times New Roman',
+    serif;
+
+  font-size: 23px;
+
+  line-height: 1.08;
+
+  letter-spacing: -0.3px;
+}
+
+.dream-dashboard-content p {
+  max-width: 290px;
+
+  margin: 0;
+
+  color: #426b75;
+
+  font-size: 10px;
+
+  line-height: 1.4;
+}
+
+.dream-dashboard-bottom {
+  margin-top: auto;
+
+  display: flex;
+  align-items: center;
+
+  gap: 10px;
+}
+
+.dream-mini-stat {
+  display: flex;
+  flex-direction: column;
+
+  gap: 1px;
+}
+
+.dream-mini-stat strong {
+  color: #173c49;
+
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.dream-mini-stat span {
+  color: #527680;
+
+  font-size: 7px;
+  font-weight: 900;
+
+  text-transform: uppercase;
+
+  letter-spacing: 0.5px;
+}
+
+.dream-mini-divider {
+  width: 1px;
+  height: 25px;
+
+  background:
+    rgba(23,60,73,0.18);
+}
+
+.dream-dashboard-new {
+  margin-left: auto;
+
+  display: flex;
+  align-items: center;
+
+  gap: 5px;
+
+  padding:
+    8px
+    10px;
+
+  border-radius: 13px;
+
+  border:
+    1px solid rgba(39,104,116,0.28);
+
+  background:
+    rgba(255,255,255,0.38);
+
+  color: #245d69;
+
+  font-size: 9px;
+  font-weight: 900;
+
+  white-space: nowrap;
+
+  backdrop-filter: blur(8px);
+}
+
+.dream-dashboard-new svg {
+  width: 14px;
+  height: 14px;
 }
 
 .dream-orb-one {
@@ -4446,6 +4619,81 @@ to {
       rgba(243,202,88,0.17),
       rgba(243,202,88,0) 70%
     );
+}
+
+.dream-modal-actions {
+  display: grid !important;
+
+  grid-template-columns:
+    repeat(2, minmax(0, 1fr));
+
+  gap: 10px;
+
+  width: 100%;
+
+  margin-top: 22px;
+
+  padding-top: 16px;
+
+  border-top:
+    1px solid rgba(255,255,255,0.08);
+
+  position: relative;
+
+  z-index: 20;
+
+  box-sizing: border-box;
+}
+
+.dream-modal-actions .dream-action-btn {
+  min-height: 54px;
+
+  width: 100%;
+
+  border-radius: 17px;
+
+  display: flex;
+
+  align-items: center;
+  justify-content: center;
+
+  gap: 7px;
+
+  font-size: 13px;
+  font-weight: 900;
+
+  box-sizing: border-box;
+}
+
+.dream-modal-actions .dream-action-copy {
+  background:
+    rgba(255,255,255,0.045);
+
+  border:
+    1px solid rgba(255,255,255,0.14);
+
+  color: #ffffff;
+}
+
+.dream-modal-actions .dream-action-submit {
+  background:
+    linear-gradient(
+      135deg,
+      rgba(243,202,88,0.16),
+      rgba(243,202,88,0.05)
+    );
+
+  border:
+    1px solid rgba(243,202,88,0.42);
+
+  color: #f3ca58;
+}
+
+.dream-modal-actions .dream-action-btn svg {
+  width: 19px;
+  height: 19px;
+
+  flex-shrink: 0;
 }
 
 .constrained-overlay {
@@ -4504,6 +4752,14 @@ to {
   border: none;
   border-radius: 50%;
   background: rgba(0, 0, 0, 0.3);
+}
+
+.view-modal-content {
+  scrollbar-width: none;
+}
+
+.view-modal-content::-webkit-scrollbar {
+  display: none;
 }
 
 .view-meta {
