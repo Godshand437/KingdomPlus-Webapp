@@ -15877,40 +15877,107 @@ disabled={isUploadingBook}
           ========================================= */}
       {step === 14 && (
         <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
-          <div className="feed-header-top" style={{ paddingBottom: '10px' }}>
-            <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
-              <BackArrowIcon />
-            </button>
-            <h2 style={{ fontSize: '18px', fontWeight: '800', margin: '0' }}>
-              <span style={{ color: '#f3ca58' }}>Dream</span> <span style={{ color: '#29beaf' }}>Diary</span>
-            </h2>
-            <div style={{ width: '36px' }}></div>
-          </div>
-          <div className="feed-scroll-area" 
+          <div className="dream-page-header">
+
+  <div className="dream-header-glow"></div>
+
+  <button
+    className="dream-header-back"
+    onClick={() => setStep(6)}
+    aria-label="Back"
+  >
+    <BackArrowIcon />
+  </button>
+
+  <div className="dream-header-main">
+
+    <div className="dream-header-icon">
+      <MoonIcon />
+    </div>
+
+    <div>
+      <div className="dream-header-kicker">
+        KINGDOMPLUS • PERSONAL JOURNAL
+      </div>
+
+      <h1 className="dream-header-title">
+        Dream Diary
+      </h1>
+
+      <p className="dream-header-subtitle">
+        Capture the night. Reflect on the message.
+      </p>
+    </div>
+
+  </div>
+
+</div>
+          <div
+  className="feed-scroll-area"
   onScroll={handleBottomNavScroll}
- style={{ flexGrow: 1, paddingBottom: '140px' }}>
+  style={{
+    flexGrow: 1,
+    minHeight: 0,
+    paddingBottom: '210px',
+    boxSizing: 'border-box'
+  }}
+>
 
-            <div className="dream-hero-card">
-              <div className="dream-hero-tag"><SparklesIcon /> Night Chronicles</div>
-              <h1 className="dream-hero-title">What did God whisper in the night?</h1>
-              <p className="dream-hero-desc">Journal every dream. Request interpretation from KingdomPlus Team  with KPC.</p>
+            <div className="dream-dashboard-hero">
 
-              <div className="dream-hero-stats">
-                <div className="dream-stat-group">
-                  <div className="dream-stat">
-                    <span className="dream-stat-num">{dreams.length}</span>
-                    <span className="dream-stat-label">DREAMS</span>
-                  </div>
-                  <div className="dream-stat" style={{ borderLeft: '1px solid rgba(255,255,255,0.2)', paddingLeft: '20px' }}>
-                    <span className="dream-stat-num">{dreams.filter(d => d.status === 'pending').length}</span>
-                    <span className="dream-stat-label">IN REVIEW</span>
-                  </div>
-                </div>
-                <button className="dream-new-btn" onClick={() => setIsDreamModalOpen(true)}>
-                  <PlusIcon /> New
-                </button>
-              </div>
-            </div>
+  <div className="dream-orb dream-orb-one"></div>
+  <div className="dream-orb dream-orb-two"></div>
+
+  <div className="dream-dashboard-content">
+
+    <div className="dream-dashboard-label">
+      <SparklesIcon />
+      NIGHT CHRONICLES
+    </div>
+
+    <h2>
+      What did the night leave with you?
+    </h2>
+
+    <p>
+      Keep a record of your dreams, reflections
+      and spiritual moments in one private place.
+    </p>
+
+    <div className="dream-dashboard-bottom">
+
+      <div className="dream-mini-stat">
+        <strong>{dreams.length}</strong>
+        <span>Recorded</span>
+      </div>
+
+      <div className="dream-mini-divider"></div>
+
+      <div className="dream-mini-stat">
+        <strong>
+          {dreams.filter(
+            d =>
+              d.status === 'pending' ||
+              d.status === 'PENDING'
+          ).length}
+        </strong>
+        <span>In review</span>
+      </div>
+
+      <button
+        className="dream-dashboard-new"
+        onClick={() =>
+          setIsDreamModalOpen(true)
+        }
+      >
+        <PlusIcon />
+        Record dream
+      </button>
+
+    </div>
+
+  </div>
+</div>
 
             <div className="feed-tabs-container" style={{ marginBottom: '15px', marginLeft: '-20px', marginRight: '-20px', padding: '0 20px' }}>
               {['Last night', 'Morning vision', 'Recurring', 'Prophetic'].map((tab) => (
@@ -15955,28 +16022,56 @@ disabled={isUploadingBook}
                         <span className="read-more-link" onClick={() => setSelectedDreamToView(dream)}>Read more ➔</span>
                       )}
 
-                      <div className="dream-card-actions">
-                        <button className="dream-action-btn" onClick={() => setSelectedDreamToView(dream)}>
-                          <EyeIcon /> View
-                        </button>
-                        <button className="dream-action-btn">
-                          <CopyIcon /> Copy
-                        </button>
-                        {!dream.status && (
-                          <button
-  className="dream-action-btn submit-btn"
-  onClick={() =>
-    handleSubmitSavedDream(dream)
-  }
-  disabled={isSubmittingDream}
->
-  <LinkIcon />
-  {isSubmittingDream
-    ? 'Submitting...'
-    : 'Submit for Interpretation'}
-</button>
-                        )}
-                      </div>
+                      <div className="dream-card-actions dream-actions-modern">
+
+  <button
+    className="dream-action-btn dream-action-view"
+    onClick={() =>
+      setSelectedDreamToView(dream)
+    }
+  >
+    <EyeIcon />
+    <span>View</span>
+  </button>
+
+  <button
+    className="dream-action-btn dream-action-copy"
+    onClick={async () => {
+      try {
+        await navigator.clipboard.writeText(
+          dream.desc || ''
+        );
+        alert('Dream copied.');
+      } catch (error) {
+        console.error(
+          'Copy dream failed:',
+          error
+        );
+      }
+    }}
+  >
+    <CopyIcon />
+    <span>Copy</span>
+  </button>
+
+  {!dream.status && (
+    <button
+      className="dream-action-btn submit-btn dream-action-submit"
+      onClick={() =>
+        handleSubmitSavedDream(dream)
+      }
+      disabled={isSubmittingDream}
+    >
+      <LinkIcon />
+      <span>
+        {isSubmittingDream
+          ? 'Sending...'
+          : 'Submit'}
+      </span>
+    </button>
+  )}
+
+</div>
                     </div>
                   );
                 })
@@ -16150,13 +16245,37 @@ disabled={isUploadingBook}
       '1px solid rgba(255,255,255,0.06)'
   }}
 >
-                  <button className="dream-action-btn">
-                    <CopyIcon /> Copy
-                  </button>
+                  <button
+  className="dream-action-btn dream-action-copy"
+  onClick={async () => {
+    try {
+      await navigator.clipboard.writeText(
+        selectedDreamToView.desc || ''
+      );
+      alert('Dream copied.');
+    } catch (error) {
+      console.error(
+        'Copy dream failed:',
+        error
+      );
+    }
+  }}
+>
+  <CopyIcon />
+  <span>Copy</span>
+</button>
                   {!selectedDreamToView.status && (
-                    <button className="dream-action-btn submit-btn">
-                      <LinkIcon /> Submit
-                    </button>
+                    <button
+  className="dream-action-btn submit-btn dream-action-submit"
+  onClick={() =>
+    handleSubmitSavedDream(
+      selectedDreamToView
+    )
+  }
+>
+  <LinkIcon />
+  <span>Submit</span>
+</button>
                   )}
                 </div>
 
