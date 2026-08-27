@@ -1409,7 +1409,7 @@ const handleDemoSwap = async () => {
   }
 
 
-  const KPC_TO_USDC = 0.10;
+  const KPC_TO_USDC = 0.25;
 
 
   let receivedAmount = 0;
@@ -16501,10 +16501,6 @@ disabled={isUploadingBook}
 
   <div className="dream-header-main">
 
-    <div className="dream-header-icon">
-      <MoonIcon />
-    </div>
-
     <div>
       <div className="dream-header-kicker">
         KINGDOMPLUS • PERSONAL JOURNAL
@@ -16696,24 +16692,32 @@ disabled={isUploadingBook}
               DETAILED VIEW MODAL
               ========================================================= */}
           {selectedDreamToView && (
-            <div
+  <div
     className="constrained-overlay"
     style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 2000,
       overflow: 'hidden',
-      height: '100dvh'
+      padding: '20px',
+      boxSizing: 'border-box'
     }}
   >
               <div
   className={`view-modal-content ${getMoodConfig(selectedDreamToView.mood).bgClass}`}
   style={{
+  width: '100%',
+  maxWidth: '520px',
   height: 'calc(100dvh - 40px)',
   maxHeight: 'calc(100dvh - 40px)',
   overflowY: 'auto',
   overflowX: 'hidden',
+  padding: '22px',
   paddingBottom: '30px',
   boxSizing: 'border-box',
   WebkitOverflowScrolling: 'touch',
-  overscrollBehavior: 'contain'
+  overscrollBehavior: 'contain',
+  margin: '0 auto'
 }}
 >
 
@@ -16732,133 +16736,157 @@ disabled={isUploadingBook}
                 <div className="view-body">{selectedDreamToView.desc}</div>
                  
 
+                {/* --- PENDING STATE --- */}
+                {selectedDreamToView.status === 'pending' && (
+                  <div className="pending-banner">
+                    <div className="pending-banner-title"><SparklesIcon /> Interpretation pending</div>
+                    <div className="pending-banner-desc">Our Interpretation team are seeking insight for your dream.</div>
+                  </div>
+                )}
+
+                {/* --- INTERPRETED STATE --- */}
+                {selectedDreamToView.status === 'answered' && (
+  <div
+    style={{
+      marginTop: '22px',
+      padding: '20px',
+      borderRadius: '18px',
+      background: 'linear-gradient(145deg, rgba(41,190,175,0.10), rgba(41,190,175,0.03))',
+      border: '1px solid rgba(41,190,175,0.20)'
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '9px',
+        marginBottom: '12px'
+      }}
+    >
+      <MoonIcon />
+
+      <span
+        style={{
+          color: '#29beaf',
+          fontSize: '13px',
+          fontWeight: '900',
+          letterSpacing: '0.2px'
+        }}
+      >
+        Prophetic Interpretation
+      </span>
+    </div>
+
+    <div
+      style={{
+        color: '#e6edf5',
+        fontSize: '14px',
+        lineHeight: '1.75',
+        whiteSpace: 'pre-wrap'
+      }}
+    >
+      {selectedDreamToView.interpretation_text}
+    </div>
+  </div>
+)}
+
 <div
   style={{
-    marginTop: '18px',
-    padding: '16px',
+    marginTop: '24px',
+    padding: '14px 16px',
     borderRadius: '16px',
-    background:
-      'linear-gradient(135deg, rgba(243,202,88,0.10), rgba(41,190,175,0.08))',
-    border:
-      '1px solid rgba(243,202,88,0.25)'
+    background: 'rgba(255,255,255,0.025)',
+    border: '1px solid rgba(255,255,255,0.07)'
   }}
 >
   <div
     style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '10px',
-      marginBottom: '8px'
+      justifyContent: 'space-between',
+      gap: '12px'
     }}
   >
     <div
       style={{
-        width: '38px',
-        height: '38px',
-        borderRadius: '12px',
         display: 'flex',
         alignItems: 'center',
-        justifyContent: 'center',
-        background:
-          'linear-gradient(135deg, rgba(243,202,88,0.18), rgba(41,190,175,0.18))',
-        color: '#f3ca58'
+        gap: '10px',
+        minWidth: 0
       }}
     >
-      <SparklesIcon />
-    </div>
-
-    <div style={{ flex: 1 }}>
       <div
         style={{
-          color: '#fff',
-          fontSize: '14px',
-          fontWeight: '800'
+          width: '36px',
+          height: '36px',
+          borderRadius: '11px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'rgba(243,202,88,0.08)',
+          color: '#f3ca58',
+          flexShrink: 0
         }}
       >
-        AI Dream Interpretation
+        <MoonIcon />
       </div>
 
-      <div
-        style={{
-          color: '#8e9aab',
-          fontSize: '11px',
-          marginTop: '3px'
-        }}
-      >
-        Get an AI-powered reflection on the symbols,
-        emotions and themes in your dream.
+      <div>
+        <div
+          style={{
+            color: '#fff',
+            fontSize: '13px',
+            fontWeight: '800'
+          }}
+        >
+          AI Reflection
+        </div>
+
+        <div
+          style={{
+            color: '#7f8da3',
+            fontSize: '10px',
+            marginTop: '3px'
+          }}
+        >
+          Explore the symbols and themes in this dream.
+        </div>
       </div>
     </div>
 
-    <span
-      style={{
-        padding: '4px 8px',
-        borderRadius: '20px',
-        background: 'rgba(243,202,88,0.12)',
-        color: '#f3ca58',
-        fontSize: '9px',
-        fontWeight: '900'
-      }}
-    >
-      PREMIUM
-    </span>
-  </div>
+    <button
+      className="modal-btn-primary"
+      onClick={() => {
+        if (!hasDiscipleAccess(userProfile)) {
+          setIsAiComingSoonOpen(true);
+          return;
+        }
 
-  <button
-    className="modal-btn-primary"
-    style={{
-      width: '100%',
-      marginTop: '10px'
-    }}
-    onClick={() => {
-
-      if (!hasDiscipleAccess(userProfile)) {
         setIsAiComingSoonOpen(true);
-        return;
-      }
-
-      setIsAiComingSoonOpen(true);
-    }}
-  >
-    {hasDiscipleAccess(userProfile)
-      ? (
-        <>
-          <SparklesIcon />
-          Try AI Interpretation
-        </>
-      )
-      : (
-        <>
-          <LockIcon />
-          Premium Feature
-        </>
-      )
-    }
-  </button>
+      }}
+      style={{
+        flexShrink: 0,
+        padding: '9px 12px',
+        fontSize: '11px',
+        borderRadius: '10px'
+      }}
+    >
+      {hasDiscipleAccess(userProfile)
+        ? 'Explore'
+        : 'Premium'}
+    </button>
+  </div>
 </div>
-
-                {/* --- PENDING STATE --- */}
-                {selectedDreamToView.status === 'pending' && (
-                  <div className="pending-banner">
-                    <div className="pending-banner-title"><SparklesIcon /> Interpretation pending</div>
-                    <div className="pending-banner-desc">Our prophets are seeking insight for your dream.</div>
-                  </div>
-                )}
-
-                {/* --- INTERPRETED STATE --- */}
-                {selectedDreamToView.status === 'answered' && (
-                  <div className="interpretation-banner" style={{ marginTop: '15px', padding: '16px', background: 'rgba(41, 190, 175, 0.1)', border: '1px solid #29beaf', borderRadius: '16px' }}>
-                    <div className="interpretation-title" style={{ color: '#29beaf', fontWeight: '800', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <SparklesIcon /> Prophetic Insight
-                    </div>
-                    <div className="interpretation-text" style={{ fontSize: '14px', color: '#e2e8f0', lineHeight: '1.6' }}>
-                      {selectedDreamToView.interpretation_text}
-                    </div>
-                  </div>
-                )}
 
                 <div
   className="dream-card-actions dream-modal-actions"
+  style={{
+    marginTop: '24px',
+    paddingTop: '16px',
+    borderTop: '1px solid rgba(255,255,255,0.07)',
+    display: 'flex',
+    gap: '10px'
+  }}
 >
                   <button
   className="dream-action-btn dream-action-copy"
@@ -16898,11 +16926,26 @@ disabled={isUploadingBook}
             </div>
           )}
 {isAiComingSoonOpen && (
-  <div className="constrained-overlay">
-    <div
+  <div
+    className="constrained-overlay"
+    style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 3000,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '20px',
+      boxSizing: 'border-box',
+      background: 'rgba(5, 10, 18, 0.78)',
+      backdropFilter: 'blur(12px)'
+    }}
+  >    <div
       style={{
-        width: 'calc(100% - 40px)',
-        maxWidth: '430px',
+        width: '100%',
+        maxWidth: '420px',
+                     maxHeight: 'min(520px, calc(100dvh - 40px))',
+        overflowY: 'auto',
         background: '#101926',
         borderRadius: '24px',
         padding: '28px 22px',
@@ -16927,7 +16970,7 @@ disabled={isUploadingBook}
           color: '#f3ca58'
         }}
       >
-        <SparklesIcon />
+        <MoonIcon />
       </div>
 
       <h3
@@ -17496,18 +17539,73 @@ disabled={isUploadingBook}
               <button
                 className="action-button"
                 style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '8px' }}
-                onClick={() => {
-                  if (!sendAmount || Number(sendAmount) <= 0) return alert('Enter a valid amount to send.');
-                  if (!sendRecipient) return alert('Enter a recipient.');
-                  if (kpcBalance < Number(sendAmount)) return alert('Insufficient funds.');
+                onClick={async () => {
+  const amount = Number(sendAmount);
+  const recipient = sendRecipient.trim();
 
-                  alert(`Success! Sent ${sendAmount} KPC to ${sendRecipient}.`);
-                  setKpcBalance(prev => prev - Number(sendAmount));
-                  setSendRecipient('');
-                  setSendAmount('');
-                  setSendMemo('');
-                  setStep(11);
-                }}
+  if (!recipient) {
+    alert('Enter a username or wallet address.');
+    return;
+  }
+
+  if (!amount || amount <= 0) {
+    alert('Enter a valid amount to send.');
+    return;
+  }
+
+  if (amount > Number(kpcBalance)) {
+    alert('Insufficient KPC balance.');
+    return;
+  }
+
+  try {
+    const {
+      data: { user }
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      throw new Error('Please sign in first.');
+    }
+
+    const { error } = await supabase.rpc(
+      'transfer_kpc',
+      {
+        sender_uuid: user.id,
+        receiver_handle: recipient,
+        transfer_amount: amount,
+        tx_title: sendMemo.trim()
+          ? sendMemo.trim()
+          : `Sent to ${recipient}`,
+        transaction_type: 'TRANSFER'
+      }
+    );
+
+    if (error) {
+      throw error;
+    }
+
+    await fetchWalletData();
+
+    alert(
+      `Successfully sent ${amount} KPC to ${recipient}.`
+    );
+
+    setSendRecipient('');
+    setSendAmount('');
+    setSendMemo('');
+
+  } catch (error) {
+    console.error(
+      'Send KPC failed:',
+      error
+    );
+
+    alert(
+      error?.message ||
+      'Transfer failed. Please try again.'
+    );
+  }
+}}
               >
                 <PaperPlaneIcon /> Send {sendAmount || 0} KPC
               </button>
