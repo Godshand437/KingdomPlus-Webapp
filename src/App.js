@@ -525,10 +525,10 @@ useEffect(() => {
   const [isStatusPaused, setIsStatusPaused] = useState(false);
   const statusVideoRef = useRef(null);
 
-  const [viewedStatuses, setViewedStatuses] = useState(() => {
-    const saved = localStorage.getItem('kp_viewed_statuses');
-    return saved ? JSON.parse(saved) : [];
-  });
+  const [
+  viewedStatusIds,
+  setViewedStatusIds
+] = useState([]);
 
 const getCurrentUserAvatar = () => {
   return (
@@ -570,16 +570,48 @@ const normalizeAvatarUrl = (avatar, username = 'User') => {
   });
   
   const welcomeVideoStatus = {
-    id: 'welcome-001',
-    user_id: 'Godshand',
-    authorName: '@Godshand',
-    avatar: '/assets/logo.png',
-    media_src: '/media/Welcome-Video.mp4',
-    media_type: 'video',
-    views: 0,
-    likes: 0,
-    isPermanent: true
-  };
+  id: 'welcome-001',
+
+  user_id: null,
+
+  authorName:
+    'KingdomPlus',
+
+  author_name:
+    'KingdomPlus',
+
+  avatar:
+    '/assets/logo.png',
+
+  avatar_url:
+    '/assets/logo.png',
+
+  media_src:
+    '/media/Welcome-Video.mp4',
+
+  media_url:
+    '/media/Welcome-Video.mp4',
+
+  media_type:
+    'video',
+
+  text_content:
+    '',
+
+  likes: 0,
+
+  views: 0,
+
+  taps: 0,
+
+  comments: 0,
+
+  isSystemWelcome:
+    true,
+
+  isPermanent:
+    false
+};
 
 const handleMarkAllRead = () => {
   setNotifications(prev => {
@@ -659,74 +691,102 @@ const [textStatusBg, setTextStatusBg] = useState("#4facfe");
 const [activeNewsArticle, setActiveNewsArticle] = useState(null);
 const [showNewsComments, setShowNewsComments] = useState(false);
 const [newCommentText, setNewCommentText] = useState("");
+
 const handleLikeStatus = async () => {
   if (!activeViewStatus) return;
 
-  const {
-    data: { user }
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    alert('Please sign in to like a status.');
+  if (
+    activeViewStatus.isSystemWelcome
+  ) {
     return;
   }
 
-  if (activeViewStatus.id === 'welcome-001') {
-    setViewerLiked(prev => !prev);
+  const {
+    data: {
+      user
+    }
+  } = await supabase.auth.getUser();
 
-    setActiveViewStatus(prev => ({
-      ...prev,
-      likes: prev.viewerLiked
-        ? Math.max(0, Number(prev.likes || 0) - 1)
-        : Number(prev.likes || 0) + 1
-    }));
-
+  if (!user) {
+    alert(
+      'Please sign in to like a status.'
+    );
     return;
   }
 
   try {
+
     const {
       data: existingLike,
       error: checkError
     } = await supabase
-      .from('likes')
+      .from('testimony_likes')
       .select('id')
-      .eq('testimony_id', activeViewStatus.id)
-      .eq('user_id', user.id)
+      .eq(
+        'testimony_id',
+        activeViewStatus.id
+      )
+      .eq(
+        'user_id',
+        user.id
+      )
       .maybeSingle();
 
-    if (checkError) throw checkError;
-
-    const currentLikes = Number(activeViewStatus.likes || 0);
+    if (checkError) {
+      throw checkError;
+    }
 
     if (existingLike) {
-      const { error: deleteError } = await supabase
-        .from('likes')
+
+      const {
+        error
+      } = await supabase
+        .from('testimony_likes')
         .delete()
-        .eq('id', existingLike.id);
+        .eq(
+          'id',
+          existingLike.id
+        );
 
-      if (deleteError) throw deleteError;
+      if (error) {
+        throw error;
+      }
 
-      const newLikes = Math.max(0, currentLikes - 1);
+      const newLikes =
+        Math.max(
+          0,
+          Number(
+            activeViewStatus.likes || 0
+          ) - 1
+        );
 
-      const { error: statusError } = await supabase
+      const {
+        error: updateError
+      } = await supabase
         .from('testimonies')
-        .update({ likes: newLikes })
-        .eq('id', activeViewStatus.id);
+        .update({
+          likes: newLikes
+        })
+        .eq(
+          'id',
+          activeViewStatus.id
+        );
 
-      if (statusError) throw statusError;
+      if (updateError) {
+        throw updateError;
+      }
 
       setViewerLiked(false);
 
       setActiveViewStatus(prev => ({
         ...prev,
-        likes: newLikes,
-        viewerLiked: false
+        likes: newLikes
       }));
 
       setTestimonies(prev =>
         prev.map(status =>
-          status.id === activeViewStatus.id
+          status.id ===
+          activeViewStatus.id
             ? {
                 ...status,
                 likes: newLikes
@@ -738,37 +798,56 @@ const handleLikeStatus = async () => {
       return;
     }
 
-    const { error: insertError } = await supabase
-      .from('likes')
+    const {
+      error: insertError
+    } = await supabase
+      .from('testimony_likes')
       .insert([
         {
-          testimony_id: activeViewStatus.id,
-          user_id: user.id
+          testimony_id:
+            activeViewStatus.id,
+
+          user_id:
+            user.id
         }
       ]);
 
-    if (insertError) throw insertError;
+    if (insertError) {
+      throw insertError;
+    }
 
-    const newLikes = currentLikes + 1;
+    const newLikes =
+      Number(
+        activeViewStatus.likes || 0
+      ) + 1;
 
-    const { error: statusError } = await supabase
+    const {
+      error: updateError
+    } = await supabase
       .from('testimonies')
-      .update({ likes: newLikes })
-      .eq('id', activeViewStatus.id);
+      .update({
+        likes: newLikes
+      })
+      .eq(
+        'id',
+        activeViewStatus.id
+      );
 
-    if (statusError) throw statusError;
+    if (updateError) {
+      throw updateError;
+    }
 
     setViewerLiked(true);
 
     setActiveViewStatus(prev => ({
       ...prev,
-      likes: newLikes,
-      viewerLiked: true
+      likes: newLikes
     }));
 
     setTestimonies(prev =>
       prev.map(status =>
-        status.id === activeViewStatus.id
+        status.id ===
+        activeViewStatus.id
           ? {
               ...status,
               likes: newLikes
@@ -778,8 +857,16 @@ const handleLikeStatus = async () => {
     );
 
   } catch (error) {
-    console.error('Status like failed:', error);
-    alert(error?.message || 'Unable to like this status.');
+
+    console.error(
+      'Status like failed:',
+      error
+    );
+
+    alert(
+      error?.message ||
+      'Unable to update status like.'
+    );
   }
 };
 
@@ -978,6 +1065,89 @@ const fetchStatusComments = async (testimonyId) => {
   }
 };
 
+const fetchWelcomeStatusComments =
+  async () => {
+
+    try {
+
+      const {
+        data,
+        error
+      } = await supabase
+        .from('status_comments')
+        .select('*')
+        .eq(
+          'status_id',
+          'welcome-001'
+        )
+        .order(
+          'created_at',
+          {
+            ascending: false
+          }
+        );
+
+      if (error) {
+        throw error;
+      }
+
+
+      const formatted =
+        (data || []).map(
+          comment => ({
+            ...comment,
+
+            id:
+              comment.id,
+
+            author:
+              comment.author_name ||
+              'KingdomPlus',
+
+            text:
+              comment.content ||
+              '',
+
+            time:
+              comment.created_at
+                ? new Date(
+                    comment.created_at
+                  ).toLocaleString()
+                : 'Just now',
+
+            likes:
+              Number(
+                comment.likes || 0
+              ),
+
+            isLiked:
+              false,
+
+            avatar:
+              '/assets/logo.png'
+          })
+        );
+
+
+      setStatusComments(
+        prev => ({
+          ...prev,
+
+          'welcome-001':
+            formatted
+        })
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Failed to load welcome comments:',
+        error
+      );
+
+    }
+  };
+
 // --- SYNC WELCOME STATUS TO REGISTERED ACCOUNT ---
   useEffect(() => {
     if (currentUser) {
@@ -1153,224 +1323,105 @@ const toggleCommentLike = async (commentId) => {
   }
 };
 
-const handleTapTransaction = async (status) => {
-  const tapAmount = 5;
+const handleTapTransaction = async (
+  status
+) => {
 
   if (!status) return;
 
-  if (status.id === 'welcome-001') {
-    alert('I Tap is not available on the permanent welcome status.');
-    return;
-  }
-
-  if (status.user_id === currentUser?.id) {
-    alert("You cannot tap into your own testimony!");
-    return;
-  }
-
-  if (Number(kpcBalance) < tapAmount) {
+  if (
+    status.isSystemWelcome
+  ) {
     alert(
-      `Insufficient funds. You need ${tapAmount} KPC to tap into this testimony.`
+      'I Tap is not available on the KingdomPlus welcome status.'
     );
     return;
   }
 
-  const {
-    data: {
-      user
-    }
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    alert('Please sign in before using I Tap.');
-    return;
-  }
 
   try {
 
     const {
-      data: profile,
-      error: profileError
-    } = await supabase
-      .from('user_profiles')
-      .select('id, wallet_balance')
-      .eq('id', user.id)
-      .single();
-
-    if (profileError) throw profileError;
-
-    const currentBalance =
-      Number(profile.wallet_balance || 0);
-
-    if (currentBalance < tapAmount) {
-      throw new Error(
-        `Insufficient KPC balance. Available: ${currentBalance} KPC`
-      );
-    }
-
-    let recipientProfile = null;
-
-    const {
-      data: userRecipient
-    } = await supabase
-      .from('user_profiles')
-      .select('id, wallet_balance')
-      .eq('id', status.user_id)
-      .maybeSingle();
-
-    if (userRecipient) {
-      recipientProfile = {
-        ...userRecipient,
-        type: 'user'
-      };
-    } else {
-      const {
-        data: churchRecipient,
-        error: churchError
-      } = await supabase
-        .from('church_profiles')
-        .select('id, wallet_balance')
-        .eq('id', status.user_id)
-        .maybeSingle();
-
-      if (churchError) {
-        throw churchError;
+      data: {
+        user
       }
+    } =
+      await supabase.auth.getUser();
 
-      if (churchRecipient) {
-        recipientProfile = {
-          ...churchRecipient,
-          type: 'church'
-        };
+    if (!user) {
+      alert(
+        'Please sign in first.'
+      );
+      return;
+    }
+
+
+    const {
+      data,
+      error
+    } = await supabase.rpc(
+      'tap_testimony',
+      {
+        p_testimony_id:
+          status.id,
+
+        p_amount:
+          5
       }
-    }
-
-    if (!recipientProfile) {
-      throw new Error(
-        'The testimony owner could not be found.'
-      );
-    }
-
-    const newSenderBalance =
-      currentBalance - tapAmount;
-
-    const {
-      error: senderUpdateError
-    } = await supabase
-      .from('user_profiles')
-      .update({
-        wallet_balance:
-          newSenderBalance
-      })
-      .eq('id', user.id);
-
-    if (senderUpdateError) {
-      throw senderUpdateError;
-    }
-
-    const receiverTable =
-      recipientProfile.type === 'church'
-        ? 'church_profiles'
-        : 'user_profiles';
-
-    const newReceiverBalance =
-      Number(
-        recipientProfile.wallet_balance || 0
-      ) + tapAmount;
-
-    const {
-      error: receiverUpdateError
-    } = await supabase
-      .from(receiverTable)
-      .update({
-        wallet_balance:
-          newReceiverBalance
-      })
-      .eq(
-        'id',
-        recipientProfile.id
-      );
-
-    if (receiverUpdateError) {
-      throw receiverUpdateError;
-    }
-
-    const newTapCount =
-      Number(status.taps || 0) + 1;
-
-    const {
-      error: tapError
-    } = await supabase
-      .from('testimonies')
-      .update({
-        taps: newTapCount
-      })
-      .eq('id', status.id);
-
-    if (tapError) {
-      throw tapError;
-    }
-
-    setKpcBalance(
-      newSenderBalance
     );
 
-    setActiveViewStatus(prev => ({
-      ...prev,
-      taps: newTapCount
-    }));
+
+    if (error) {
+      throw error;
+    }
+
+
+    setKpcBalance(
+      Number(
+        data.sender_balance
+      )
+    );
+
+
+    setActiveViewStatus(
+      prev => ({
+        ...prev,
+        taps:
+          Number(data.taps)
+      })
+    );
+
 
     setTestimonies(prev =>
       prev.map(item =>
         item.id === status.id
           ? {
               ...item,
-              taps: newTapCount
+              taps:
+                Number(data.taps)
             }
           : item
       )
     );
 
-    if (currentUser) {
-      const updatedUser = {
-        ...currentUser,
-        wallet_balance:
-          newSenderBalance,
-        kpcBalance:
-          newSenderBalance
-      };
 
-      setCurrentUser(updatedUser);
+    await fetchWalletData();
 
-      localStorage.setItem(
-        'kp_current_user',
-        JSON.stringify(updatedUser)
-      );
-    }
-
-    await logTransaction(
-      `Tapped into ${
-        status.author_name ||
-        status.authorName ||
-        'testimony'
-      }`,
-      -tapAmount,
-      'SPEND'
-    );
 
     alert(
-      `Hallelujah! You've successfully tapped ${tapAmount} KPC into this testimony.`
+      'Hallelujah! 5 KPC has been tapped into this testimony.'
     );
 
   } catch (error) {
+
     console.error(
-      'Tap transaction failed:',
+      'I Tap failed:',
       error
     );
 
     alert(
       error?.message ||
-      'I Tap transaction failed. Try again'
+      'I Tap transaction failed.'
     );
   }
 };
@@ -1392,22 +1443,178 @@ useEffect(() => {
 }, [step]);
 
   useEffect(() => {
-    const fetchTestimonies = async () => {
-      if (step !== 6) return;
-      
-      const { data, error } = await supabase
+
+  const fetchTestimonies = async () => {
+
+    if (
+      step !== 6 ||
+      !currentUser?.id
+    ) {
+      return;
+    }
+
+    try {
+
+      const {
+        data: {
+          user
+        }
+      } = await supabase.auth.getUser();
+
+      if (!user) return;
+
+      const {
+        data,
+        error
+      } = await supabase
         .from('testimonies')
         .select('*')
-        .gt('expires_at', new Date().toISOString())
-        .order('created_at', { ascending: false });
+        .gt(
+          'expires_at',
+          new Date().toISOString()
+        )
+        .order(
+          'created_at',
+          {
+            ascending: false
+          }
+        );
 
-      if (!error && data) {
-        setTestimonies([welcomeVideoStatus, ...data]);
+      if (error) {
+        throw error;
       }
-    };
 
-    fetchTestimonies();
-  }, [step]);
+      const statusIds =
+        (data || []).map(
+          item =>
+            item.id
+        );
+
+      let viewedIds = [];
+
+      if (
+        statusIds.length
+      ) {
+
+        const {
+          data: views
+        } = await supabase
+          .from('testimony_views')
+          .select(
+            'testimony_id'
+          )
+          .eq(
+            'user_id',
+            user.id
+          )
+          .in(
+            'testimony_id',
+            statusIds
+          );
+
+        viewedIds =
+          (views || []).map(
+            row =>
+              String(
+                row.testimony_id
+              )
+          );
+      }
+
+      setViewedStatusIds(
+        viewedIds
+      );
+
+      const {
+        data: profile,
+        error: profileError
+      } = await supabase
+        .from('user_profiles')
+        .select(`
+          created_at,
+          welcome_status_seen_at
+        `)
+        .eq(
+          'id',
+          user.id
+        )
+        .single();
+
+      if (profileError) {
+        throw profileError;
+      }
+
+
+      let finalStatuses = [
+        ...(data || [])
+      ];
+
+      if (
+        profile?.created_at
+      ) {
+
+        const createdAt =
+          new Date(
+            profile.created_at
+          );
+
+        const expires =
+          new Date(
+            createdAt.getTime() +
+            24 * 60 * 60 * 1000
+          );
+
+        const stillNew =
+          Date.now() <
+          expires.getTime();
+
+        const alreadySeen =
+          !!profile
+            .welcome_status_seen_at;
+
+
+        if (
+          stillNew &&
+          !alreadySeen
+        ) {
+
+          const welcome =
+            {
+              ...welcomeVideoStatus,
+
+              expires_at:
+                expires.toISOString()
+            };
+
+          finalStatuses = [
+            welcome,
+            ...finalStatuses
+          ];
+        }
+      }
+
+
+      setTestimonies(
+        finalStatuses
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Failed to load testimonies:',
+        error
+      );
+
+    }
+  };
+
+  fetchTestimonies();
+
+}, [
+  step,
+  currentUser?.id
+]);
+
   const [kingdomTab, setKingdomTab] = useState('Devotions');
   const [kingdomSubTab, setKingdomSubTab] = useState('Global');
 
@@ -2863,155 +3070,181 @@ const handlePostComment = async (commentText) => {
 
 
   const handleViewStatus = async (group) => {
-  if (!group?.statuses?.length) return;
-
-  const status = group.statuses[0];
-
   if (
-    status.id !== 'welcome-001' &&
-    status.expires_at &&
-    new Date(status.expires_at) <= new Date()
+    !group?.statuses?.length
   ) {
     return;
   }
 
+  const status =
+    group.statuses[0];
+
+  if (!status) return;
+
   setActiveViewStatus({
     ...status,
+
     avatar_url:
-      normalizeAvatarUrl(
-        status.avatar_url || status.avatar,
-        status.author_name ||
-        status.authorName ||
-        'User'
-      )
+      status.isSystemWelcome
+        ? '/assets/logo.png'
+        : normalizeAvatarUrl(
+            status.avatar_url ||
+            status.avatar,
+            status.author_name ||
+            status.authorName ||
+            'User'
+          )
   });
 
   setStatusProgress(0);
   setIsStatusPaused(false);
   setShowCommentsPanel(false);
   setNewStatusComment('');
+  setViewerLiked(false);
 
-  let hasLiked = false;
 
   try {
+
     const {
       data: {
         user
       }
     } = await supabase.auth.getUser();
 
+    if (!user) {
+      return;
+    }
+
     if (
-      user &&
-      status.id !== 'welcome-001'
+  status.isSystemWelcome
+) {
+
+  await fetchWelcomeStatusComments();
+
+  await supabase.rpc(
+    'mark_welcome_status_seen'
+  );
+
+  setViewedStatusIds(prev => {
+
+    if (
+      prev.includes(
+        'welcome-001'
+      )
     ) {
-      const {
-        data: existingLike,
-        error
-      } = await supabase
-        .from('likes')
-        .select('id')
-        .eq('testimony_id', status.id)
-        .eq('user_id', user.id)
-        .maybeSingle();
+      return prev;
+    }
 
-      if (!error && existingLike) {
-        hasLiked = true;
+    return [
+      ...prev,
+      'welcome-001'
+    ];
+  });
+
+  return;
+}
+
+    await fetchStatusComments(
+      status.id
+    );
+
+    const {
+      data: existingLike,
+      error: likeError
+    } = await supabase
+      .from('testimony_likes')
+      .select('id')
+      .eq(
+        'testimony_id',
+        status.id
+      )
+      .eq(
+        'user_id',
+        user.id
+      )
+      .maybeSingle();
+
+    if (likeError) {
+      console.error(
+        'Like lookup failed:',
+        likeError
+      );
+    }
+
+    const hasLiked =
+      !!existingLike;
+
+    setViewerLiked(
+      hasLiked
+    );
+
+    const {
+      data: firstView,
+      error: viewError
+    } = await supabase.rpc(
+      'record_testimony_view',
+      {
+        p_testimony_id:
+          status.id
       }
+    );
 
-      setViewerLiked(hasLiked);
+    if (viewError) {
+      console.error(
+        'Status view failed:',
+        viewError
+      );
+    }
+
+
+    if (firstView) {
+
+      const nextViews =
+        Number(
+          status.views || 0
+        ) + 1;
 
       setActiveViewStatus(prev => ({
         ...prev,
-        viewerLiked: hasLiked
+        views:
+          nextViews
       }));
-    } else {
-      setViewerLiked(false);
+
+      setTestimonies(prev =>
+        prev.map(item =>
+          item.id === status.id
+            ? {
+                ...item,
+                views:
+                  nextViews
+              }
+            : item
+        )
+      );
     }
 
-    await fetchStatusComments(status.id);
+    setViewedStatusIds(prev => {
 
-    if (
-      user &&
-      status.id !== 'welcome-001'
-    ) {
-      const storageKey =
-        `kp_status_views_${user.id}`;
+      const id =
+        String(status.id);
 
-      let viewedStatusIds = [];
-
-      try {
-        const saved =
-          localStorage.getItem(storageKey);
-
-        viewedStatusIds = saved
-          ? JSON.parse(saved)
-          : [];
-      } catch {
-        viewedStatusIds = [];
+      if (
+        prev.includes(id)
+      ) {
+        return prev;
       }
 
-      if (!viewedStatusIds.includes(status.id)) {
-        const newViewCount =
-          Number(status.views || 0) + 1;
-
-        const {
-          error: viewError
-        } = await supabase
-          .from('testimonies')
-          .update({
-            views: newViewCount
-          })
-          .eq('id', status.id);
-
-        if (!viewError) {
-          viewedStatusIds.push(status.id);
-
-          localStorage.setItem(
-            storageKey,
-            JSON.stringify(
-              viewedStatusIds
-            )
-          );
-
-          setActiveViewStatus(prev => ({
-            ...prev,
-            views: newViewCount
-          }));
-
-          setTestimonies(prev =>
-            prev.map(item =>
-              item.id === status.id
-                ? {
-                    ...item,
-                    views: newViewCount
-                  }
-                : item
-            )
-          );
-        }
-      }
-    }
+      return [
+        ...prev,
+        id
+      ];
+    });
 
   } catch (error) {
+
     console.error(
-      'Failed to prepare status viewer:',
+      'Failed to open status:',
       error
-    );
-  }
-
-  if (
-    !viewedStatuses.includes(group.userId)
-  ) {
-    const newViewed = [
-      ...viewedStatuses,
-      group.userId
-    ];
-
-    setViewedStatuses(newViewed);
-
-    localStorage.setItem(
-      'kp_viewed_statuses',
-      JSON.stringify(newViewed)
     );
   }
 };
@@ -3155,6 +3388,8 @@ const handleSubmitStatusComment = async () => {
     );
   }
 };
+
+
 
 const incrementStatusView = async (statusId, currentViews) => {
   const { data, error } = await supabase
@@ -13141,16 +13376,21 @@ const membersToNextMilestone =
 
   {groupedTestimonies.map(group => (
     <div key={group.userId} className="testimony-item" onClick={() => handleViewStatus(group)}>
-      <div 
-        className="testimony-circle" 
-        style={{ 
-          padding: '2px', 
-          background: viewedStatuses.includes(group.userId) ? '#8e9aab' : '#3b82f6', 
-          borderRadius: '50%',
-          width: '76px', 
-          height: '76px' 
-        }}
-      >
+      <div
+  className={
+    `testimony-circle ${
+      group.allViewed
+        ? 'status-ring-viewed'
+        : 'status-ring-active'
+    }`
+  }
+  style={{
+    padding: '3px',
+    borderRadius: '50%',
+    width: '76px',
+    height: '76px'
+  }}
+>
         <div style={{ border: '3px solid #101926', borderRadius: '50%', overflow: 'hidden', width: '100%', height: '100%' }}>
           <img
   src={normalizeAvatarUrl(
@@ -13192,7 +13432,12 @@ const membersToNextMilestone =
 
 {/* --- FULL SCREEN STATUS VIEWER MODAL --- */}
 {activeViewStatus && (() => {
-  const isMyStatus = currentUser && (activeViewStatus.user_id === currentUser.id || activeViewStatus.id === 'welcome-001');
+  const isMyStatus =
+  !!currentUser &&
+  !!activeViewStatus &&
+  !activeViewStatus.isSystemWelcome &&
+  activeViewStatus.user_id ===
+    currentUser.id;
 
   return (
     <div 
@@ -13211,13 +13456,18 @@ const membersToNextMilestone =
       <div className="status-viewer-header" style={{ position: 'absolute', top: '40px', left: '15px', right: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10, opacity: showCommentsPanel ? 0 : 1, transition: 'opacity 0.2s' }}>
         <div className="status-viewer-author" style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ffffff', background: 'rgba(0,0,0,0.3)', padding: '6px 12px 6px 6px', borderRadius: '30px', backdropFilter: 'blur(8px)' }}>
           <img
-  src={normalizeAvatarUrl(
-    activeViewStatus.avatar_url ||
-    activeViewStatus.avatar,
-    activeViewStatus.author_name ||
-    activeViewStatus.authorName ||
-    'User'
-  )}
+  src={
+    activeViewStatus.isSystemWelcome
+      ? '/assets/logo.png'
+      : normalizeAvatarUrl(
+          activeViewStatus.avatar_url ||
+          activeViewStatus.avatar,
+          activeViewStatus.author_name ||
+          activeViewStatus.authorName ||
+          'User'
+        )
+  }
+
   alt="author"
   onError={(e) => {
     e.currentTarget.onerror = null;
