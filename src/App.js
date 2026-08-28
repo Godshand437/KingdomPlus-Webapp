@@ -689,7 +689,7 @@ const handleLikeStatus = async () => {
       data: existingLike,
       error: checkError
     } = await supabase
-      .from('testimony_likes')
+      .from('likes')
       .select('id')
       .eq('testimony_id', activeViewStatus.id)
       .eq('user_id', user.id)
@@ -701,7 +701,7 @@ const handleLikeStatus = async () => {
 
     if (existingLike) {
       const { error: deleteError } = await supabase
-        .from('testimony_likes')
+        .from('likes')
         .delete()
         .eq('id', existingLike.id);
 
@@ -739,7 +739,7 @@ const handleLikeStatus = async () => {
     }
 
     const { error: insertError } = await supabase
-      .from('testimony_likes')
+      .from('likes')
       .insert([
         {
           testimony_id: activeViewStatus.id,
@@ -2908,7 +2908,7 @@ const handlePostComment = async (commentText) => {
         data: existingLike,
         error
       } = await supabase
-        .from('testimony_likes')
+        .from('likes')
         .select('id')
         .eq('testimony_id', status.id)
         .eq('user_id', user.id)
