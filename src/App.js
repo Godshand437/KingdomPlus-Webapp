@@ -530,6 +530,37 @@ useEffect(() => {
     return saved ? JSON.parse(saved) : [];
   });
 
+const getCurrentUserAvatar = () => {
+  return (
+    currentUser?.avatar_url ||
+    currentUser?.image ||
+    currentUser?.formData?.avatar ||
+    null
+  );
+};
+
+const getCurrentUsername = () => {
+  return (
+    currentUser?.formData?.username ||
+    currentUser?.username ||
+    'believer'
+  );
+};
+
+const getAvatarFallback = (name = 'User') => {
+  return `https://ui-avatars.com/api/?name=${encodeURIComponent(
+    name
+  )}&background=29beaf&color=fff&bold=true`;
+};
+
+const normalizeAvatarUrl = (avatar, username = 'User') => {
+  if (typeof avatar === 'string' && avatar.trim()) {
+    return avatar.trim();
+  }
+
+  return getAvatarFallback(username);
+};
+
   const [showCommentsPanel, setShowCommentsPanel] = useState(false);
   const [newStatusComment, setNewStatusComment] = useState("");
   const [statusComments, setStatusComments] = useState({
@@ -629,199 +660,126 @@ const [activeNewsArticle, setActiveNewsArticle] = useState(null);
 const [showNewsComments, setShowNewsComments] = useState(false);
 const [newCommentText, setNewCommentText] = useState("");
 const handleLikeStatus = async () => {
-
-  if (!activeViewStatus) {
-    return;
-  }
+  if (!activeViewStatus) return;
 
   const {
-    data: {
-      user
-    }
+    data: { user }
   } = await supabase.auth.getUser();
 
   if (!user) {
-    alert(
-      'Please sign in to like a status.'
-    );
+    alert('Please sign in to like a status.');
     return;
   }
 
+  if (activeViewStatus.id === 'welcome-001') {
+    setViewerLiked(prev => !prev);
 
-  const statusId =
-    activeViewStatus.id;
-
-
-  if (
-    statusId ===
-    'welcome-001'
-  ) {
-
-    setViewerLiked(
-      prev => !prev
-    );
+    setActiveViewStatus(prev => ({
+      ...prev,
+      likes: prev.viewerLiked
+        ? Math.max(0, Number(prev.likes || 0) - 1)
+        : Number(prev.likes || 0) + 1
+    }));
 
     return;
   }
-
 
   try {
-
     const {
       data: existingLike,
       error: checkError
     } = await supabase
       .from('testimony_likes')
       .select('id')
-      .eq(
-        'testimony_id',
-        statusId
-      )
-      .eq(
-        'user_id',
-        user.id
-      )
+      .eq('testimony_id', activeViewStatus.id)
+      .eq('user_id', user.id)
       .maybeSingle();
 
-    if (checkError) {
-      throw checkError;
-    }
+    if (checkError) throw checkError;
+
+    const currentLikes = Number(activeViewStatus.likes || 0);
 
     if (existingLike) {
-
-      await supabase
+      const { error: deleteError } = await supabase
         .from('testimony_likes')
         .delete()
-        .eq(
-          'id',
-          existingLike.id
-        );
+        .eq('id', existingLike.id);
 
-      const newLikes =
-        Math.max(
-          0,
-          Number(
-            activeViewStatus.likes ||
-            0
-          ) - 1
-        );
+      if (deleteError) throw deleteError;
 
-      await supabase
+      const newLikes = Math.max(0, currentLikes - 1);
+
+      const { error: statusError } = await supabase
         .from('testimonies')
-        .update({
-          likes:
-            newLikes
-        })
-        .eq(
-          'id',
-          statusId
-        );
+        .update({ likes: newLikes })
+        .eq('id', activeViewStatus.id);
+
+      if (statusError) throw statusError;
 
       setViewerLiked(false);
 
-      setActiveViewStatus(
-        prev => ({
-          ...prev,
-          likes: newLikes
-        })
-      );
+      setActiveViewStatus(prev => ({
+        ...prev,
+        likes: newLikes,
+        viewerLiked: false
+      }));
 
-      setTestimonies(
-        prev =>
-          prev.map(
-            status =>
-              status.id === statusId
-                ? {
-                    ...status,
-                    likes: newLikes
-                  }
-                : status
-          )
+      setTestimonies(prev =>
+        prev.map(status =>
+          status.id === activeViewStatus.id
+            ? {
+                ...status,
+                likes: newLikes
+              }
+            : status
+        )
       );
 
       return;
     }
 
-    const {
-      error: likeError
-    } = await supabase
-      .from(
-        'testimony_likes'
-      )
-      .insert([{
+    const { error: insertError } = await supabase
+      .from('testimony_likes')
+      .insert([
+        {
+          testimony_id: activeViewStatus.id,
+          user_id: user.id
+        }
+      ]);
 
-        testimony_id:
-          statusId,
+    if (insertError) throw insertError;
 
-        user_id:
-          user.id
+    const newLikes = currentLikes + 1;
 
-      }]);
-
-    if (likeError) {
-
-      if (
-        likeError.code ===
-        '23505'
-      ) {
-        setViewerLiked(true);
-        return;
-      }
-
-      throw likeError;
-    }
-
-
-    const newLikes =
-      Number(
-        activeViewStatus.likes ||
-        0
-      ) + 1;
-
-
-    await supabase
+    const { error: statusError } = await supabase
       .from('testimonies')
-      .update({
-        likes:
-          newLikes
-      })
-      .eq(
-        'id',
-        statusId
-      );
+      .update({ likes: newLikes })
+      .eq('id', activeViewStatus.id);
 
+    if (statusError) throw statusError;
 
     setViewerLiked(true);
 
-    setActiveViewStatus(
-      prev => ({
-        ...prev,
-        likes:
-          newLikes
-      })
-    );
+    setActiveViewStatus(prev => ({
+      ...prev,
+      likes: newLikes,
+      viewerLiked: true
+    }));
 
-    setTestimonies(
-      prev =>
-        prev.map(
-          status =>
-            status.id === statusId
-              ? {
-                  ...status,
-                  likes: newLikes
-                }
-              : status
-        )
+    setTestimonies(prev =>
+      prev.map(status =>
+        status.id === activeViewStatus.id
+          ? {
+              ...status,
+              likes: newLikes
+            }
+          : status
+      )
     );
-
 
   } catch (error) {
-
-    console.error(
-      'Status like failed:',
-      error
-    );
-
+    console.error('Status like failed:', error);
+    alert(error?.message || 'Unable to like this status.');
   }
 };
 
@@ -866,90 +824,157 @@ const handleShareNews = () => {
   alert("Article link copied to clipboard!");
 };
 
-const fetchStatusComments = async (
-  testimonyId
-) => {
-
-  if (!testimonyId) {
-    return;
-  }
+const fetchStatusComments = async (testimonyId) => {
+  if (!testimonyId) return;
 
   try {
+    const {
+      data: {
+        user: viewer
+      }
+    } = await supabase.auth.getUser();
 
     const {
-      data,
+      data: comments,
       error
     } = await supabase
-      .from(
-        'testimony_comments'
-      )
+      .from('testimony_comments')
       .select('*')
-      .eq(
-        'testimony_id',
-        testimonyId
-      )
-      .order(
-        'created_at',
-        {
-          ascending: false
-        }
-      );
+      .eq('testimony_id', testimonyId)
+      .order('created_at', {
+        ascending: false
+      });
 
-    if (error) {
-      throw error;
+    if (error) throw error;
+
+    const rows = comments || [];
+
+    const userIds = [
+      ...new Set(
+        rows
+          .map(comment => comment.user_id)
+          .filter(Boolean)
+      )
+    ];
+
+    let profileMap = new Map();
+
+    if (userIds.length > 0) {
+      const {
+        data: profiles,
+        error: profileError
+      } = await supabase
+        .from('user_profiles')
+        .select(`
+          id,
+          username,
+          full_name,
+          avatar_url,
+          image
+        `)
+        .in('id', userIds);
+
+      if (!profileError && profiles) {
+        profileMap = new Map(
+          profiles.map(profile => [
+            profile.id,
+            profile
+          ])
+        );
+      }
     }
 
+    let likedCommentIds = new Set();
 
-    const formatted =
-      (data || []).map(
-        comment => ({
-          ...comment,
+    if (viewer && rows.length > 0) {
+      const commentIds = rows
+        .map(comment => comment.id)
+        .filter(Boolean);
 
-          id:
-            comment.id,
+      if (commentIds.length > 0) {
+        const {
+          data: commentLikes,
+          error: likesError
+        } = await supabase
+          .from('testimony_comment_likes')
+          .select('comment_id')
+          .eq('user_id', viewer.id)
+          .in('comment_id', commentIds);
 
-          author:
-            comment.author_name ||
-            '@believer',
+        if (!likesError && commentLikes) {
+          likedCommentIds = new Set(
+            commentLikes.map(
+              item => item.comment_id
+            )
+          );
+        }
+      }
+    }
 
-          text:
-            comment.content,
+    const formatted = rows.map(comment => {
+      const profile =
+        profileMap.get(comment.user_id);
 
-          time:
-            new Date(
+      const username =
+        profile?.username ||
+        (comment.author_name || '').replace(/^@/, '') ||
+        'believer';
+
+      const avatar =
+        profile?.avatar_url ||
+        profile?.image ||
+        comment.avatar ||
+        null;
+
+      return {
+        ...comment,
+
+        id: comment.id,
+
+        author:
+          comment.author_name ||
+          `@${username}`,
+
+        text:
+          comment.content || '',
+
+        time: comment.created_at
+          ? new Date(
               comment.created_at
-            ).toLocaleString(),
+            ).toLocaleString()
+          : 'Just now',
 
-          likes:
-            Number(
-              comment.likes ||
-              0
-            ),
+        likes: Number(
+          comment.likes || 0
+        ),
 
-          isLiked:
-            false,
+        isLiked:
+          likedCommentIds.has(
+            comment.id
+          ),
 
-          avatar:
-            comment.avatar
-        })
-      );
+        avatar: normalizeAvatarUrl(
+          avatar,
+          username
+        )
+      };
+    });
 
-
-    setStatusComments(
-      prev => ({
-        ...prev,
-        [testimonyId]:
-          formatted
-      })
-    );
+    setStatusComments(prev => ({
+      ...prev,
+      [testimonyId]: formatted
+    }));
 
   } catch (error) {
-
     console.error(
       'Failed to load status comments:',
       error
     );
 
+    setStatusComments(prev => ({
+      ...prev,
+      [testimonyId]: []
+    }));
   }
 };
 
@@ -991,9 +1016,8 @@ const fetchStatusComments = async (
     }, {})
   );
 
-const toggleCommentLike = async (
-  commentId
-) => {
+const toggleCommentLike = async (commentId) => {
+  if (!activeViewStatus) return;
 
   const {
     data: {
@@ -1002,9 +1026,9 @@ const toggleCommentLike = async (
   } = await supabase.auth.getUser();
 
   if (!user) {
+    alert('Please sign in to like comments.');
     return;
   }
-
 
   const currentComments =
     statusComments[
@@ -1013,220 +1037,343 @@ const toggleCommentLike = async (
 
   const currentComment =
     currentComments.find(
-      c =>
-        c.id === commentId
+      comment => comment.id === commentId
     );
 
-  if (!currentComment) {
-    return;
-  }
-
+  if (!currentComment) return;
 
   try {
-
     const {
-      data: existingLike
+      data: existingLike,
+      error: checkError
     } = await supabase
-      .from(
-        'testimony_comment_likes'
-      )
+      .from('testimony_comment_likes')
       .select('id')
-      .eq(
-        'comment_id',
-        commentId
-      )
-      .eq(
-        'user_id',
-        user.id
-      )
+      .eq('comment_id', commentId)
+      .eq('user_id', user.id)
       .maybeSingle();
 
+    if (checkError) throw checkError;
 
     if (existingLike) {
 
-      await supabase
-        .from(
-          'testimony_comment_likes'
-        )
+      const {
+        error: deleteError
+      } = await supabase
+        .from('testimony_comment_likes')
         .delete()
-        .eq(
-          'id',
-          existingLike.id
-        );
+        .eq('id', existingLike.id);
 
-      const newLikes =
-        Math.max(
-          0,
-          Number(
-            currentComment.likes ||
-            0
-          ) - 1
-        );
+      if (deleteError) throw deleteError;
 
-      await supabase
-        .from(
-          'testimony_comments'
-        )
-        .update({
-          likes:
-            newLikes
-        })
-        .eq(
-          'id',
-          commentId
-        );
-
-      setStatusComments(
-        prev => ({
-          ...prev,
-
-          [activeViewStatus.id]:
-            currentComments.map(
-              comment =>
-                comment.id ===
-                commentId
-                  ? {
-                      ...comment,
-                      likes:
-                        newLikes,
-                      isLiked:
-                        false
-                    }
-                  : comment
-            )
-        })
+      const newLikes = Math.max(
+        0,
+        Number(currentComment.likes || 0) - 1
       );
+
+      const {
+        error: commentError
+      } = await supabase
+        .from('testimony_comments')
+        .update({
+          likes: newLikes
+        })
+        .eq('id', commentId);
+
+      if (commentError) throw commentError;
+
+      setStatusComments(prev => ({
+        ...prev,
+        [activeViewStatus.id]:
+          currentComments.map(comment =>
+            comment.id === commentId
+              ? {
+                  ...comment,
+                  likes: newLikes,
+                  isLiked: false
+                }
+              : comment
+          )
+      }));
 
       return;
     }
 
+    const {
+      error: insertError
+    } = await supabase
+      .from('testimony_comment_likes')
+      .insert([
+        {
+          comment_id: commentId,
+          user_id: user.id
+        }
+      ]);
 
-    await supabase
-      .from(
-        'testimony_comment_likes'
-      )
-      .insert([{
-
-        comment_id:
-          commentId,
-
-        user_id:
-          user.id
-
-      }]);
-
+    if (insertError) throw insertError;
 
     const newLikes =
-      Number(
-        currentComment.likes ||
-        0
-      ) + 1;
+      Number(currentComment.likes || 0) + 1;
 
-
-    await supabase
-      .from(
-        'testimony_comments'
-      )
+    const {
+      error: commentError
+    } = await supabase
+      .from('testimony_comments')
       .update({
-        likes:
-          newLikes
+        likes: newLikes
       })
-      .eq(
-        'id',
-        commentId
-      );
+      .eq('id', commentId);
 
+    if (commentError) throw commentError;
 
-    setStatusComments(
-      prev => ({
-        ...prev,
-
-        [activeViewStatus.id]:
-          currentComments.map(
-            comment =>
-              comment.id ===
-              commentId
-                ? {
-                    ...comment,
-                    likes:
-                      newLikes,
-                    isLiked:
-                      true
-                  }
-                : comment
-          )
-      })
-    );
+    setStatusComments(prev => ({
+      ...prev,
+      [activeViewStatus.id]:
+        currentComments.map(comment =>
+          comment.id === commentId
+            ? {
+                ...comment,
+                likes: newLikes,
+                isLiked: true
+              }
+            : comment
+        )
+    }));
 
   } catch (error) {
-
     console.error(
       'Comment like failed:',
       error
     );
 
+    alert(
+      error?.message ||
+      'Unable to update comment like.'
+    );
   }
 };
 
 const handleTapTransaction = async (status) => {
-    const tapAmount = 5;
+  const tapAmount = 5;
 
-    if (kpcBalance < tapAmount) {
-      alert(`Insufficient funds. You need ${tapAmount} KPC to tap into this testimony.`);
-      return;
+  if (!status) return;
+
+  if (status.id === 'welcome-001') {
+    alert('I Tap is not available on the permanent welcome status.');
+    return;
+  }
+
+  if (status.user_id === currentUser?.id) {
+    alert("You cannot tap into your own testimony!");
+    return;
+  }
+
+  if (Number(kpcBalance) < tapAmount) {
+    alert(
+      `Insufficient funds. You need ${tapAmount} KPC to tap into this testimony.`
+    );
+    return;
+  }
+
+  const {
+    data: {
+      user
+    }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    alert('Please sign in before using I Tap.');
+    return;
+  }
+
+  try {
+
+    const {
+      data: profile,
+      error: profileError
+    } = await supabase
+      .from('user_profiles')
+      .select('id, wallet_balance')
+      .eq('id', user.id)
+      .single();
+
+    if (profileError) throw profileError;
+
+    const currentBalance =
+      Number(profile.wallet_balance || 0);
+
+    if (currentBalance < tapAmount) {
+      throw new Error(
+        `Insufficient KPC balance. Available: ${currentBalance} KPC`
+      );
     }
 
-    if (status.user_id === currentUser?.id) {
-      alert("You cannot tap into your own testimony!");
-      return;
-    }
+    let recipientProfile = null;
 
-    setKpcBalance(prev => prev - tapAmount);
-    logTransaction(`Tapped into ${status.author_name || status.authorName}'s testimony`, -tapAmount, 'SPEND');
+    const {
+      data: userRecipient
+    } = await supabase
+      .from('user_profiles')
+      .select('id, wallet_balance')
+      .eq('id', status.user_id)
+      .maybeSingle();
 
-    try {
+    if (userRecipient) {
+      recipientProfile = {
+        ...userRecipient,
+        type: 'user'
+      };
+    } else {
+      const {
+        data: churchRecipient,
+        error: churchError
+      } = await supabase
+        .from('church_profiles')
+        .select('id, wallet_balance')
+        .eq('id', status.user_id)
+        .maybeSingle();
 
-      if (status.user_id) {
-        let { data: recipientProfile } = await supabase
-          .from('user_profiles')
-          .select('id, wallet_balance')
-          .eq('id', status.user_id)
-          .single();
-
-        if (recipientProfile) {
-          await supabase
-            .from('user_profiles')
-            .update({ wallet_balance: Number(recipientProfile.wallet_balance || 0) + tapAmount })
-            .eq('id', status.user_id);
-        } else {
-
-          let { data: churchProfile } = await supabase
-            .from('church_profiles')
-            .select('id, wallet_balance')
-            .eq('id', status.user_id)
-            .single();
-            
-          if (churchProfile) {
-            await supabase
-              .from('church_profiles')
-              .update({ wallet_balance: Number(churchProfile.wallet_balance || 0) + tapAmount })
-              .eq('id', status.user_id);
-          }
-        }
+      if (churchError) {
+        throw churchError;
       }
-      
-      if (status.id !== 'welcome-001') {
-        await supabase
-          .from('testimonies')
-          .update({ taps: (status.taps || 0) + 1 })
-          .eq('id', status.id);
-      }
 
-      alert("Hallelujah! You've successfully tapped into this testimony.");
-    } catch (err) {
-      console.error("Tap transaction failed in DB", err);
+      if (churchRecipient) {
+        recipientProfile = {
+          ...churchRecipient,
+          type: 'church'
+        };
+      }
     }
-  };
+
+    if (!recipientProfile) {
+      throw new Error(
+        'The testimony owner could not be found.'
+      );
+    }
+
+    const newSenderBalance =
+      currentBalance - tapAmount;
+
+    const {
+      error: senderUpdateError
+    } = await supabase
+      .from('user_profiles')
+      .update({
+        wallet_balance:
+          newSenderBalance
+      })
+      .eq('id', user.id);
+
+    if (senderUpdateError) {
+      throw senderUpdateError;
+    }
+
+    const receiverTable =
+      recipientProfile.type === 'church'
+        ? 'church_profiles'
+        : 'user_profiles';
+
+    const newReceiverBalance =
+      Number(
+        recipientProfile.wallet_balance || 0
+      ) + tapAmount;
+
+    const {
+      error: receiverUpdateError
+    } = await supabase
+      .from(receiverTable)
+      .update({
+        wallet_balance:
+          newReceiverBalance
+      })
+      .eq(
+        'id',
+        recipientProfile.id
+      );
+
+    if (receiverUpdateError) {
+      throw receiverUpdateError;
+    }
+
+    const newTapCount =
+      Number(status.taps || 0) + 1;
+
+    const {
+      error: tapError
+    } = await supabase
+      .from('testimonies')
+      .update({
+        taps: newTapCount
+      })
+      .eq('id', status.id);
+
+    if (tapError) {
+      throw tapError;
+    }
+
+    setKpcBalance(
+      newSenderBalance
+    );
+
+    setActiveViewStatus(prev => ({
+      ...prev,
+      taps: newTapCount
+    }));
+
+    setTestimonies(prev =>
+      prev.map(item =>
+        item.id === status.id
+          ? {
+              ...item,
+              taps: newTapCount
+            }
+          : item
+      )
+    );
+
+    if (currentUser) {
+      const updatedUser = {
+        ...currentUser,
+        wallet_balance:
+          newSenderBalance,
+        kpcBalance:
+          newSenderBalance
+      };
+
+      setCurrentUser(updatedUser);
+
+      localStorage.setItem(
+        'kp_current_user',
+        JSON.stringify(updatedUser)
+      );
+    }
+
+    await logTransaction(
+      `Tapped into ${
+        status.author_name ||
+        status.authorName ||
+        'testimony'
+      }`,
+      -tapAmount,
+      'SPEND'
+    );
+
+    alert(
+      `Hallelujah! You've successfully tapped ${tapAmount} KPC into this testimony.`
+    );
+
+  } catch (error) {
+    console.error(
+      'Tap transaction failed:',
+      error
+    );
+
+    alert(
+      error?.message ||
+      'I Tap transaction failed. Try again'
+    );
+  }
+};
 
 useEffect(() => {
   if (step === 6) {
@@ -2707,7 +2854,6 @@ const handlePostComment = async (commentText) => {
         console.error("Error saving comment:", error);
       } else {
         console.log("Comment saved to Supabase:", data);
-        // UNCOMMENT THIS LINE:
         setRealComments([data[0], ...realComments]);
       }
     } catch (err) {
@@ -2715,84 +2861,162 @@ const handlePostComment = async (commentText) => {
     }
 };
 
-// Handle opening a status and saving it to seen history
-  const handleViewStatus = async (
-  group
-) => {
 
-  const status =
-    group.statuses[0];
+  const handleViewStatus = async (group) => {
+  if (!group?.statuses?.length) return;
 
-  if (!status) {
-    return;
-  }
+  const status = group.statuses[0];
 
   if (
-    status.id !==
-      'welcome-001' &&
+    status.id !== 'welcome-001' &&
     status.expires_at &&
-    new Date(
-      status.expires_at
-    ) <= new Date()
+    new Date(status.expires_at) <= new Date()
   ) {
     return;
   }
 
-
-  setActiveViewStatus(
-    status
-  );
+  setActiveViewStatus({
+    ...status,
+    avatar_url:
+      normalizeAvatarUrl(
+        status.avatar_url || status.avatar,
+        status.author_name ||
+        status.authorName ||
+        'User'
+      )
+  });
 
   setStatusProgress(0);
-
   setIsStatusPaused(false);
-
   setShowCommentsPanel(false);
-
-  setViewerLiked(false);
-
   setNewStatusComment('');
 
+  let hasLiked = false;
 
-  if (
-    status.id !==
-    'welcome-001'
-  ) {
+  try {
+    const {
+      data: {
+        user
+      }
+    } = await supabase.auth.getUser();
 
-    await fetchStatusComments(
-      status.id
+    if (
+      user &&
+      status.id !== 'welcome-001'
+    ) {
+      const {
+        data: existingLike,
+        error
+      } = await supabase
+        .from('testimony_likes')
+        .select('id')
+        .eq('testimony_id', status.id)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (!error && existingLike) {
+        hasLiked = true;
+      }
+
+      setViewerLiked(hasLiked);
+
+      setActiveViewStatus(prev => ({
+        ...prev,
+        viewerLiked: hasLiked
+      }));
+    } else {
+      setViewerLiked(false);
+    }
+
+    await fetchStatusComments(status.id);
+
+    if (
+      user &&
+      status.id !== 'welcome-001'
+    ) {
+      const storageKey =
+        `kp_status_views_${user.id}`;
+
+      let viewedStatusIds = [];
+
+      try {
+        const saved =
+          localStorage.getItem(storageKey);
+
+        viewedStatusIds = saved
+          ? JSON.parse(saved)
+          : [];
+      } catch {
+        viewedStatusIds = [];
+      }
+
+      if (!viewedStatusIds.includes(status.id)) {
+        const newViewCount =
+          Number(status.views || 0) + 1;
+
+        const {
+          error: viewError
+        } = await supabase
+          .from('testimonies')
+          .update({
+            views: newViewCount
+          })
+          .eq('id', status.id);
+
+        if (!viewError) {
+          viewedStatusIds.push(status.id);
+
+          localStorage.setItem(
+            storageKey,
+            JSON.stringify(
+              viewedStatusIds
+            )
+          );
+
+          setActiveViewStatus(prev => ({
+            ...prev,
+            views: newViewCount
+          }));
+
+          setTestimonies(prev =>
+            prev.map(item =>
+              item.id === status.id
+                ? {
+                    ...item,
+                    views: newViewCount
+                  }
+                : item
+            )
+          );
+        }
+      }
+    }
+
+  } catch (error) {
+    console.error(
+      'Failed to prepare status viewer:',
+      error
     );
-
   }
 
-
   if (
-    !viewedStatuses.includes(
-      group.userId
-    )
+    !viewedStatuses.includes(group.userId)
   ) {
-
     const newViewed = [
       ...viewedStatuses,
       group.userId
     ];
 
-    setViewedStatuses(
-      newViewed
-    );
+    setViewedStatuses(newViewed);
 
     localStorage.setItem(
       'kp_viewed_statuses',
-      JSON.stringify(
-        newViewed
-      )
+      JSON.stringify(newViewed)
     );
-
   }
 };
 
 const handleSubmitStatusComment = async () => {
-
   const text =
     newStatusComment.trim();
 
@@ -2810,7 +3034,6 @@ const handleSubmitStatusComment = async () => {
     return;
   }
 
-
   const {
     data: {
       user
@@ -2824,49 +3047,41 @@ const handleSubmitStatusComment = async () => {
     return;
   }
 
-
   const username =
-    currentUser?.formData?.username ||
-    currentUser?.username ||
-    'believer';
+    getCurrentUsername();
 
   const avatar =
-    currentUser?.formData?.avatar ||
-    currentUser?.image ||
-    username.charAt(0).toUpperCase();
-
+    getCurrentUserAvatar();
 
   try {
-
     const {
       data,
       error
     } = await supabase
-      .from(
-        'testimony_comments'
-      )
-      .insert([{
+      .from('testimony_comments')
+      .insert([
+        {
+          testimony_id:
+            activeViewStatus.id,
 
-        testimony_id:
-          activeViewStatus.id,
+          user_id:
+            user.id,
 
-        user_id:
-          user.id,
+          author_name:
+            `@${username}`,
 
-        author_name:
-          `@${username}`,
+          avatar:
+            normalizeAvatarUrl(
+              avatar,
+              username
+            ),
 
-        avatar:
+          content:
+            text,
 
-          avatar,
-
-        content:
-          text,
-
-        likes:
-          0
-
-      }])
+          likes: 0
+        }
+      ])
       .select()
       .single();
 
@@ -2874,9 +3089,7 @@ const handleSubmitStatusComment = async () => {
       throw error;
     }
 
-
     const formatted = {
-
       ...data,
 
       author:
@@ -2888,31 +3101,49 @@ const handleSubmitStatusComment = async () => {
       time:
         'Just now',
 
-      isLiked:
-        false
+      likes: 0,
 
+      isLiked: false,
+
+      avatar:
+        normalizeAvatarUrl(
+          avatar,
+          username
+        )
     };
 
+    setStatusComments(prev => ({
+      ...prev,
 
-    setStatusComments(
-      prev => ({
-        ...prev,
+      [activeViewStatus.id]: [
+        formatted,
+        ...(prev[
+          activeViewStatus.id
+        ] || [])
+      ]
+    }));
 
-        [activeViewStatus.id]: [
-          formatted,
-          ...(prev[
-            activeViewStatus.id
-          ] || [])
-        ]
-
-      })
+    setTestimonies(prev =>
+      prev.map(status =>
+        status.id === activeViewStatus.id
+          ? {
+              ...status,
+              comments:
+                Number(status.comments || 0) + 1
+            }
+          : status
+      )
     );
 
+    setActiveViewStatus(prev => ({
+      ...prev,
+      comments:
+        Number(prev.comments || 0) + 1
+    }));
 
     setNewStatusComment('');
 
   } catch (error) {
-
     console.error(
       'Status comment failed:',
       error
@@ -2922,9 +3153,7 @@ const handleSubmitStatusComment = async () => {
       error?.message ||
       'Could not post comment.'
     );
-
   }
-
 };
 
 const incrementStatusView = async (statusId, currentViews) => {
@@ -7300,14 +7529,27 @@ const handleKingdomPublish = async (
       };
 
       const {
-        error
-      } = await supabase
-        .from('kingdom_content')
-        .insert([payload]);
+  data: createdContent,
+  error
+} = await supabase
+  .from('kingdom_content')
+  .insert([payload])
+  .select('id')
+  .single();
 
       if (error) {
         throw error;
       }
+await registerMinistryActivity({
+  ministryId: user.id,
+  contentId: createdContent.id,
+  activityType: 'message',
+  title: studioTitle.trim(),
+  description:
+    studioBody.trim() || null,
+  isPublic: true,
+  createdBy: user.id
+});
     }
 
 else if (
@@ -7636,6 +7878,8 @@ const [isMinistryMembersModalOpen, setIsMinistryMembersModalOpen] = useState(fal
 const [ministryDirectoryMembers, setMinistryDirectoryMembers] = useState([]);
 const [ministryMemberPage, setMinistryMemberPage] = useState(0);
 const [hasMoreMinistryMembers, setHasMoreMinistryMembers] = useState(true);
+const [isMinistryPublisherOpen, setIsMinistryPublisherOpen] = useState(false);
+const [ministryPublishType, setMinistryPublishType] = useState(null);
 const [isLoadingMemberDirectory, setIsLoadingMemberDirectory] = useState(false);
 
 const MINISTRY_MEMBERS_PAGE_SIZE = 30;
@@ -8391,6 +8635,19 @@ useEffect(() => {
   activeMinistryWorkspace?.ministry?.id
 ]);
 
+const [ministryActivities, setMinistryActivities] = useState([]);
+const [isLoadingMinistryActivities, setIsLoadingMinistryActivities] = useState(false);
+
+const [ministryAnalytics, setMinistryAnalytics] = useState({
+  totalViews: 0,
+  uniqueViewers: 0,
+  memberViews: 0,
+  publicViews: 0,
+  participations: 0,
+  completions: 0,
+  reactions: 0
+});
+
 const [ministryWorkspaceSection, setMinistryWorkspaceSection] = useState('overview');
 const openMinistryMembersModal = () => {
   setIsMinistryMembersModalOpen(true);
@@ -8827,11 +9084,250 @@ setStep(26);
   }
 };
 
+const recordMinistryProfileVisit = async (ministryId) => {
+  if (!ministryId) return;
+
+  try {
+    const { error } = await supabase
+      .from('ministry_profile_visits')
+      .insert({
+        ministry_id: ministryId,
+        visitor_id: authUserId || null
+      });
+
+    if (error) {
+      console.error(
+        'Failed to record Ministry profile visit:',
+        error
+      );
+    }
+  } catch (error) {
+    console.error(
+      'Ministry profile visit error:',
+      error
+    );
+  }
+};
+
   const followedMinistries = [
     { id: 1, name: "Grace Sanctuary", isMain: true, img: "⛪" },
     { id: 2, name: "Elevation", isMain: false, img: "🔥" },
     { id: 3, name: "Hillsong", isMain: false, img: "🕊️" }
   ];
+
+const registerMinistryActivity = async ({
+  ministryId,
+  contentId,
+  activityType,
+  title,
+  description = null,
+  isPublic = true,
+  createdBy = null
+}) => {
+  if (!ministryId || !contentId) {
+    return null;
+  }
+
+  try {
+    const {
+      data,
+      error
+    } = await supabase
+      .from('ministry_activities')
+      .insert({
+        ministry_id: ministryId,
+        activity_type: activityType,
+        content_id: contentId,
+        title: title || null,
+        description: description || null,
+        is_public: isPublic,
+        created_by: createdBy
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error(
+        'Failed to register Ministry activity:',
+        error
+      );
+
+      return null;
+    }
+
+    return data;
+
+  } catch (error) {
+    console.error(
+      'Ministry activity registration error:',
+      error
+    );
+
+    return null;
+  }
+};
+
+const loadMinistryActivities = async (
+  ministryIdOverride = null
+) => {
+  const ministryId =
+    ministryIdOverride ||
+    activeMinistryWorkspace?.ministry?.id ||
+    (
+      userProfile?.account_type === 'Ministry'
+        ? userProfile.id
+        : null
+    );
+
+  if (!ministryId) {
+    setMinistryActivities([]);
+    return;
+  }
+
+  setIsLoadingMinistryActivities(true);
+
+  try {
+    const {
+      data,
+      error
+    } = await supabase
+      .from('ministry_activities')
+      .select(`
+        id,
+        ministry_id,
+        activity_type,
+        content_id,
+        title,
+        description,
+        is_public,
+        created_at
+      `)
+      .eq(
+        'ministry_id',
+        ministryId
+      )
+      .order('created_at', {
+        ascending: false
+      })
+      .limit(50);
+
+    if (error) {
+      throw error;
+    }
+
+    setMinistryActivities(
+      data || []
+    );
+
+  } catch (error) {
+    console.error(
+      'Failed to load Ministry activities:',
+      error
+    );
+
+    setMinistryActivities([]);
+
+  } finally {
+    setIsLoadingMinistryActivities(false);
+  }
+};
+
+const loadMinistryAnalytics = async (
+  ministryIdOverride = null
+) => {
+  const ministryId =
+    ministryIdOverride ||
+    activeMinistryWorkspace?.ministry?.id ||
+    (
+      userProfile?.account_type === 'Ministry'
+        ? userProfile.id
+        : null
+    );
+
+  if (!ministryId) {
+    return;
+  }
+
+  try {
+    const {
+      data,
+      error
+    } = await supabase
+      .from('ministry_activity_events')
+      .select(`
+        id,
+        activity_id,
+        user_id,
+        event_type,
+        created_at
+      `)
+      .eq(
+        'ministry_id',
+        ministryId
+      );
+
+    if (error) {
+      throw error;
+    }
+
+    const events =
+      data || [];
+
+    const viewEvents =
+      events.filter(
+        event =>
+          event.event_type === 'view'
+      );
+
+    const uniqueViewers =
+      new Set(
+        viewEvents
+          .map(
+            event => event.user_id
+          )
+          .filter(Boolean)
+      ).size;
+
+    setMinistryAnalytics({
+      totalViews:
+        viewEvents.length,
+
+      uniqueViewers,
+
+      memberViews: 0,
+
+      publicViews:
+        viewEvents.length,
+
+      participations:
+        events.filter(
+          event =>
+            event.event_type ===
+            'participation'
+        ).length,
+
+      completions:
+        events.filter(
+          event =>
+            event.event_type ===
+            'completion'
+        ).length,
+
+      reactions:
+        events.filter(
+          event =>
+            event.event_type ===
+            'reaction'
+        ).length
+    });
+
+  } catch (error) {
+    console.error(
+      'Failed to load Ministry analytics:',
+      error
+    );
+  }
+};
 
 const loadMinistryLeaders = async (ministryIdOverride = null) => {
   const ministryId =
@@ -8961,6 +9457,11 @@ const loadMinistryLeaders = async (ministryIdOverride = null) => {
   }
 };
 
+const [
+  isMinistryContentModalOpen,
+  setIsMinistryContentModalOpen
+] = useState(false);
+
 useEffect(() => {
   if (!userProfile?.id) {
     return;
@@ -8990,6 +9491,37 @@ useEffect(() => {
   userProfile?.account_type,
   activeMinistryWorkspace?.ministry?.id
 ]);
+
+useEffect(() => {
+  const ministryId =
+    activeMinistryWorkspace?.ministry?.id ||
+    (
+      userProfile?.account_type === 'Ministry'
+        ? userProfile.id
+        : null
+    );
+
+  if (
+    step !== 26 ||
+    !ministryId
+  ) {
+    return;
+  }
+
+  loadMinistryActivities(
+    ministryId
+  );
+
+  loadMinistryAnalytics(
+    ministryId
+  );
+}, [
+  step,
+  activeMinistryWorkspace?.ministry?.id,
+  userProfile?.id,
+  userProfile?.account_type
+]);
+
 
 // ==========================================
   // PROFILE EDIT & UPLOAD STATES
@@ -9567,16 +10099,14 @@ const fetchTreasuryAssets = async () => {
   (txs || []).map(tx => {
 
     const positiveTypes = [
-      'EARN',
-      'AIRDROP'
-    ];
+  'EARN',
+  'AIRDROP'
+];
 
-    const isPositive =
-      positiveTypes.includes(
-        String(
-          tx.tx_type || ''
-        ).toUpperCase()
-      );
+const isPositive =
+  positiveTypes.includes(
+    String(tx.tx_type || '').toUpperCase()
+  );
 
     return {
       id:
@@ -12622,10 +13152,21 @@ const membersToNextMilestone =
         }}
       >
         <div style={{ border: '3px solid #101926', borderRadius: '50%', overflow: 'hidden', width: '100%', height: '100%' }}>
-          <img 
-  src={group.avatar || 'https://ui-avatars.com/api/?name=User&background=29beaf&color=fff'} 
-  alt={group.authorName} 
-  onError={(e) => { e.target.onerror = null; e.target.src = 'https://ui-avatars.com/api/?name=User&background=29beaf&color=fff'; }}
+          <img
+  src={normalizeAvatarUrl(
+    group.avatar,
+    group.authorName || 'User'
+  )}
+  alt={
+    group.authorName || 'User'
+  }
+  onError={(e) => {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src =
+      getAvatarFallback(
+        group.authorName || 'User'
+      );
+  }}
   style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid #101926' }} 
 />
         </div>
@@ -12669,11 +13210,33 @@ const membersToNextMilestone =
       {/* Header */}
       <div className="status-viewer-header" style={{ position: 'absolute', top: '40px', left: '15px', right: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10, opacity: showCommentsPanel ? 0 : 1, transition: 'opacity 0.2s' }}>
         <div className="status-viewer-author" style={{ display: 'flex', alignItems: 'center', gap: '12px', color: '#ffffff', background: 'rgba(0,0,0,0.3)', padding: '6px 12px 6px 6px', borderRadius: '30px', backdropFilter: 'blur(8px)' }}>
-          <img 
-            src={activeViewStatus.avatar_url || activeViewStatus.avatar} 
-            alt="author" 
-            style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #f3ca58' }} 
-          />
+          <img
+  src={normalizeAvatarUrl(
+    activeViewStatus.avatar_url ||
+    activeViewStatus.avatar,
+    activeViewStatus.author_name ||
+    activeViewStatus.authorName ||
+    'User'
+  )}
+  alt="author"
+  onError={(e) => {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src =
+      getAvatarFallback(
+        activeViewStatus.author_name ||
+        activeViewStatus.authorName ||
+        'User'
+      );
+  }}
+  style={{
+    width: '38px',
+    height: '38px',
+    borderRadius: '50%',
+    objectFit: 'cover',
+    border: '2px solid #f3ca58',
+    flexShrink: 0
+  }}
+/>
           <span style={{ fontWeight: '800', fontSize: '14px', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
             {activeViewStatus.author_name || activeViewStatus.authorName}
           </span>
@@ -12687,7 +13250,27 @@ const membersToNextMilestone =
       </div>
 
       {/* Right-Side Action Bar */}
-      <div className="status-action-bar" style={{ position: 'absolute', right: '16px', bottom: '80px', display: 'flex', flexDirection: 'column', gap: '22px', zIndex: 10, opacity: showCommentsPanel ? 0 : 1, transition: 'opacity 0.2s' }}>
+      <div
+  className="status-action-bar"
+  style={{
+    position: 'absolute',
+    right: '12px',
+    bottom:
+      'max(88px, calc(env(safe-area-inset-bottom) + 72px))',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '18px',
+    zIndex: 30,
+    opacity:
+      showCommentsPanel ? 0 : 1,
+    pointerEvents:
+      showCommentsPanel
+        ? 'none'
+        : 'auto',
+    transition:
+      'opacity .2s ease'
+  }}
+>
         
         {/* Like */}
         <div className="action-icon-group" onClick={handleLikeStatus} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
@@ -12700,7 +13283,16 @@ const membersToNextMilestone =
         </div>
 
         {/* Comment */}
-        <div className="action-icon-group" onClick={() => setShowCommentsPanel(true)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+        <div className="action-icon-group"  onClick={async () => {
+    setIsStatusPaused(true);
+    setShowCommentsPanel(true);
+
+    if (activeViewStatus?.id) {
+      await fetchStatusComments(
+        activeViewStatus.id
+      );
+    }
+  }} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
           <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
             <MessageIcon />
           </div>
@@ -12717,10 +13309,47 @@ const membersToNextMilestone =
           <span style={{ color: '#f3ca58', fontSize: '13px', fontWeight: '900', textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>I Tap</span>
         </div>
 
-        <div className="action-icon-group" onClick={() => {
-          navigator.clipboard.writeText(`https://kingdomplus.app/status/${activeViewStatus.id}`);
-          alert("Link copied to clipboard!");
-        }} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
+        {/* Share */}
+        <div className="action-icon-group" onClick={async () => {
+    const shareUrl =
+      `${window.location.origin}/status/${activeViewStatus.id}`;
+
+    try {
+      if (
+        navigator.share
+      ) {
+        await navigator.share({
+          title:
+            activeViewStatus.author_name ||
+            'KingdomPlus Status',
+
+          text:
+            activeViewStatus.text_content ||
+            'View this testimony on KingdomPlus.',
+
+          url: shareUrl
+        });
+      } else {
+        await navigator.clipboard.writeText(
+          shareUrl
+        );
+
+        alert(
+          'Status link copied!'
+        );
+      }
+    } catch (error) {
+      if (
+        error?.name !==
+        'AbortError'
+      ) {
+        console.error(
+          'Share failed:',
+          error
+        );
+      }
+    }
+  }} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
           <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
             <ShareIcon />
           </div>
@@ -12756,14 +13385,30 @@ const membersToNextMilestone =
             <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             {(statusComments[activeViewStatus.id] || []).map((comment) => (
               <div key={comment.id} style={{ display: 'flex', gap: '12px' }}>
-                {/* Dynamically render Image or Letter Avatar */}
-                {comment.avatar && (comment.avatar.includes('http') || comment.avatar.includes('/')) ? (
-                   <img src={comment.avatar} alt="avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-                ) : (
-                   <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#4facfe', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
-                     {comment.avatar || 'U'}
-                   </div>
-                )}
+                                   <img
+  src={normalizeAvatarUrl(
+    comment.avatar,
+    comment.author || 'User'
+  )}
+  alt={comment.author || 'avatar'}
+  onError={(e) => {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src =
+      getAvatarFallback(
+        comment.author || 'User'
+      );
+  }}
+  style={{
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    objectFit: 'cover',
+    flexShrink: 0,
+    border:
+      '1px solid rgba(255,255,255,.12)'
+  }}
+/>
+
                 
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
@@ -12785,14 +13430,27 @@ const membersToNextMilestone =
           </div>
 
           <div style={{ padding: '12px 16px', borderTop: '1px solid #3d3d3d', display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#212121' }}>
-             {/* Current User Avatar Display */}
-             {currentUser?.formData?.avatar || currentUser?.image ? (
-                <img src={currentUser?.formData?.avatar || currentUser?.image} alt="my-avatar" style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} />
-             ) : (
-                <div style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#f3ca58', color: '#101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', flexShrink: 0 }}>
-                  {(currentUser?.formData?.username || currentUser?.username || 'B').charAt(0).toUpperCase()}
-                </div>
-             )}
+             <img
+  src={normalizeAvatarUrl(
+    getCurrentUserAvatar(),
+    getCurrentUsername()
+  )}
+  alt="my-avatar"
+  onError={(e) => {
+    e.currentTarget.onerror = null;
+    e.currentTarget.src =
+      getAvatarFallback(
+        getCurrentUsername()
+      );
+  }}
+  style={{
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    objectFit: 'cover',
+    flexShrink: 0
+  }}
+/>
              
              <input 
                 type="text" 
@@ -12843,88 +13501,378 @@ const membersToNextMilestone =
         </>
       )}
 
-      <div 
-        className="status-media-content" 
-        onMouseDown={() => setIsStatusPaused(true)}
-        onMouseUp={() => setIsStatusPaused(false)}
-        onTouchStart={() => setIsStatusPaused(true)}
-        onTouchEnd={() => setIsStatusPaused(false)}
-        style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: activeViewStatus.bg_color || '#0f0f0f', width: '100%', height: '100%' }}
-      >
-        {activeViewStatus.media_type === 'video' ? (
-          <video 
-            ref={statusVideoRef}
-            src={activeViewStatus.media_src || activeViewStatus.media_url} 
-            autoPlay 
-            playsInline 
-            onTimeUpdate={handleVideoProgress}
-            onEnded={() => setActiveViewStatus(null)}
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-          />
-        ) : activeViewStatus.media_type === 'text' ? (
-          <div style={{ padding: '40px', textAlign: 'center', color: '#fff', fontSize: '28px', fontWeight: '900', lineHeight: '1.4' }}>
-            {activeViewStatus.text_content}
-          </div>
-        ) : (
-          <img 
-            src={activeViewStatus.media_src || activeViewStatus.media_url || activeViewStatus.bgImage} 
-            alt="Status" 
-            style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
-          />
-        )}
-      </div>
+      <div
+  className="status-media-content"
+  onMouseDown={() =>
+    setIsStatusPaused(true)
+  }
+  onMouseUp={() =>
+    setIsStatusPaused(false)
+  }
+  onTouchStart={() =>
+    setIsStatusPaused(true)
+  }
+  onTouchEnd={() =>
+    setIsStatusPaused(false)
+  }
+  style={{
+    position: 'absolute',
+    inset: 0,
+    width: '100%',
+    height: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    overflow: 'hidden',
+
+    // IMPORTANT:
+    // Text statuses use their saved database color.
+    backgroundColor:
+      activeViewStatus.bg_color ||
+      '#0f0f0f'
+  }}
+>
+  {activeViewStatus.media_type === 'video' ? (
+    <video
+      ref={statusVideoRef}
+      src={
+        activeViewStatus.media_src ||
+        activeViewStatus.media_url
+      }
+      autoPlay
+      playsInline
+      muted={false}
+      onTimeUpdate={handleVideoProgress}
+      onEnded={() =>
+        setActiveViewStatus(null)
+      }
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block'
+      }}
+    />
+  ) : activeViewStatus.media_type === 'text' ? (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding:
+          '90px 32px 120px',
+        boxSizing: 'border-box',
+        textAlign: 'center',
+        color: '#fff',
+        fontSize:
+          'clamp(28px, 7vw, 48px)',
+        fontWeight: '900',
+        lineHeight: '1.25',
+        whiteSpace: 'pre-wrap',
+        overflowY: 'auto',
+        textShadow:
+          '0 2px 8px rgba(0,0,0,.2)'
+      }}
+    >
+      {activeViewStatus.text_content}
+    </div>
+  ) : (
+    <img
+      src={
+        activeViewStatus.media_src ||
+        activeViewStatus.media_url ||
+        activeViewStatus.bgImage
+      }
+      alt="Status"
+      onError={(e) => {
+        e.currentTarget.onerror = null;
+        e.currentTarget.src =
+          getAvatarFallback(
+            activeViewStatus.author_name ||
+            activeViewStatus.authorName ||
+            'Status'
+          );
+      }}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block'
+      }}
+    />
+  )}
+</div>
     </div>
   );
 })()}
 
 {/* --- TEXT STATUS UPLOAD MODAL --- */}
 {showTextStatusModal && (
-  <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: textStatusBg, zIndex: 999999, display: 'flex', flexDirection: 'column' }}>
-    <div style={{ padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-      <span onClick={() => setShowTextStatusModal(false)} style={{ color: '#fff', cursor: 'pointer', padding: '10px' }}><XIcon /></span>
-      <button 
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      width: '100vw',
+      height: '100dvh',
+      backgroundColor: textStatusBg,
+      zIndex: 999999,
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden'
+    }}
+  >
+
+    <div
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        padding:
+          'max(16px, env(safe-area-inset-top)) 20px 16px',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        zIndex: 5
+      }}
+    >
+      <button
+        type="button"
         onClick={() => {
-          if (!textStatusContent.trim()) return;
-          const newStatus = {
-            id: `text-${Date.now()}`,
-            user_id: currentUser?.id,
-            authorName: `@${currentUser?.formData?.username || currentUser?.username || 'believer'}`,
-            avatar: currentUser?.formData?.avatar || currentUser?.image,
-            media_type: 'text',
-            text_content: textStatusContent,
-            bg_color: textStatusBg,
-            views: 0, likes: 0,
-          };
-          setTestimonies([{ ...newStatus, statuses: [newStatus] }, ...testimonies]); 
           setShowTextStatusModal(false);
-          setTextStatusContent("");
+          setTextStatusContent('');
         }}
-        style={{ background: '#fff', color: '#101926', border: 'none', padding: '8px 20px', borderRadius: '20px', fontWeight: 'bold' }}
+        style={{
+          background: 'rgba(0,0,0,0.25)',
+          border: '1px solid rgba(255,255,255,0.25)',
+          color: '#fff',
+          width: '42px',
+          height: '42px',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          cursor: 'pointer'
+        }}
+      >
+        <XIcon />
+      </button>
+
+      <button
+        type="button"
+        disabled={!textStatusContent.trim()}
+        onClick={async () => {
+          const text =
+            textStatusContent.trim();
+
+          if (!text || !currentUser) {
+            return;
+          }
+
+          try {
+            setIsUploadingStatus(true);
+
+            const username =
+              getCurrentUsername();
+
+            const avatar =
+              getCurrentUserAvatar();
+
+            const newStatus = {
+              user_id:
+                currentUser.id,
+
+              author_name:
+                currentUser.full_name ||
+                currentUser.church_name ||
+                `@${username}`,
+
+              avatar_url:
+                normalizeAvatarUrl(
+                  avatar,
+                  username
+                ),
+
+              media_type:
+                'text',
+
+              media_url:
+                null,
+
+              text_content:
+                text,
+
+              bg_color:
+                textStatusBg,
+
+              views: 0,
+
+              likes: 0,
+
+              taps: 0
+            };
+
+            const {
+              data: insertedStatus,
+              error
+            } = await supabase
+              .from('testimonies')
+              .insert([
+                newStatus
+              ])
+              .select()
+              .single();
+
+            if (error) {
+              throw error;
+            }
+
+            setTestimonies(prev => [
+              insertedStatus,
+              ...prev
+            ]);
+
+            setShowTextStatusModal(false);
+            setTextStatusContent('');
+            setTextStatusBg('#4facfe');
+
+            alert(
+              'Text testimony posted successfully!'
+            );
+
+          } catch (error) {
+            console.error(
+              'Text status creation failed:',
+              error
+            );
+
+            alert(
+              error?.message ||
+              'Could not post your text testimony.'
+            );
+
+          } finally {
+            setIsUploadingStatus(false);
+          }
+        }}
+        style={{
+          background: '#fff',
+          color: '#101926',
+          border: 'none',
+          padding: '10px 22px',
+          borderRadius: '22px',
+          fontWeight: '900',
+          cursor: textStatusContent.trim()
+            ? 'pointer'
+            : 'default',
+          opacity:
+            textStatusContent.trim()
+              ? 1
+              : 0.5
+        }}
       >
         Post
       </button>
     </div>
-    
-    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <textarea 
+
+    {/* Text Canvas */}
+    <div
+      style={{
+        flex: 1,
+        width: '100%',
+        minHeight: 0,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding:
+          '90px 24px 130px',
+        boxSizing: 'border-box'
+      }}
+    >
+      <textarea
         autoFocus
         placeholder="Type your testimony..."
         value={textStatusContent}
-        onChange={(e) => setTextStatusContent(e.target.value)}
-        style={{ width: '100%', background: 'transparent', border: 'none', color: '#fff', fontSize: '32px', fontWeight: 'bold', textAlign: 'center', outline: 'none', resize: 'none' }}
-        rows={5}
+        onChange={(e) =>
+          setTextStatusContent(
+            e.target.value
+          )
+        }
+        style={{
+          width: '100%',
+          maxWidth: '720px',
+          minHeight: '240px',
+          background: 'transparent',
+          border: 'none',
+          color: '#fff',
+          fontSize:
+            'clamp(28px, 6vw, 48px)',
+          fontWeight: '900',
+          textAlign: 'center',
+          lineHeight: '1.25',
+          outline: 'none',
+          resize: 'none',
+          fontFamily: 'inherit'
+        }}
       />
     </div>
 
-    {/* Color Picker Picker Row */}
-    <div style={{ padding: '20px', display: 'flex', gap: '15px', justifyContent: 'center', overflowX: 'auto' }}>
-      {['#4facfe', '#ff0844', '#f83600', '#00c6ff', '#16a085', '#8e44ad'].map(color => (
-        <div key={color} onClick={() => setTextStatusBg(color)} style={{ width: '40px', height: '40px', borderRadius: '50%', background: color, border: textStatusBg === color ? '3px solid #fff' : '2px solid transparent', cursor: 'pointer' }} />
+    {/* Color Picker */}
+    <div
+      style={{
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        padding:
+          '16px 20px max(20px, env(safe-area-inset-bottom))',
+        display: 'flex',
+        justifyContent: 'center',
+        gap: '14px',
+        overflowX: 'auto',
+        background:
+          'linear-gradient(to top, rgba(0,0,0,.20), transparent)',
+        zIndex: 5
+      }}
+    >
+      {[
+        '#4facfe',
+        '#ff0844',
+        '#f83600',
+        '#00c6ff',
+        '#16a085',
+        '#8e44ad'
+      ].map(color => (
+        <button
+          key={color}
+          type="button"
+          onClick={() =>
+            setTextStatusBg(color)
+          }
+          style={{
+            width: '44px',
+            height: '44px',
+            minWidth: '44px',
+            borderRadius: '50%',
+            background: color,
+            border:
+              textStatusBg === color
+                ? '3px solid #fff'
+                : '2px solid rgba(255,255,255,.35)',
+            boxShadow:
+              textStatusBg === color
+                ? '0 0 0 3px rgba(0,0,0,.2)'
+                : 'none',
+            cursor: 'pointer'
+          }}
+        />
       ))}
     </div>
+
   </div>
 )}
-
 
                 {/* Interactive Worship Section */}
                 <div className="section-header" style={{ marginTop: '10px' }}>
@@ -13243,7 +14191,7 @@ const membersToNextMilestone =
           </div>
 {/* --- BROADCAST ANNOUNCEMENT MODAL --- */}
   {activeModal === 'announcement' && (
-    <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
+    <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 60000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
       <div className="modal-box" style={{ background: '#101926', border: '1px solid rgba(243, 202, 88, 0.3)', borderRadius: '20px', padding: '25px', width: '100%', maxWidth: '450px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
           <h3 className="metallic-gold-text" style={{ margin: 0, fontSize: '18px' }}>Broadcast to Sanctuary Feed</h3>
@@ -13292,7 +14240,7 @@ const membersToNextMilestone =
       inset: 0,
       background: 'rgba(0,0,0,0.85)',
       backdropFilter: 'blur(8px)',
-      zIndex: 1000,
+      zIndex: 60000,
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
@@ -16077,7 +17025,15 @@ disabled={isUploadingBook}
                     No transactions yet. Start streaming or receiving KPC!
                   </div>
                 ) : (
-                  txHistory.filter(tx => txFilter === 'ALL' || (txFilter === 'EARN' && tx.isPositive) || (txFilter === 'SPEND' && !tx.isPositive)).map((tx, idx) => {
+                  txHistory
+  .filter(
+    tx =>
+      txFilter === 'ALL' ||
+      (txFilter === 'EARN' && tx.isPositive) ||
+      (txFilter === 'SPEND' && !tx.isPositive)
+  )
+  .slice(0, 10)
+  .map((tx, idx) => {
                     return (
                       <div key={tx.id || idx} className="activity-card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div className="activity-icon-wrap" style={{ color: tx.isPositive ? '#2ecc71' : '#e74c3c' }}>
@@ -21401,6 +22357,331 @@ const displayName =
           </div>
         ))}
       </div>
+{isMinistryContentModalOpen && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 25000,
+      background: 'rgba(3,8,15,0.88)',
+      backdropFilter: 'blur(10px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '18px',
+      boxSizing: 'border-box'
+    }}
+  >
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '620px',
+        maxHeight: '88vh',
+        overflowY: 'auto',
+        background: '#101926',
+        border:
+          '1px solid rgba(255,255,255,0.10)',
+        borderRadius: '24px',
+        boxShadow:
+          '0 25px 80px rgba(0,0,0,0.55)',
+        padding: '22px',
+        boxSizing: 'border-box'
+      }}
+    >
+
+      {/* HEADER */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+          marginBottom: '20px'
+        }}
+      >
+        <div>
+          <div
+            style={{
+              color: '#29beaf',
+              fontSize: '9px',
+              fontWeight: '900',
+              letterSpacing: '1.2px'
+            }}
+          >
+            MINISTRY CONTENT CENTER
+          </div>
+
+          <div
+            style={{
+              color: '#fff',
+              fontSize: '21px',
+              fontWeight: '900',
+              marginTop: '4px'
+            }}
+          >
+            Create & Publish
+          </div>
+
+          <div
+            style={{
+              color: '#8e9aab',
+              fontSize: '10px',
+              marginTop: '4px'
+            }}
+          >
+            Share teaching, devotion and updates
+            with your KingdomPlus community.
+          </div>
+        </div>
+
+        <button
+          onClick={() =>
+            setIsMinistryContentModalOpen(false)
+          }
+          style={{
+            width: '38px',
+            height: '38px',
+            borderRadius: '10px',
+            border:
+              '1px solid rgba(255,255,255,0.08)',
+            background:
+              'rgba(255,255,255,0.04)',
+            color: '#fff',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            cursor: 'pointer',
+            flexShrink: 0
+          }}
+        >
+          <XIcon />
+        </button>
+      </div>
+
+      {/* OPTIONS */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns:
+            'repeat(auto-fit,minmax(240px,1fr))',
+          gap: '10px'
+        }}
+      >
+
+        {/* DEVOTION */}
+        <button
+          onClick={() => {
+            setIsMinistryContentModalOpen(false);
+
+            setStudioCategory('Devotions');
+            setActiveStudioModal('kingdom_publish');
+          }}
+          style={{
+            textAlign: 'left',
+            padding: '16px',
+            borderRadius: '16px',
+            border:
+              '1px solid rgba(41,190,175,0.16)',
+            background:
+              'rgba(41,190,175,0.05)',
+            color: '#fff',
+            cursor: 'pointer'
+          }}
+        >
+          <img
+            src="/ministry-icons/devotion.png"
+            alt="Devotion"
+            style={{
+              width: '38px',
+              height: '38px',
+              objectFit: 'contain',
+              marginBottom: '10px'
+            }}
+          />
+
+          <div
+            style={{
+              fontSize: '14px',
+              fontWeight: '900'
+            }}
+          >
+            Devotion
+          </div>
+
+          <div
+            style={{
+              color: '#8e9aab',
+              fontSize: '10px',
+              lineHeight: '1.5',
+              marginTop: '4px'
+            }}
+          >
+            Publish a devotional message
+            for believers.
+          </div>
+        </button>
+
+        {/* BIBLE PLAN */}
+        <button
+          onClick={() => {
+            setIsMinistryContentModalOpen(false);
+
+            setStudioCategory('Bible Plans');
+            setActiveStudioModal('kingdom_publish');
+          }}
+          style={{
+            textAlign: 'left',
+            padding: '16px',
+            borderRadius: '16px',
+            border:
+              '1px solid rgba(243,202,88,0.16)',
+            background:
+              'rgba(243,202,88,0.05)',
+            color: '#fff',
+            cursor: 'pointer'
+          }}
+        >
+          <img
+            src="/ministry-icons/bible-plan.png"
+            alt="Bible Plan"
+            style={{
+              width: '38px',
+              height: '38px',
+              objectFit: 'contain',
+              marginBottom: '10px'
+            }}
+          />
+
+          <div
+            style={{
+              fontSize: '14px',
+              fontWeight: '900'
+            }}
+          >
+            Bible Plan
+          </div>
+
+          <div
+            style={{
+              color: '#8e9aab',
+              fontSize: '10px',
+              lineHeight: '1.5',
+              marginTop: '4px'
+            }}
+          >
+            Build a structured Bible
+            reading plan.
+          </div>
+        </button>
+
+        {/* MESSAGE */}
+        <button
+          onClick={() => {
+            setIsMinistryContentModalOpen(false);
+
+            setStudioCategory('Messages');
+            setActiveStudioModal('kingdom_publish');
+          }}
+          style={{
+            textAlign: 'left',
+            padding: '16px',
+            borderRadius: '16px',
+            border:
+              '1px solid rgba(255,255,255,0.10)',
+            background:
+              'rgba(255,255,255,0.035)',
+            color: '#fff',
+            cursor: 'pointer'
+          }}
+        >
+          <img
+            src="/ministry-icons/message.png"
+            alt="Message"
+            style={{
+              width: '38px',
+              height: '38px',
+              objectFit: 'contain',
+              marginBottom: '10px'
+            }}
+          />
+
+          <div
+            style={{
+              fontSize: '14px',
+              fontWeight: '900'
+            }}
+          >
+            Message
+          </div>
+
+          <div
+            style={{
+              color: '#8e9aab',
+              fontSize: '10px',
+              lineHeight: '1.5',
+              marginTop: '4px'
+            }}
+          >
+            Publish sermons, audio and
+            video messages.
+          </div>
+        </button>
+
+        {/* ANNOUNCEMENT */}
+        <button
+          onClick={() => {
+            setIsMinistryContentModalOpen(false);
+            setActiveModal('announcement');
+          }}
+          style={{
+            textAlign: 'left',
+            padding: '16px',
+            borderRadius: '16px',
+            border:
+              '1px solid rgba(231,76,60,0.16)',
+            background:
+              'rgba(231,76,60,0.045)',
+            color: '#fff',
+            cursor: 'pointer'
+          }}
+        >
+          <img
+            src="/ministry-icons/announcement.png"
+            alt="Announcement"
+            style={{
+              width: '38px',
+              height: '38px',
+              objectFit: 'contain',
+              marginBottom: '10px'
+            }}
+          />
+
+          <div
+            style={{
+              fontSize: '14px',
+              fontWeight: '900'
+            }}
+          >
+            Announcement
+          </div>
+
+          <div
+            style={{
+              color: '#8e9aab',
+              fontSize: '10px',
+              lineHeight: '1.5',
+              marginTop: '4px'
+            }}
+          >
+            Broadcast an update, event or
+            urgent message.
+          </div>
+        </button>
+
+      </div>
+    </div>
+  </div>
+)}
 
       {/* MODULE GRID */}
       <div
@@ -21447,10 +22728,13 @@ const displayName =
  checkIn: true
 },
           {
-            title: 'Content',
-            icon: '/ministry-icons/content.png',
-            desc: 'Publish devotionals, announcements and media.'
-          },
+  title: 'Content',
+  icon: '/ministry-icons/content.png',
+  desc: 'Publish devotionals, Bible plans, messages and announcements.',
+  action: () => {
+    setIsMinistryContentModalOpen(true);
+  }
+},
           {
             title: 'Events',
             icon: '/ministry-icons/events.png',
@@ -21461,6 +22745,31 @@ const displayName =
             icon: '/ministry-icons/growth.png',
             desc: 'Monitor Ministry growth and engagement.'
           },
+{
+  title: 'Analytics',
+  icon: '/ministry-icons/analytics.png',
+  desc: 'Track Ministry reach, engagement and activity.',
+  action: async () => {
+    const ministryId =
+      activeMinistryWorkspace?.ministry?.id ||
+      userProfile?.id;
+
+    if (ministryId) {
+      await Promise.all([
+        loadMinistryActivities(
+          ministryId
+        ),
+        loadMinistryAnalytics(
+          ministryId
+        )
+      ]);
+    }
+
+    setMinistryWorkspaceSection(
+      'analytics'
+    );
+  }
+},
           {
             title: 'KPC Rewards',
             icon: '/ministry-icons/rewards.png',
