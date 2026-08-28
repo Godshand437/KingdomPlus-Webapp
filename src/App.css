@@ -2668,6 +2668,19 @@ to {
   pointer-events: none;
 }
 
+.status-hold-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+
+  background: transparent;
+
+  touch-action: none;
+
+  user-select: none;
+  -webkit-user-select: none;
+}
+
 .kingdom-section-title {
   font-size: 16px;
   font-weight: 700;

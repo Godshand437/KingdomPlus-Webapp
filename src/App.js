@@ -1065,125 +1065,171 @@ const fetchStatusComments = async (testimonyId) => {
   }
 };
 
-const fetchWelcomeStatusComments =
-  async () => {
+const fetchWelcomeStatusComments = async () => {
+  try {
+    const {
+      data,
+      error
+    } = await supabase
+      .from('status_comments')
+      .select('*')
+      .order(
+        'created_at',
+        {
+          ascending: false
+        }
+      );
 
-    try {
+    if (error) {
+      throw error;
+    }
 
-      const {
-        data,
-        error
-      } = await supabase
-        .from('status_comments')
-        .select('*')
-        .eq(
-          'status_id',
-          'welcome-001'
-        )
-        .order(
-          'created_at',
-          {
-            ascending: false
-          }
-        );
+    const formatted =
+      (data || []).map(
+        (comment, index) => ({
+          ...comment,
 
-      if (error) {
-        throw error;
-      }
+          id:
+            comment.id ||
+            `welcome-comment-${comment.created_at}-${index}`,
 
+          author:
+            comment.author_name ||
+            '@believer',
 
-      const formatted =
-        (data || []).map(
-          comment => ({
-            ...comment,
+          text:
+            comment.content ||
+            '',
 
-            id:
-              comment.id,
+          time:
+            comment.created_at
+              ? new Date(
+                  comment.created_at
+                ).toLocaleString()
+              : 'Just now',
 
-            author:
-              comment.author_name ||
-              'KingdomPlus',
+          likes:
+            Number(
+              comment.likes || 0
+            ),
 
-            text:
-              comment.content ||
-              '',
+          isLiked:
+            false,
 
-            time:
-              comment.created_at
-                ? new Date(
-                    comment.created_at
-                  ).toLocaleString()
-                : 'Just now',
-
-            likes:
-              Number(
-                comment.likes || 0
-              ),
-
-            isLiked:
-              false,
-
-            avatar:
-              '/assets/logo.png'
-          })
-        );
-
-
-      setStatusComments(
-        prev => ({
-          ...prev,
-
-          'welcome-001':
-            formatted
+          // Every comment on the KingdomPlus
+          // welcome status uses the app logo.
+          avatar:
+            '/assets/logo.png'
         })
       );
 
-    } catch (error) {
+    setStatusComments(prev => ({
+      ...prev,
 
-      console.error(
-        'Failed to load welcome comments:',
-        error
-      );
+      'welcome-001':
+        formatted
+    }));
 
-    }
-  };
+  } catch (error) {
 
-// --- SYNC WELCOME STATUS TO REGISTERED ACCOUNT ---
-  useEffect(() => {
-    if (currentUser) {
-      setTestimonies(prevTestimonies => 
-        prevTestimonies.map(status => {
-          if (status.id === 'welcome-001') {
-            return {
-              ...status,
-              user_id: currentUser.id,
-              authorName: `@${currentUser.formData?.username || currentUser.username || 'believer'}`,
-              avatar: currentUser.formData?.avatar || currentUser.image || status.avatar
-            };
-          }
-          return status;
-        })
-      );
-    }
-  }, [currentUser]);
+    console.error(
+      'Failed to load welcome comments:',
+      error
+    );
+
+    setStatusComments(prev => ({
+      ...prev,
+
+      'welcome-001': []
+    }));
+  }
+};
 
   const [testimonies, setTestimonies] = useState([welcomeVideoStatus]);
 
-  const groupedTestimonies = Object.values(
-    testimonies.reduce((acc, status) => {
-      const uid = status.user_id || status.id;
-      if (!acc[uid]) {
-        acc[uid] = {
-          userId: uid,
-          authorName: status.author_name || status.authorName,
-          avatar: status.avatar_url || status.avatar,
-          allViewed: false,
-          statuses: []
-        };
-      }
-      acc[uid].statuses.push(status);
-      return acc;
-    }, {})
+  const groupedTestimonies =
+  Object.values(
+    testimonies.reduce(
+      (acc, status) => {
+
+        const uid =
+          status.isSystemWelcome
+            ? 'kingdomplus-system'
+            : status.user_id;
+
+
+        if (
+          !uid
+        ) {
+          return acc;
+        }
+
+
+        if (
+          !acc[uid]
+        ) {
+
+          acc[uid] = {
+            userId:
+              uid,
+
+            authorName:
+              status.isSystemWelcome
+                ? 'KingdomPlus'
+                : (
+                    status.author_name ||
+                    status.authorName ||
+                    '@believer'
+                  ),
+
+            avatar:
+              status.isSystemWelcome
+                ? '/assets/logo.png'
+                : (
+                    status.avatar_url ||
+                    status.avatar
+                  ),
+
+            statuses:
+              []
+          };
+        }
+
+
+        acc[uid].statuses.push(
+          status
+        );
+
+
+        return acc;
+
+      },
+      {}
+    )
+  ).map(
+    group => {
+
+      const allViewed =
+        group.statuses.every(
+          status =>
+            status.isSystemWelcome
+              ? viewedStatusIds.includes(
+                  'welcome-001'
+                )
+              : viewedStatusIds.includes(
+                  String(
+                    status.id
+                  )
+                )
+        );
+
+
+      return {
+        ...group,
+
+        allViewed
+      };
+    }
   );
 
 const toggleCommentLike = async (commentId) => {
@@ -1426,6 +1472,17 @@ const handleTapTransaction = async (
   }
 };
 
+const [
+  activeStatusList,
+  setActiveStatusList
+] = useState([]);
+
+const [
+  activeStatusIndex,
+  setActiveStatusIndex
+] = useState(0);
+
+
 useEffect(() => {
   if (step === 6) {
     setActiveTab('sanctuary');
@@ -1441,6 +1498,7 @@ useEffect(() => {
     setActiveTab('chat');
   }
 }, [step]);
+
 
   useEffect(() => {
 
@@ -1459,38 +1517,138 @@ useEffect(() => {
         data: {
           user
         }
-      } = await supabase.auth.getUser();
+      } =
+        await supabase.auth.getUser();
 
       if (!user) return;
 
       const {
         data,
         error
-      } = await supabase
-        .from('testimonies')
-        .select('*')
-        .gt(
-          'expires_at',
-          new Date().toISOString()
-        )
-        .order(
-          'created_at',
-          {
-            ascending: false
-          }
-        );
+      } =
+        await supabase
+          .from('testimonies')
+          .select('*')
+          .gt(
+            'expires_at',
+            new Date().toISOString()
+          )
+          .order(
+            'created_at',
+            {
+              ascending: false
+            }
+          );
 
       if (error) {
         throw error;
       }
 
-      const statusIds =
+      const authorIds =
+        [
+          ...new Set(
+            (data || [])
+              .map(
+                status =>
+                  status.user_id
+              )
+              .filter(Boolean)
+          )
+        ];
+
+
+      let profileMap =
+        new Map();
+
+
+      if (
+        authorIds.length
+      ) {
+
+        const {
+          data: profiles
+        } =
+          await supabase
+            .from('user_profiles')
+            .select(`
+              id,
+              username,
+              image,
+              avatar_url
+            `)
+            .in(
+              'id',
+              authorIds
+            );
+
+
+        profileMap =
+          new Map(
+            (
+              profiles || []
+            ).map(
+              profile => [
+                profile.id,
+                profile
+              ]
+            )
+          );
+      }
+
+      const normalizedStatuses =
         (data || []).map(
-          item =>
-            item.id
+          status => {
+
+            const profile =
+              profileMap.get(
+                status.user_id
+              );
+
+            const username =
+              profile?.username ||
+              String(
+                status.author_name ||
+                'believer'
+              )
+                .replace(
+                  /^@/,
+                  ''
+                );
+
+            const avatar =
+              profile?.avatar_url ||
+              profile?.image ||
+              status.avatar_url;
+
+
+            return {
+              ...status,
+
+              author_name:
+                `@${username}`,
+
+              authorName:
+                `@${username}`,
+
+              avatar_url:
+                normalizeAvatarUrl(
+                  avatar,
+                  username
+                )
+            };
+          }
         );
 
-      let viewedIds = [];
+      const statusIds =
+        normalizedStatuses.map(
+          status =>
+            status.id
+        );
+
+
+      let viewedIds =
+        [];
+
 
       if (
         statusIds.length
@@ -1498,28 +1656,33 @@ useEffect(() => {
 
         const {
           data: views
-        } = await supabase
-          .from('testimony_views')
-          .select(
-            'testimony_id'
-          )
-          .eq(
-            'user_id',
-            user.id
-          )
-          .in(
-            'testimony_id',
-            statusIds
-          );
+        } =
+          await supabase
+            .from('testimony_views')
+            .select(
+              'testimony_id'
+            )
+            .eq(
+              'user_id',
+              user.id
+            )
+            .in(
+              'testimony_id',
+              statusIds
+            );
+
 
         viewedIds =
-          (views || []).map(
+          (
+            views || []
+          ).map(
             row =>
               String(
                 row.testimony_id
               )
           );
       }
+
 
       setViewedStatusIds(
         viewedIds
@@ -1528,26 +1691,30 @@ useEffect(() => {
       const {
         data: profile,
         error: profileError
-      } = await supabase
-        .from('user_profiles')
-        .select(`
-          created_at,
-          welcome_status_seen_at
-        `)
-        .eq(
-          'id',
-          user.id
-        )
-        .single();
+      } =
+        await supabase
+          .from('user_profiles')
+          .select(`
+            created_at,
+            welcome_status_seen_at
+          `)
+          .eq(
+            'id',
+            user.id
+          )
+          .single();
+
 
       if (profileError) {
         throw profileError;
       }
 
 
-      let finalStatuses = [
-        ...(data || [])
-      ];
+      let finalStatuses =
+        [
+          ...normalizedStatuses
+        ];
+
 
       if (
         profile?.created_at
@@ -1558,15 +1725,22 @@ useEffect(() => {
             profile.created_at
           );
 
-        const expires =
+        const expiry =
           new Date(
             createdAt.getTime() +
-            24 * 60 * 60 * 1000
+            (
+              24 *
+              60 *
+              60 *
+              1000
+            )
           );
+
 
         const stillNew =
           Date.now() <
-          expires.getTime();
+          expiry.getTime();
+
 
         const alreadySeen =
           !!profile
@@ -1578,16 +1752,14 @@ useEffect(() => {
           !alreadySeen
         ) {
 
-          const welcome =
+          finalStatuses = [
             {
               ...welcomeVideoStatus,
 
               expires_at:
-                expires.toISOString()
-            };
+                expiry.toISOString()
+            },
 
-          finalStatuses = [
-            welcome,
             ...finalStatuses
           ];
         }
@@ -1604,9 +1776,9 @@ useEffect(() => {
         'Failed to load testimonies:',
         error
       );
-
     }
   };
+
 
   fetchTestimonies();
 
@@ -1668,30 +1840,103 @@ const uploadNewTestimony = async (e) => {
 };
      
 
-// Auto-advance/close logic for the status viewer
   useEffect(() => {
-    let timer;
-    if (activeViewStatus) {
-      setStatusProgress(0);
-      
-      if (activeViewStatus.media_type !== 'video') {
-        const duration = 10000;
-        const interval = 50; 
-        
-        timer = setInterval(() => {
-          setStatusProgress(prev => {
-            if (prev >= 100) {
-              clearInterval(timer);
-              setActiveViewStatus(null);
+
+  if (
+    !activeViewStatus ||
+    isStatusPaused ||
+    showCommentsPanel
+  ) {
+    if (
+      statusVideoRef.current &&
+      (
+        isStatusPaused ||
+        showCommentsPanel
+      )
+    ) {
+      statusVideoRef.current.pause();
+    }
+
+    return;
+  }
+
+  if (
+    activeViewStatus.media_type ===
+    'video'
+  ) {
+
+    if (
+      statusVideoRef.current &&
+      statusVideoRef.current.paused
+    ) {
+
+      statusVideoRef.current
+        .play()
+        .catch(
+          () => {}
+        );
+    }
+
+    return;
+  }
+
+  const duration =
+    10000;
+
+  const interval =
+    50;
+
+
+  const timer =
+    setInterval(
+      () => {
+
+        setStatusProgress(
+          prev => {
+
+            const next =
+              prev +
+              (
+                interval /
+                duration
+              ) *
+              100;
+
+
+            if (
+              next >= 100
+            ) {
+
+              clearInterval(
+                timer
+              );
+
+              handleStatusFinished();
+
               return 100;
             }
-            return prev + (interval / duration) * 100;
-          });
-        }, interval);
-      }
-    }
-    return () => clearInterval(timer);
-  }, [activeViewStatus]);
+
+
+            return next;
+          }
+        );
+
+      },
+      interval
+    );
+
+
+  return () =>
+    clearInterval(
+      timer
+    );
+
+}, [
+  activeViewStatus,
+  activeStatusIndex,
+  isStatusPaused,
+  showCommentsPanel
+]);
 
   const handleVideoProgress = (e) => {
     const percent = (e.target.currentTime / e.target.duration) * 100;
@@ -3068,18 +3313,40 @@ const handlePostComment = async (commentText) => {
     }
 };
 
+const openStatusAtIndex = async (
+  statuses,
+  index
+) => {
 
-  const handleViewStatus = async (group) => {
   if (
-    !group?.statuses?.length
+    !statuses ||
+    !statuses.length
   ) {
     return;
   }
 
-  const status =
-    group.statuses[0];
+  if (
+    index < 0 ||
+    index >= statuses.length
+  ) {
+    setActiveViewStatus(null);
+    setActiveStatusList([]);
+    setActiveStatusIndex(0);
+    return;
+  }
 
-  if (!status) return;
+  const status =
+    statuses[index];
+
+
+  setActiveStatusList(
+    statuses
+  );
+
+  setActiveStatusIndex(
+    index
+  );
+
 
   setActiveViewStatus({
     ...status,
@@ -3096,6 +3363,7 @@ const handlePostComment = async (commentText) => {
           )
   });
 
+
   setStatusProgress(0);
   setIsStatusPaused(false);
   setShowCommentsPanel(false);
@@ -3103,55 +3371,38 @@ const handlePostComment = async (commentText) => {
   setViewerLiked(false);
 
 
-  try {
-
-    const {
-      data: {
-        user
-      }
-    } = await supabase.auth.getUser();
-
-    if (!user) {
-      return;
+  const {
+    data: {
+      user
     }
+  } =
+    await supabase.auth.getUser();
 
-    if (
-  status.isSystemWelcome
-) {
+  if (!user) {
+    return;
+  }
 
-  await fetchWelcomeStatusComments();
+  if (
+    status.isSystemWelcome
+  ) {
 
-  await supabase.rpc(
-    'mark_welcome_status_seen'
-  );
+    await fetchWelcomeStatusComments();
 
-  setViewedStatusIds(prev => {
-
-    if (
-      prev.includes(
-        'welcome-001'
-      )
-    ) {
-      return prev;
-    }
-
-    return [
-      ...prev,
-      'welcome-001'
-    ];
-  });
-
-  return;
-}
-
-    await fetchStatusComments(
-      status.id
+    await supabase.rpc(
+      'mark_welcome_status_seen'
     );
 
-    const {
-      data: existingLike,
-      error: likeError
-    } = await supabase
+    return;
+  }
+
+  await fetchStatusComments(
+    status.id
+  );
+
+  const {
+    data: existingLike
+  } =
+    await supabase
       .from('testimony_likes')
       .select('id')
       .eq(
@@ -3164,24 +3415,16 @@ const handlePostComment = async (commentText) => {
       )
       .maybeSingle();
 
-    if (likeError) {
-      console.error(
-        'Like lookup failed:',
-        likeError
-      );
-    }
 
-    const hasLiked =
-      !!existingLike;
+  setViewerLiked(
+    !!existingLike
+  );
 
-    setViewerLiked(
-      hasLiked
-    );
-
-    const {
-      data: firstView,
-      error: viewError
-    } = await supabase.rpc(
+  const {
+    data: firstView,
+    error: viewError
+  } =
+    await supabase.rpc(
       'record_testimony_view',
       {
         p_testimony_id:
@@ -3189,44 +3432,56 @@ const handlePostComment = async (commentText) => {
       }
     );
 
-    if (viewError) {
-      console.error(
-        'Status view failed:',
-        viewError
-      );
-    }
+
+  if (viewError) {
+
+    console.error(
+      'Status view error:',
+      viewError
+    );
+
+  } else if (
+    firstView
+  ) {
+
+    const newViews =
+      Number(
+        status.views || 0
+      ) + 1;
 
 
-    if (firstView) {
-
-      const nextViews =
-        Number(
-          status.views || 0
-        ) + 1;
-
-      setActiveViewStatus(prev => ({
+    setActiveViewStatus(
+      prev => ({
         ...prev,
         views:
-          nextViews
-      }));
+          newViews
+      })
+    );
 
-      setTestimonies(prev =>
-        prev.map(item =>
-          item.id === status.id
-            ? {
-                ...item,
-                views:
-                  nextViews
-              }
-            : item
+
+    setTestimonies(
+      prev =>
+        prev.map(
+          item =>
+            item.id ===
+            status.id
+              ? {
+                  ...item,
+                  views:
+                    newViews
+                }
+              : item
         )
-      );
-    }
+    );
+  }
 
-    setViewedStatusIds(prev => {
+  setViewedStatusIds(
+    prev => {
 
       const id =
-        String(status.id);
+        String(
+          status.id
+        );
 
       if (
         prev.includes(id)
@@ -3238,32 +3493,69 @@ const handlePostComment = async (commentText) => {
         ...prev,
         id
       ];
-    });
-
-  } catch (error) {
-
-    console.error(
-      'Failed to open status:',
-      error
-    );
-  }
+    }
+  );
 };
 
-const handleSubmitStatusComment = async () => {
-  const text =
-    newStatusComment.trim();
 
-  if (!text || !activeViewStatus) {
+  const handleViewStatus = async (
+  group
+) => {
+
+  if (
+    !group?.statuses?.length
+  ) {
     return;
   }
 
-  if (
-    activeViewStatus.id ===
-    'welcome-001'
-  ) {
-    alert(
-      'This permanent welcome status is not commentable.'
+
+  const statuses = [
+    ...group.statuses
+  ].sort(
+    (
+      a,
+      b
+    ) =>
+      new Date(
+        a.created_at || 0
+      ) -
+      new Date(
+        b.created_at || 0
+      )
+  );
+
+
+  const firstUnviewed =
+    statuses.findIndex(
+      status =>
+        !status.isSystemWelcome &&
+        !viewedStatusIds.includes(
+          String(status.id)
+        )
     );
+
+
+  const startIndex =
+    firstUnviewed >= 0
+      ? firstUnviewed
+      : 0;
+
+
+  await openStatusAtIndex(
+    statuses,
+    startIndex
+  );
+};
+
+const handleSubmitStatusComment = async () => {
+
+  const text =
+    newStatusComment.trim();
+
+  if (
+    !text ||
+    !activeViewStatus
+  ) {
     return;
   }
 
@@ -3271,7 +3563,8 @@ const handleSubmitStatusComment = async () => {
     data: {
       user
     }
-  } = await supabase.auth.getUser();
+  } =
+    await supabase.auth.getUser();
 
   if (!user) {
     alert(
@@ -3286,47 +3579,132 @@ const handleSubmitStatusComment = async () => {
   const avatar =
     getCurrentUserAvatar();
 
+
   try {
+
+    if (
+      activeViewStatus.isSystemWelcome
+    ) {
+
+      const {
+        data,
+        error
+      } =
+        await supabase
+          .from('status_comments')
+          .insert([
+            {
+              user_id:
+                user.id,
+
+              author_name:
+                `@${username}`,
+
+              avatar:
+                normalizeAvatarUrl(
+                  avatar,
+                  username
+                ),
+
+              content:
+                text
+            }
+          ])
+          .select()
+          .single();
+
+      if (error) {
+        throw error;
+      }
+
+
+      const formatted = {
+        ...data,
+
+        id:
+          data.id ||
+          `welcome-comment-${Date.now()}`,
+
+        author:
+          data.author_name,
+
+        text:
+          data.content,
+
+        time:
+          'Just now',
+
+        likes:
+          0,
+
+        isLiked:
+          false,
+
+        avatar:
+          normalizeAvatarUrl(
+            avatar,
+            username
+          )
+      };
+
+
+      setStatusComments(prev => ({
+        ...prev,
+
+        'welcome-001': [
+          formatted,
+          ...(prev['welcome-001'] || [])
+        ]
+      }));
+
+      setNewStatusComment('');
+
+      return;
+    }
+
     const {
       data,
       error
-    } = await supabase
-      .from('testimony_comments')
-      .insert([
-        {
-          testimony_id:
-            activeViewStatus.id,
+    } =
+      await supabase
+        .from('testimony_comments')
+        .insert([
+          {
+            testimony_id:
+              activeViewStatus.id,
 
-          user_id:
-            user.id,
+            user_id:
+              user.id,
 
-          author_name:
-            `@${username}`,
+            author_name:
+              `@${username}`,
 
-          avatar:
-            normalizeAvatarUrl(
-              avatar,
-              username
-            ),
+            avatar:
+              normalizeAvatarUrl(
+                avatar,
+                username
+              ),
 
-          content:
-            text,
+            content:
+              text,
 
-          likes: 0
-        }
-      ])
-      .select()
-      .single();
+            likes:
+              0
+          }
+        ])
+        .select()
+        .single();
 
     if (error) {
       throw error;
     }
 
+
     const formatted = {
       ...data,
 
       author:
-        data.author_name,
+        `@${username}`,
 
       text:
         data.content,
@@ -3334,9 +3712,11 @@ const handleSubmitStatusComment = async () => {
       time:
         'Just now',
 
-      likes: 0,
+      likes:
+        0,
 
-      isLiked: false,
+      isLiked:
+        false,
 
       avatar:
         normalizeAvatarUrl(
@@ -3344,6 +3724,7 @@ const handleSubmitStatusComment = async () => {
           username
         )
     };
+
 
     setStatusComments(prev => ({
       ...prev,
@@ -3362,7 +3743,9 @@ const handleSubmitStatusComment = async () => {
           ? {
               ...status,
               comments:
-                Number(status.comments || 0) + 1
+                Number(
+                  status.comments || 0
+                ) + 1
             }
           : status
       )
@@ -3370,13 +3753,17 @@ const handleSubmitStatusComment = async () => {
 
     setActiveViewStatus(prev => ({
       ...prev,
+
       comments:
-        Number(prev.comments || 0) + 1
+        Number(
+          prev.comments || 0
+        ) + 1
     }));
 
     setNewStatusComment('');
 
   } catch (error) {
+
     console.error(
       'Status comment failed:',
       error
@@ -3389,6 +3776,39 @@ const handleSubmitStatusComment = async () => {
   }
 };
 
+const handleStatusFinished =
+  async () => {
+
+    const nextIndex =
+      activeStatusIndex + 1;
+
+
+    if (
+      nextIndex >=
+      activeStatusList.length
+    ) {
+
+      setActiveViewStatus(
+        null
+      );
+
+      setActiveStatusList(
+        []
+      );
+
+      setActiveStatusIndex(
+        0
+      );
+
+      return;
+    }
+
+
+    await openStatusAtIndex(
+      activeStatusList,
+      nextIndex
+    );
+  };
 
 
 const incrementStatusView = async (statusId, currentViews) => {
@@ -3399,33 +3819,6 @@ const incrementStatusView = async (statusId, currentViews) => {
     
   if (error) console.error("Error updating views:", error);
 };
-
-  useEffect(() => {
-    let timer;
-    if (activeViewStatus && !isStatusPaused && !showCommentsPanel) {
-      if (activeViewStatus.media_type !== 'video') {
-        const duration = 10000;
-        const interval = 50; 
-        
-        timer = setInterval(() => {
-          setStatusProgress(prev => {
-            if (prev >= 100) {
-              clearInterval(timer);
-              setActiveViewStatus(null);
-              return 100;
-            }
-            return prev + (interval / duration) * 100;
-          });
-        }, interval);
-      } else if (statusVideoRef.current) {
-        statusVideoRef.current.play();
-      }
-    } else if (statusVideoRef.current && (isStatusPaused || showCommentsPanel)) {
-      statusVideoRef.current.pause();
-    }
-    
-    return () => clearInterval(timer);
-  }, [activeViewStatus, isStatusPaused, showCommentsPanel]);
 
 const [realComments, setRealComments] = useState([]);
 
@@ -13412,7 +13805,9 @@ const membersToNextMilestone =
         </div>
       </div>
       <span className="testimony-name" style={{ whiteSpace: 'nowrap' }}>
-        {group.authorName.split(' ')[0]}
+        {group.userId === 'kingdomplus-system'
+  ? 'KingdomPlus'
+  : group.authorName}
       </span>
     </div>
   ))}
@@ -13521,6 +13916,19 @@ const membersToNextMilestone =
       'opacity .2s ease'
   }}
 >
+
+<div
+  className="status-hold-layer"
+  onPointerDown={() => {
+    setIsStatusPaused(true);
+  }}
+  onPointerUp={() => {
+    setIsStatusPaused(false);
+  }}
+  onPointerCancel={() => {
+    setIsStatusPaused(false);
+  }}
+/>
         
         {/* Like */}
         <div className="action-icon-group" onClick={handleLikeStatus} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
@@ -13616,11 +14024,58 @@ const membersToNextMilestone =
       {showCommentsPanel && (
         <>
           <div 
-            onClick={() => setShowCommentsPanel(false)} 
+            onClick={() => {
+  setShowCommentsPanel(false);
+  setIsStatusPaused(false);
+}} 
             style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '40%', zIndex: 15 }} 
           />
           
-          <div style={{ position: 'absolute', bottom: 0, left: 0, width: '100%', height: '60%', backgroundColor: '#212121', borderTopLeftRadius: '16px', borderTopRightRadius: '16px', zIndex: 20, display: 'flex', flexDirection: 'column', animation: 'slideUp 0.3s cubic-bezier(0.1, 0.8, 0.2, 1)' }}>
+          <div
+  className="status-comments-panel"
+  style={{
+    position: 'absolute',
+
+    left: 0,
+    right: 0,
+    bottom: 0,
+
+    width: '100%',
+
+    height:
+      'min(72dvh, 680px)',
+
+    maxHeight:
+      '72dvh',
+
+    minHeight:
+      '320px',
+
+    backgroundColor:
+      '#212121',
+
+    borderTopLeftRadius:
+      '20px',
+
+    borderTopRightRadius:
+      '20px',
+
+    zIndex:
+      100,
+
+    display:
+      'flex',
+
+    flexDirection:
+      'column',
+
+    overflow:
+      'hidden',
+
+    boxSizing:
+      'border-box'
+  }}
+>
             
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderBottom: '1px solid #3d3d3d' }}>
               <h3 style={{ margin: 0, color: '#fff', fontSize: '18px', display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -13632,7 +14087,18 @@ const membersToNextMilestone =
               </div>
             </div>
 
-            <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div
+  style={{
+    flex: 1,
+    minHeight: 0,
+    overflowY: 'auto',
+    WebkitOverflowScrolling: 'touch',
+    padding: '16px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '20px'
+  }}
+>
             {(statusComments[activeViewStatus.id] || []).map((comment) => (
               <div key={comment.id} style={{ display: 'flex', gap: '12px' }}>
                                    <img
@@ -13679,7 +14145,41 @@ const membersToNextMilestone =
             ))}
           </div>
 
-          <div style={{ padding: '12px 16px', borderTop: '1px solid #3d3d3d', display: 'flex', alignItems: 'center', gap: '12px', backgroundColor: '#212121' }}>
+          <div
+  style={{
+    flexShrink: 0,
+
+    minHeight:
+      '68px',
+
+    width:
+      '100%',
+
+    padding:
+      '10px 16px max(10px, env(safe-area-inset-bottom))',
+
+    borderTop:
+      '1px solid #3d3d3d',
+
+    display:
+      'flex',
+
+    alignItems:
+      'center',
+
+    gap:
+      '10px',
+
+    background:
+      '#212121',
+
+    boxSizing:
+      'border-box',
+
+    zIndex:
+      110
+  }}
+>
              <img
   src={normalizeAvatarUrl(
     getCurrentUserAvatar(),
@@ -13702,27 +14202,66 @@ const membersToNextMilestone =
   }}
 />
              
-             <input 
-                type="text" 
-                placeholder="Add a comment..." 
-                value={newStatusComment}
-                onChange={(e) => setNewStatusComment(e.target.value)}
-                onKeyDown={(e) => {
-
-  if (
-    e.key === 'Enter' &&
-    !e.shiftKey
-  ) {
-
-    e.preventDefault();
-
-    handleSubmitStatusComment();
-
+             <input
+  type="text"
+  placeholder="Add a comment..."
+  value={newStatusComment}
+  onChange={(e) =>
+    setNewStatusComment(
+      e.target.value
+    )
   }
+  onFocus={() => {
+    setIsStatusPaused(true);
+  }}
+  onKeyDown={(e) => {
 
-}}
-                style={{ flex: 1, backgroundColor: 'transparent', border: 'none', color: '#fff', fontSize: '14px', outline: 'none' }}
-             />
+    if (
+      e.key === 'Enter' &&
+      !e.shiftKey
+    ) {
+
+      e.preventDefault();
+
+      handleSubmitStatusComment();
+    }
+
+  }}
+  style={{
+    flex: 1,
+
+    minWidth:
+      0,
+
+    height:
+      '44px',
+
+    padding:
+      '0 14px',
+
+    borderRadius:
+      '22px',
+
+    background:
+      'rgba(255,255,255,.08)',
+
+    border:
+      '1px solid rgba(255,255,255,.10)',
+
+    color:
+      '#fff',
+
+    fontSize:
+      '14px',
+
+    outline:
+      'none',
+
+    boxSizing:
+      'border-box'
+  }}
+/>
+
              <button
   type="button"
   disabled={
@@ -13732,12 +14271,38 @@ const membersToNextMilestone =
     handleSubmitStatusComment
   }
   style={{
-    background: 'none',
-    border: 'none',
-    color:
+    width:
+      '44px',
+
+    height:
+      '44px',
+
+    flexShrink:
+      0,
+
+    border:
+      'none',
+
+    borderRadius:
+      '50%',
+
+    display:
+      'flex',
+
+    alignItems:
+      'center',
+
+    justifyContent:
+      'center',
+
+    background:
       newStatusComment.trim()
         ? '#29beaf'
-        : '#aaaaaa',
+        : 'rgba(255,255,255,.08)',
+
+    color:
+      '#101926',
+
     cursor:
       newStatusComment.trim()
         ? 'pointer'
@@ -13753,34 +14318,62 @@ const membersToNextMilestone =
 
       <div
   className="status-media-content"
-  onMouseDown={() =>
-    setIsStatusPaused(true)
+  onPointerDown={(e) => {
+  if (
+    e.target.closest(
+      '.status-controls'
+    )
+  ) {
+    return;
   }
-  onMouseUp={() =>
-    setIsStatusPaused(false)
-  }
-  onTouchStart={() =>
-    setIsStatusPaused(true)
-  }
-  onTouchEnd={() =>
-    setIsStatusPaused(false)
-  }
-  style={{
-    position: 'absolute',
-    inset: 0,
-    width: '100%',
-    height: '100%',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
 
-    // IMPORTANT:
-    // Text statuses use their saved database color.
-    backgroundColor:
-      activeViewStatus.bg_color ||
-      '#0f0f0f'
-  }}
+  setIsStatusPaused(
+    true
+  );
+}}
+onPointerUp={() => {
+  setIsStatusPaused(
+    false
+  );
+}}
+onPointerCancel={() => {
+  setIsStatusPaused(
+    false
+  );
+}}
+onPointerLeave={() => {
+  setIsStatusPaused(
+    false
+  );
+}}
+  style={{
+  position: 'absolute',
+  inset: 0,
+
+  width: '100%',
+  height: '100%',
+
+  display: 'flex',
+
+  alignItems:
+    'center',
+
+  justifyContent:
+    'center',
+
+  overflow: 'hidden',
+
+  zIndex: 1,
+
+  backgroundColor:
+    activeViewStatus.bg_color ||
+    '#0f0f0f',
+
+  pointerEvents:
+    showCommentsPanel
+      ? 'none'
+      : 'auto'
+}}
 >
   {activeViewStatus.media_type === 'video' ? (
     <video
@@ -13793,9 +14386,9 @@ const membersToNextMilestone =
       playsInline
       muted={false}
       onTimeUpdate={handleVideoProgress}
-      onEnded={() =>
-        setActiveViewStatus(null)
-      }
+     onEnded={
+  handleStatusFinished
+}
       style={{
         width: '100%',
         height: '100%',
@@ -13935,8 +14528,6 @@ const membersToNextMilestone =
                 currentUser.id,
 
               author_name:
-                currentUser.full_name ||
-                currentUser.church_name ||
                 `@${username}`,
 
               avatar_url:
