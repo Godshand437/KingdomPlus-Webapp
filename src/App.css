@@ -5312,6 +5312,42 @@ to {
   text-underline-offset: 4px;
 }
 
+.login-screen {
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+
+  min-height: 0;
+
+  overflow-x: hidden;
+  overflow-y: hidden;
+
+  position: relative;
+}
+
+.login-screen .login-container {
+  width: 100%;
+
+  max-width: 420px;
+
+  max-height: 100%;
+
+  overflow-y: auto;
+
+  overflow-x: hidden;
+
+  scrollbar-width: none;
+
+  -ms-overflow-style: none;
+
+  box-sizing: border-box;
+}
+
+.login-screen
+.login-container::-webkit-scrollbar {
+  display: none;
+}
+
 /*
 =========================================
    SEND / SWAP TAB (STEP 16)

@@ -692,183 +692,183 @@ const [activeNewsArticle, setActiveNewsArticle] = useState(null);
 const [showNewsComments, setShowNewsComments] = useState(false);
 const [newCommentText, setNewCommentText] = useState("");
 
-const handleLikeStatus = async () => {
-  if (!activeViewStatus) return;
+const handleLikeStatus =
+  async () => {
 
-  if (
-    activeViewStatus.isSystemWelcome
-  ) {
-    return;
-  }
-
-  const {
-    data: {
-      user
+    if (
+      !activeViewStatus
+    ) {
+      return;
     }
-  } = await supabase.auth.getUser();
 
-  if (!user) {
-    alert(
-      'Please sign in to like a status.'
+    if (
+      activeViewStatus.isSystemWelcome
+    ) {
+      return;
+    }
+
+    const previousLiked =
+      viewerLiked;
+
+    const previousLikes =
+      Number(
+        activeViewStatus.likes || 0
+      );
+
+
+    const optimisticLiked =
+      !previousLiked;
+
+    const optimisticLikes =
+      Math.max(
+        0,
+        previousLikes +
+          (
+            optimisticLiked
+              ? 1
+              : -1
+          )
+      );
+
+
+    setViewerLiked(
+      optimisticLiked
     );
-    return;
-  }
 
-  try {
 
-    const {
-      data: existingLike,
-      error: checkError
-    } = await supabase
-      .from('testimony_likes')
-      .select('id')
-      .eq(
-        'testimony_id',
-        activeViewStatus.id
-      )
-      .eq(
-        'user_id',
-        user.id
-      )
-      .maybeSingle();
+    setActiveViewStatus(
+      prev => ({
+        ...prev,
 
-    if (checkError) {
-      throw checkError;
-    }
+        likes:
+          optimisticLikes
+      })
+    );
 
-    if (existingLike) {
+
+    setTestimonies(
+      prev =>
+        prev.map(
+          status =>
+            status.id ===
+            activeViewStatus.id
+              ? {
+                  ...status,
+
+                  likes:
+                    optimisticLikes
+                }
+              : status
+        )
+    );
+
+
+    try {
 
       const {
+        data,
         error
-      } = await supabase
-        .from('testimony_likes')
-        .delete()
-        .eq(
-          'id',
-          existingLike.id
+      } =
+        await supabase.rpc(
+          'toggle_testimony_like',
+          {
+            p_testimony_id:
+              activeViewStatus.id
+          }
         );
+
 
       if (error) {
         throw error;
       }
 
-      const newLikes =
-        Math.max(
-          0,
-          Number(
-            activeViewStatus.likes || 0
-          ) - 1
+
+      const serverLiked =
+        Boolean(
+          data?.liked
         );
 
-      const {
-        error: updateError
-      } = await supabase
-        .from('testimonies')
-        .update({
-          likes: newLikes
+      const serverLikes =
+        Number(
+          data?.likes || 0
+        );
+
+      setViewerLiked(
+        serverLiked
+      );
+
+
+      setActiveViewStatus(
+        prev => ({
+          ...prev,
+
+          likes:
+            serverLikes
         })
-        .eq(
-          'id',
-          activeViewStatus.id
-        );
-
-      if (updateError) {
-        throw updateError;
-      }
-
-      setViewerLiked(false);
-
-      setActiveViewStatus(prev => ({
-        ...prev,
-        likes: newLikes
-      }));
-
-      setTestimonies(prev =>
-        prev.map(status =>
-          status.id ===
-          activeViewStatus.id
-            ? {
-                ...status,
-                likes: newLikes
-              }
-            : status
-        )
       );
 
-      return;
-    }
 
-    const {
-      error: insertError
-    } = await supabase
-      .from('testimony_likes')
-      .insert([
-        {
-          testimony_id:
-            activeViewStatus.id,
+      setTestimonies(
+        prev =>
+          prev.map(
+            status =>
+              status.id ===
+              activeViewStatus.id
+                ? {
+                    ...status,
 
-          user_id:
-            user.id
-        }
-      ]);
-
-    if (insertError) {
-      throw insertError;
-    }
-
-    const newLikes =
-      Number(
-        activeViewStatus.likes || 0
-      ) + 1;
-
-    const {
-      error: updateError
-    } = await supabase
-      .from('testimonies')
-      .update({
-        likes: newLikes
-      })
-      .eq(
-        'id',
-        activeViewStatus.id
+                    likes:
+                      serverLikes
+                  }
+                : status
+          )
       );
 
-    if (updateError) {
-      throw updateError;
+    } catch (error) {
+
+      console.error(
+        'Status like failed:',
+        error
+      );
+
+      setViewerLiked(
+        previousLiked
+      );
+
+
+      setActiveViewStatus(
+        prev => ({
+          ...prev,
+
+          likes:
+            previousLikes
+        })
+      );
+
+
+      setTestimonies(
+        prev =>
+          prev.map(
+            status =>
+              status.id ===
+              activeViewStatus.id
+                ? {
+                    ...status,
+
+                    likes:
+                      previousLikes
+                  }
+                : status
+          )
+      );
+
+
+      alert(
+        error?.message ||
+        'Unable to update status like.'
+      );
     }
-
-    setViewerLiked(true);
-
-    setActiveViewStatus(prev => ({
-      ...prev,
-      likes: newLikes
-    }));
-
-    setTestimonies(prev =>
-      prev.map(status =>
-        status.id ===
-        activeViewStatus.id
-          ? {
-              ...status,
-              likes: newLikes
-            }
-          : status
-      )
-    );
-
-  } catch (error) {
-
-    console.error(
-      'Status like failed:',
-      error
-    );
-
-    alert(
-      error?.message ||
-      'Unable to update status like.'
-    );
-  }
-};
+  };
 
 const handleLikeComment = async (commentId) => {
   setRealComments(prevComments => 
@@ -1902,20 +1902,54 @@ const uploadNewTestimony = async (e) => {
       
     const isVideo = file.type.startsWith('video/');
 
-    const newStatus = {
-      user_id: currentUser.id,
-      author_name: currentUser.full_name || currentUser.church_name || 'You',
-      avatar_url: currentUser.image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
-      media_url: publicUrlData.publicUrl,
-      media_type: isVideo ? 'video' : 'image',
-      text_content: '',
-    };
+    const username =
+  getCurrentUsername();
 
-    const { data: insertedData, error: insertError } = await supabase
-      .from('testimonies')
-      .insert([newStatus])
-      .select()
-      .single();
+const newStatus = {
+  id:
+    crypto.randomUUID(),
+
+  user_id:
+    currentUser.id,
+
+  author_name:
+    `@${username}`,
+
+  avatar_url:
+    normalizeAvatarUrl(
+      getCurrentUserAvatar(),
+      username
+    ),
+
+  media_url:
+    publicUrlData.publicUrl,
+
+  media_type:
+    isVideo
+      ? 'video'
+      : 'image',
+
+  text_content:
+    '',
+
+  views:
+    0,
+
+  likes:
+    0,
+
+  taps:
+    0,
+
+  comments:
+    0
+};
+
+    const {
+  error: insertError
+} = await supabase
+  .from('testimonies')
+  .insert([newStatus]);
 
     if (insertError) {
   throw insertError;
@@ -1923,7 +1957,7 @@ const uploadNewTestimony = async (e) => {
 
 setTestimonies(
   prev => [
-    insertedData,
+    newStatus,
     ...prev
   ]
 );
@@ -14617,8 +14651,13 @@ const membersToNextMilestone =
 
     zIndex: 1,
 
-    background:
-      '#050505',
+   background:
+  activeViewStatus.media_type === 'text'
+    ? (
+        activeViewStatus.bg_color ||
+        '#4facfe'
+      )
+    : '#050505',
 
     pointerEvents:
       showCommentsPanel
@@ -14722,6 +14761,7 @@ const membersToNextMilestone =
         boxSizing: 'border-box',
         textAlign: 'center',
         color: '#fff',
+        background: 'transparent',
         fontSize:
           'clamp(28px, 7vw, 48px)',
         fontWeight: '900',
@@ -14837,64 +14877,69 @@ const membersToNextMilestone =
               getCurrentUserAvatar();
 
             const newStatus = {
-              user_id:
-                currentUser.id,
+  id:
+    crypto.randomUUID(),
 
-              author_name:
-                `@${username}`,
+  user_id:
+    currentUser.id,
 
-              avatar_url:
-                normalizeAvatarUrl(
-                  avatar,
-                  username
-                ),
+  author_name:
+    `@${username}`,
 
-              media_type:
-                'text',
+  avatar_url:
+    normalizeAvatarUrl(
+      avatar,
+      username
+    ),
 
-              media_url:
-                null,
+  media_type:
+    'text',
 
-              text_content:
-                text,
+  media_url:
+    null,
 
-              bg_color:
-                textStatusBg,
+  text_content:
+    text,
 
-              views: 0,
+  bg_color:
+    textStatusBg,
 
-              likes: 0,
+  views:
+    0,
 
-              taps: 0
-            };
+  likes:
+    0,
 
+  taps:
+    0,
+
+  comments:
+    0
+};
             const {
-              data: insertedStatus,
-              error
-            } = await supabase
-              .from('testimonies')
-              .insert([
-                newStatus
-              ])
-              .select()
-              .single();
+  error
+} = await supabase
+  .from('testimonies')
+  .insert([
+    newStatus
+  ]);
 
             if (error) {
               throw error;
             }
 
             setTestimonies(prev => [
-              insertedStatus,
-              ...prev
-            ]);
+  newStatus,
+  ...prev
+]);
 
             setShowTextStatusModal(false);
             setTextStatusContent('');
             setTextStatusBg('#4facfe');
 
             alert(
-              'Text testimony posted successfully!'
-            );
+  'Kingdom Moment shared successfully!'
+);
 
           } catch (error) {
             console.error(
@@ -15032,7 +15077,7 @@ const membersToNextMilestone =
                 <div className="section-header" style={{ marginTop: '10px' }}>
                   <h3>Trending Gospel Songs</h3>
                 </div>
-                <div className="horizontal-scroll-media">
+                <div className="horizontal-scroll">
                   {musicData
   .filter(
     track => track.category === 'Trending Now'
@@ -15069,7 +15114,7 @@ const membersToNextMilestone =
     HYMNS
    ========================================= */}
 
-<div className="section-header" style={{ marginTop: '24px' }}>
+<div className="section-header" style={{ marginTop: '18px' }}>
   <h3>Hymns</h3>
 </div>
 
