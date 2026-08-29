@@ -1116,8 +1116,6 @@ const fetchWelcomeStatusComments = async () => {
           isLiked:
             false,
 
-          // Every comment on the KingdomPlus
-          // welcome status uses the app logo.
           avatar:
             '/assets/logo.png'
         })
@@ -1145,7 +1143,99 @@ const fetchWelcomeStatusComments = async () => {
   }
 };
 
-  const [testimonies, setTestimonies] = useState([welcomeVideoStatus]);
+  const [
+  testimonies,
+  setTestimonies
+] = useState([]);
+
+const getStatusRingBackground = (
+  group
+) => {
+
+  const statuses =
+    group.statuses || [];
+
+  const total =
+    Math.max(
+      statuses.length,
+      1
+    );
+
+  const segmentSize =
+    360 / total;
+
+  const gap =
+  total === 1
+    ? 0
+    : Math.min(
+        4,
+        segmentSize * 0.08
+      );
+
+  const rainbow = [
+    '#ff1744',
+    '#ff9100',
+    '#ffd600',
+    '#00e676',
+    '#00b8d4',
+    '#2979ff',
+    '#7c4dff',
+    '#d500f9'
+  ];
+
+  const stops = [];
+
+  statuses.forEach(
+    (
+      status,
+      index
+    ) => {
+
+      const start =
+        index *
+        segmentSize;
+
+      const end =
+        start +
+        segmentSize -
+        gap;
+
+      const viewed =
+        status.isSystemWelcome
+          ? viewedStatusIds.includes(
+              'welcome-001'
+            )
+          : viewedStatusIds.includes(
+              String(
+                status.id
+              )
+            );
+
+      const color =
+  viewed
+    ? '#737b88'
+    : rainbow[
+        index %
+        rainbow.length
+      ];
+
+      stops.push(
+        `${color} ${start}deg ${end}deg`
+      );
+
+      stops.push(
+        `rgba(0,0,0,0) ${end}deg ${end + gap}deg`
+      );
+    }
+  );
+
+  return `
+    conic-gradient(
+      from -90deg,
+      ${stops.join(',')}
+    )
+  `;
+};
 
   const groupedTestimonies =
   Object.values(
@@ -1827,9 +1917,20 @@ const uploadNewTestimony = async (e) => {
       .select()
       .single();
 
-    if (insertError) throw insertError;
+    if (insertError) {
+  throw insertError;
+}
 
-    alert("Testimony uploaded successfully!");
+setTestimonies(
+  prev => [
+    insertedData,
+    ...prev
+  ]
+);
+
+alert(
+  'Kingdom Moment shared successfully!'
+);
     
   } catch (error) {
     console.error("Upload failed:", error);
@@ -2491,28 +2592,6 @@ const handleStep1Validation = (e) => {
 
   setStep(2);
 };
-
-
-  // Status/Testimony Upload Handler
-  const handleStatusUpload = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const fileUrl = URL.createObjectURL(file);
-      const isVideo = file.type.startsWith('video/');
-      const newStatus = {
-        id: `status-${Date.now()}`,
-        user_id: currentUser?.id || `temp-${Date.now()}`,
-        authorName: formData.fullName ? `@${formData.username || formData.fullName.split(' ')[0]}` : '@You',
-        avatar: currentUser?.formData?.avatar || currentUser?.image || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80',
-        media_src: fileUrl,
-        media_type: isVideo ? 'video' : 'image',
-        bg_color: '#0f0f0f',
-        views: 0,
-        likes: 0
-      };
-      setTestimonies([newStatus, ...testimonies]);
-    }
-  };
 
 
   const openPrayerRoom = (room) => { setActiveRoom(room); setStep(9); };
@@ -3776,40 +3855,62 @@ const handleSubmitStatusComment = async () => {
   }
 };
 
-const handleStatusFinished =
-  async () => {
+const goToNextStatus = async () => {
 
-    const nextIndex =
-      activeStatusIndex + 1;
+  if (
+    !activeStatusList.length
+  ) {
+    return;
+  }
+
+  const nextIndex =
+    activeStatusIndex + 1;
+
+  if (
+    nextIndex >=
+    activeStatusList.length
+  ) {
+    setActiveViewStatus(null);
+    setActiveStatusList([]);
+    setActiveStatusIndex(0);
+    setStatusProgress(0);
+    return;
+  }
+
+  await openStatusAtIndex(
+    activeStatusList,
+    nextIndex
+  );
+};
 
 
-    if (
-      nextIndex >=
-      activeStatusList.length
-    ) {
+const goToPreviousStatus = async () => {
 
-      setActiveViewStatus(
-        null
-      );
+  if (
+    !activeStatusList.length
+  ) {
+    return;
+  }
 
-      setActiveStatusList(
-        []
-      );
+  const previousIndex =
+    activeStatusIndex - 1;
 
-      setActiveStatusIndex(
-        0
-      );
+  if (
+    previousIndex < 0
+  ) {
+    setStatusProgress(0);
+    return;
+  }
 
-      return;
-    }
+  await openStatusAtIndex(
+    activeStatusList,
+    previousIndex
+  );
+};
 
-
-    await openStatusAtIndex(
-      activeStatusList,
-      nextIndex
-    );
-  };
-
+const handleStatusFinished = async () => {
+  await goToNextStatus();
+};
 
 const incrementStatusView = async (statusId, currentViews) => {
   const { data, error } = await supabase
@@ -12825,7 +12926,7 @@ const membersToNextMilestone =
         type="file"
         hidden
         ref={fileInputRef}
-        onChange={handleStatusUpload}
+        onChange={uploadNewTestimony}
         accept="image/*,video/*"
       />
 
@@ -13746,9 +13847,15 @@ const membersToNextMilestone =
 
                 {/* Testimonies Reel */}
 <div className="section-header">
-  <h3>Testimonies of Faith</h3>
-  <span className="section-link" onClick={() => fileInputRef.current.click()} style={{cursor: 'pointer'}}>
-    Post your reel
+  <h3>Kingdom Moments</h3>
+  <span
+    className="section-link"
+    onClick={() => setShowTestimonyChoice(true)}
+    style={{
+      cursor: 'pointer'
+    }}
+  >
+    Share a moment
   </span>
 </div>
 
@@ -13757,7 +13864,9 @@ const membersToNextMilestone =
     <div className="testimony-circle testimony-add" style={{ border: '2px dashed #29beaf' }}>
       <PlusIcon />
     </div>
-    <span className="testimony-name">Add your<br />testimony</span>
+    <span className="testimony-name">
+  Share a<br />moment
+</span>
     <input 
       type="file" 
       accept="image/*,video/*" 
@@ -13768,20 +13877,32 @@ const membersToNextMilestone =
   </div>
 
   {groupedTestimonies.map(group => (
-    <div key={group.userId} className="testimony-item" onClick={() => handleViewStatus(group)}>
+    <div
+  key={group.userId}
+  className="testimony-item"
+  onClick={(e) => {
+    e.stopPropagation();
+    handleViewStatus(group);
+  }}
+>
       <div
-  className={
-    `testimony-circle ${
-      group.allViewed
-        ? 'status-ring-viewed'
-        : 'status-ring-active'
-    }`
-  }
+  className="testimony-circle"
   style={{
+    width: '76px',
+    height: '76px',
     padding: '3px',
     borderRadius: '50%',
-    width: '76px',
-    height: '76px'
+
+    position:
+      'relative',
+
+    background:
+      getStatusRingBackground(
+        group
+      ),
+
+    boxSizing:
+      'border-box'
   }}
 >
         <div style={{ border: '3px solid #101926', borderRadius: '50%', overflow: 'hidden', width: '100%', height: '100%' }}>
@@ -13800,7 +13921,7 @@ const membersToNextMilestone =
         group.authorName || 'User'
       );
   }}
-  style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid #101926' }} 
+  style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid #101926', display: 'block' }} 
 />
         </div>
       </div>
@@ -13817,9 +13938,18 @@ const membersToNextMilestone =
 {showTestimonyChoice && (
   <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', backgroundColor: 'rgba(0,0,0,0.8)', zIndex: 999999, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
     <div style={{ background: '#101926', padding: '24px', borderRadius: '20px', width: '80%', maxWidth: '320px', textAlign: 'center', border: '1px solid rgba(255,255,255,0.1)' }}>
-      <h3 style={{ color: '#fff', marginTop: 0, marginBottom: '20px', fontSize: '18px' }}>Share a Testimony</h3>
-      <button onClick={() => { setShowTestimonyChoice(false); setShowTextStatusModal(true); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'linear-gradient(90deg, #f3ca58, #29beaf)', color: '#101926', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Write Text</button>
-      <button onClick={() => { setShowTestimonyChoice(false); fileInputRef.current.click(); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Upload Photo/Video</button>
+      <h3
+  style={{
+    color: '#fff',
+    marginTop: 0,
+    marginBottom: '20px',
+    fontSize: '18px'
+  }}
+>
+  Share a Kingdom Moment
+</h3>
+      <button onClick={() => { setShowTestimonyChoice(false); setShowTextStatusModal(true); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'linear-gradient(90deg, #f3ca58, #29beaf)', color: '#101926', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Write a Moment</button>
+      <button onClick={() => { setShowTestimonyChoice(false); fileInputRef.current.click(); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Share Photo/Video</button>
       <button onClick={() => setShowTestimonyChoice(false)} style={{ display: 'block', width: '100%', padding: '12px', background: 'transparent', color: '#8e9aab', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
     </div>
   </div>
@@ -13843,9 +13973,56 @@ const membersToNextMilestone =
         flexDirection: 'column', overflow: 'hidden'
       }}
     >
-      <div className="status-progress-container" style={{ position: 'absolute', top: '15px', left: '15px', right: '15px', zIndex: 10 }}>
-        <div className="status-progress-bar" style={{ width: `${statusProgress || 100}%`, height: '3px', backgroundColor: '#ffffff', borderRadius: '3px', boxShadow: '0 0 10px rgba(255,255,255,0.5)', transition: 'width 0.1s linear' }}></div>
-      </div>
+      <div
+  style={{
+    position: 'absolute',
+    top: '14px',
+    left: '10px',
+    right: '10px',
+    display: 'flex',
+    gap: '4px',
+    zIndex: 40
+  }}
+>
+  {activeStatusList.map(
+    (status, index) => {
+
+      const completed =
+        index <
+        activeStatusIndex;
+
+      const current =
+        index ===
+        activeStatusIndex;
+
+      return (
+        <div
+          key={
+            String(
+              status.id
+            )
+          }
+          style={{
+            flex: 1,
+            height: '3px',
+            borderRadius:
+              '10px',
+            background:
+              completed
+                ? '#fff'
+                : current
+                  ? `linear-gradient(
+                      to right,
+                      #fff ${statusProgress}%,
+                      rgba(255,255,255,.35) ${statusProgress}%
+                    )`
+                  : 'rgba(255,255,255,.35)'
+          }}
+        />
+      );
+    }
+  )}
+</div>
       
       {/* Header */}
       <div className="status-viewer-header" style={{ position: 'absolute', top: '40px', left: '15px', right: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 10, opacity: showCommentsPanel ? 0 : 1, transition: 'opacity 0.2s' }}>
@@ -13894,126 +14071,227 @@ const membersToNextMilestone =
         </button>
       </div>
 
+
       {/* Right-Side Action Bar */}
       <div
   className="status-action-bar"
   style={{
     position: 'absolute',
-    right: '12px',
+
+    right: '14px',
+
     bottom:
-      'max(88px, calc(env(safe-area-inset-bottom) + 72px))',
+      'max(90px, calc(env(safe-area-inset-bottom) + 72px))',
+
     display: 'flex',
+
     flexDirection: 'column',
+
+    alignItems: 'center',
+
     gap: '18px',
-    zIndex: 30,
+
+    zIndex: 60,
+
     opacity:
-      showCommentsPanel ? 0 : 1,
+      showCommentsPanel
+        ? 0
+        : 1,
+
     pointerEvents:
       showCommentsPanel
         ? 'none'
-        : 'auto',
-    transition:
-      'opacity .2s ease'
+        : 'auto'
   }}
 >
 
-<div
-  className="status-hold-layer"
-  onPointerDown={() => {
-    setIsStatusPaused(true);
-  }}
-  onPointerUp={() => {
-    setIsStatusPaused(false);
-  }}
-  onPointerCancel={() => {
-    setIsStatusPaused(false);
-  }}
-/>
-        
-        {/* Like */}
-        <div className="action-icon-group" onClick={handleLikeStatus} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-          <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: viewerLiked ? '#ef4444' : '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
-            {viewerLiked ? <HeartSolidIcon /> : <HeartIcon />}
-          </div>
-          <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-            {viewerLiked ? (activeViewStatus.likes || 0) + 1 : (activeViewStatus.likes || 0)}
-          </span>
-        </div>
+  {/* =========================
+      LIKE
+      ========================= */}
 
-        {/* Comment */}
-        <div className="action-icon-group"  onClick={async () => {
-    setIsStatusPaused(true);
-    setShowCommentsPanel(true);
+  <button
+    type="button"
+    className="status-action-button"
+    onClick={(e) => {
+      e.stopPropagation();
+      handleLikeStatus();
+    }}
+  >
+    <span
+      className="status-action-circle"
+      style={{
+        color:
+          viewerLiked
+            ? '#ef4444'
+            : '#ffffff'
+      }}
+    >
+      {viewerLiked ? (
+        <HeartSolidIcon />
+      ) : (
+        <HeartIcon />
+      )}
+    </span>
 
-    if (activeViewStatus?.id) {
-      await fetchStatusComments(
-        activeViewStatus.id
-      );
-    }
-  }} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-          <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
-            <MessageIcon />
-          </div>
-          <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>
-            {(statusComments[activeViewStatus.id] || []).length}
-          </span>
-        </div>
+    <span className="status-action-count">
+      {Number(
+        activeViewStatus.likes || 0
+      )}
+    </span>
+  </button>
 
-        {/* I Tap */}
-        <div className="action-icon-group" onClick={() => handleTapTransaction(activeViewStatus)} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-          <div style={{ background: 'linear-gradient(135deg, rgba(243, 202, 88, 0.3), rgba(243, 202, 88, 0.1))', backdropFilter: 'blur(10px)', border: '1px solid rgba(243, 202, 88, 0.6)', padding: '14px', borderRadius: '50%', color: '#f3ca58', boxShadow: '0 8px 25px rgba(243, 202, 88, 0.4)' }}>
-            <HandCoinIcon /> 
-          </div>
-          <span style={{ color: '#f3ca58', fontSize: '13px', fontWeight: '900', textShadow: '0 2px 4px rgba(0,0,0,0.9)' }}>I Tap</span>
-        </div>
 
-        {/* Share */}
-        <div className="action-icon-group" onClick={async () => {
-    const shareUrl =
-      `${window.location.origin}/status/${activeViewStatus.id}`;
+  {/* =========================
+      COMMENT
+      ========================= */}
 
-    try {
+  <button
+    type="button"
+    className="status-action-button"
+    onClick={async (e) => {
+      e.stopPropagation();
+
+      setIsStatusPaused(true);
+
+      setShowCommentsPanel(true);
+
       if (
-        navigator.share
+        activeViewStatus?.isSystemWelcome
       ) {
-        await navigator.share({
-          title:
-            activeViewStatus.author_name ||
-            'KingdomPlus Status',
-
-          text:
-            activeViewStatus.text_content ||
-            'View this testimony on KingdomPlus.',
-
-          url: shareUrl
-        });
-      } else {
-        await navigator.clipboard.writeText(
-          shareUrl
-        );
-
-        alert(
-          'Status link copied!'
+        await fetchWelcomeStatusComments();
+      } else if (
+        activeViewStatus?.id
+      ) {
+        await fetchStatusComments(
+          activeViewStatus.id
         );
       }
-    } catch (error) {
-      if (
-        error?.name !==
-        'AbortError'
-      ) {
-        console.error(
-          'Share failed:',
-          error
-        );
+    }}
+  >
+    <span className="status-action-circle">
+      <MessageIcon />
+    </span>
+
+    <span className="status-action-count">
+      {
+        (
+          statusComments[
+            activeViewStatus.id
+          ] || []
+        ).length
       }
-    }
-  }} style={{ textAlign: 'center', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px' }}>
-          <div style={{ background: 'rgba(255,255,255,0.15)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)', padding: '14px', borderRadius: '50%', color: '#ffffff', boxShadow: '0 8px 20px rgba(0,0,0,0.2)' }}>
-            <ShareIcon />
-          </div>
-          <span style={{ color: '#fff', fontSize: '13px', fontWeight: '700', textShadow: '0 2px 4px rgba(0,0,0,0.8)' }}>Share</span>
-        </div>
-      </div>
+    </span>
+  </button>
+
+
+  {/* =========================
+      I TAP
+      ========================= */}
+
+  {!activeViewStatus.isSystemWelcome && (
+    <button
+      type="button"
+      className="status-action-button"
+      onClick={(e) => {
+        e.stopPropagation();
+
+        handleTapTransaction(
+          activeViewStatus
+        );
+      }}
+    >
+      <span
+        className="status-action-circle status-tap-circle"
+      >
+        <HandCoinIcon />
+      </span>
+
+      <span
+        className="status-action-count status-tap-count"
+      >
+        {Number(
+          activeViewStatus.taps || 0
+        )}
+      </span>
+
+      <span
+        className="status-action-label"
+      >
+        I Tap
+      </span>
+    </button>
+  )}
+
+
+  {/* =========================
+      SHARE
+      ========================= */}
+
+  <button
+    type="button"
+    className="status-action-button"
+    onClick={async (e) => {
+
+      e.stopPropagation();
+
+      const shareUrl =
+        `${window.location.origin}/status/${activeViewStatus.id}`;
+
+      try {
+
+        if (
+          navigator.share
+        ) {
+
+          await navigator.share({
+            title:
+              activeViewStatus.author_name ||
+              activeViewStatus.authorName ||
+              'KingdomPlus Status',
+
+            text:
+              activeViewStatus.text_content ||
+              'View this Kingdom Moment on KingdomPlus.',
+
+            url:
+              shareUrl
+          });
+
+        } else {
+
+          await navigator.clipboard.writeText(
+            shareUrl
+          );
+
+          alert(
+            'Status link copied!'
+          );
+        }
+
+      } catch (error) {
+
+        if (
+          error?.name !==
+          'AbortError'
+        ) {
+          console.error(
+            'Share failed:',
+            error
+          );
+        }
+      }
+    }}
+  >
+    <span className="status-action-circle">
+      <ShareIcon />
+    </span>
+
+    <span className="status-action-label">
+      Share
+    </span>
+  </button>
+
+</div>
 
     {isMyStatus && !showCommentsPanel && (
   <div style={{ position: 'absolute', bottom: '25px', left: '16px', zIndex: 10, display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.5)', padding: '8px 14px', borderRadius: '20px', backdropFilter: 'blur(8px)', color: '#fff' }}>
@@ -14318,63 +14596,98 @@ const membersToNextMilestone =
 
       <div
   className="status-media-content"
-  onPointerDown={(e) => {
-  if (
-    e.target.closest(
-      '.status-controls'
-    )
-  ) {
-    return;
-  }
-
-  setIsStatusPaused(
-    true
-  );
-}}
-onPointerUp={() => {
-  setIsStatusPaused(
-    false
-  );
-}}
-onPointerCancel={() => {
-  setIsStatusPaused(
-    false
-  );
-}}
-onPointerLeave={() => {
-  setIsStatusPaused(
-    false
-  );
-}}
   style={{
-  position: 'absolute',
-  inset: 0,
+    position: 'absolute',
 
-  width: '100%',
-  height: '100%',
+    inset: 0,
 
-  display: 'flex',
+    width: '100%',
+    height: '100%',
 
-  alignItems:
-    'center',
+    display: 'flex',
 
-  justifyContent:
-    'center',
+    alignItems:
+      'center',
 
-  overflow: 'hidden',
+    justifyContent:
+      'center',
 
-  zIndex: 1,
+    overflow:
+      'hidden',
 
-  backgroundColor:
-    activeViewStatus.bg_color ||
-    '#0f0f0f',
+    zIndex: 1,
 
-  pointerEvents:
-    showCommentsPanel
-      ? 'none'
-      : 'auto'
-}}
+    background:
+      '#050505',
+
+    pointerEvents:
+      showCommentsPanel
+        ? 'none'
+        : 'auto'
+  }}
 >
+
+{/* =====================================================
+    STATUS TAP NAVIGATION ZONES
+    ===================================================== */}
+
+<div
+  className="status-tap-zone status-tap-zone-left"
+  onPointerDown={(e) => {
+    e.stopPropagation();
+    setIsStatusPaused(true);
+  }}
+  onPointerUp={async (e) => {
+    e.stopPropagation();
+
+    setIsStatusPaused(false);
+
+    if (
+      !showCommentsPanel
+    ) {
+      await goToPreviousStatus();
+    }
+  }}
+  onPointerCancel={() => {
+    setIsStatusPaused(false);
+  }}
+/>
+
+
+<div
+  className="status-tap-zone status-tap-zone-center"
+  onPointerDown={(e) => {
+    e.stopPropagation();
+
+    setIsStatusPaused(
+      prev => !prev
+    );
+  }}
+/>
+
+
+<div
+  className="status-tap-zone status-tap-zone-right"
+  onPointerDown={(e) => {
+    e.stopPropagation();
+    setIsStatusPaused(true);
+  }}
+  onPointerUp={async (e) => {
+    e.stopPropagation();
+
+    setIsStatusPaused(false);
+
+    if (
+      !showCommentsPanel
+    ) {
+      await goToNextStatus();
+    }
+  }}
+  onPointerCancel={() => {
+    setIsStatusPaused(false);
+  }}
+/>
+
   {activeViewStatus.media_type === 'video' ? (
     <video
       ref={statusVideoRef}
@@ -14392,7 +14705,7 @@ onPointerLeave={() => {
       style={{
         width: '100%',
         height: '100%',
-        objectFit: 'cover',
+        objectFit: 'contain',
         display: 'block'
       }}
     />
@@ -14614,7 +14927,7 @@ onPointerLeave={() => {
               : 0.5
         }}
       >
-        Post
+        Share
       </button>
     </div>
 
@@ -14634,7 +14947,7 @@ onPointerLeave={() => {
     >
       <textarea
         autoFocus
-        placeholder="Type your testimony..."
+        placeholder="Share a thought, lesson, prayer, encouragement..."
         value={textStatusContent}
         onChange={(e) =>
           setTextStatusContent(
@@ -14719,7 +15032,7 @@ onPointerLeave={() => {
                 <div className="section-header" style={{ marginTop: '10px' }}>
                   <h3>Trending Gospel Songs</h3>
                 </div>
-                <div className="horizontal-scroll">
+                <div className="horizontal-scroll-media">
                   {musicData
   .filter(
     track => track.category === 'Trending Now'
