@@ -2350,8 +2350,23 @@ await logTransaction(
   const [isAnonymous, setIsAnonymous] = useState(false);
 
   const [formData, setFormData] = useState({
-    fullName: '', username: '', email: '', password: '', dob: '', country: '', phone: '', denomination: '', customDenomination: '', churchName: '', isCustomChurch: false
-  });
+  fullName: '',
+  username: '',
+  email: '',
+  password: '',
+  dob: '',
+  country: '',
+  phone: '',
+  denomination: '',
+  customDenomination: '',
+
+  churchName: '',
+
+  localChurchId: '',
+
+  isCustomChurch: false
+});
+
 const [availableChurches, setAvailableChurches] = useState([]);
 const [isLoadingChurches, setIsLoadingChurches] = useState(false);
   const [announceTitleInput, setAnnounceTitleInput] = useState('');
@@ -2397,106 +2412,233 @@ const getAnnouncementTemplate = (badge = 'ANNOUNCEMENT') => {
   );
 };
 
-  const handleBroadcastAnnouncement = (e) => {
-  e.preventDefault();
+const handleBroadcastAnnouncement =
+  async (e) => {
 
-  if (
-    !announceTitleInput.trim() ||
-    !announceDescInput.trim()
-  ) {
-    alert("Please provide both a title and details for your broadcast.");
-    return;
-  }
+    e.preventDefault();
 
-  const template = getAnnouncementTemplate(announceBadgeInput);
 
-  const newSlide = {
-    badge: announceBadgeInput,
-    title: announceTitleInput.trim(),
-    desc: announceDescInput.trim(),
+    if (
+      !announceTitleInput.trim() ||
+      !announceDescInput.trim()
+    ) {
 
-    author:
-      formData.churchName ||
-      formData.fullName ||
-      "Ministry Admin",
+      alert(
+        'Please provide both a title and message details.'
+      );
 
-    handle:
-      `@${formData.username || 'church'}`,
+      return;
+    }
 
-    image_url: template.image,
-    image_position: template.position,
-    accent: template.accent
+
+    try {
+
+      const {
+        data: {
+          user
+        }
+      } =
+        await supabase.auth.getUser();
+
+
+      if (!user) {
+
+        alert(
+          'Please sign in before publishing an announcement.'
+        );
+
+        return;
+      }
+
+      const localChurch =
+        userProfile?.local_church ||
+        formData.churchName ||
+        '';
+
+
+      if (!localChurch.trim()) {
+
+        alert(
+          'This announcement requires a Local Church.'
+        );
+
+        return;
+      }
+
+      const {
+        data: church,
+        error: churchError
+      } =
+        await supabase
+          .from('church_profiles')
+          .select(`
+            id,
+            church_name
+          `)
+          .ilike(
+            'church_name',
+            localChurch.trim()
+          )
+          .maybeSingle();
+
+
+      if (churchError) {
+        throw churchError;
+      }
+
+
+      if (!church?.id) {
+
+        alert(
+          'Your Local Church could not be matched to a registered church.'
+        );
+
+        return;
+      }
+
+      const template =
+        getAnnouncementTemplate(
+          announceBadgeInput
+        );
+
+      const {
+        data,
+        error
+      } =
+        await supabase
+          .from('kingdom_content')
+          .insert([{
+
+            author_id:
+              user.id,
+
+            author_name:
+              localChurch.trim(),
+
+            title:
+              announceTitleInput.trim(),
+
+            scripture:
+              announceBadgeInput,
+
+            body:
+              announceDescInput.trim(),
+
+            cover_url:
+              template.image,
+
+            announcement_type:
+              announceBadgeInput,
+
+            audience_type:
+              'LOCAL_CHURCH',
+
+            audience_church_id:
+              church.id,
+
+            content_type:
+              'ANNOUNCEMENT',
+
+            is_published:
+              true
+
+          }])
+          .select()
+          .single();
+
+
+      if (error) {
+        throw error;
+      }
+
+      const newAnnouncement = {
+
+        id:
+          data.id,
+
+        badge:
+          announceBadgeInput,
+
+        title:
+          data.title,
+
+        desc:
+          data.body,
+
+        author:
+          localChurch.trim(),
+
+        handle:
+          `@${(
+            formData.username ||
+            'church'
+          )}`,
+
+        image_url:
+          data.cover_url ||
+          template.image,
+
+        image_position:
+          template.position,
+
+        accent:
+          template.accent,
+
+        audience_type:
+          'LOCAL_CHURCH',
+
+        audience_church_id:
+          church.id,
+
+        created_at:
+          data.created_at
+
+      };
+
+
+      setAnnouncements(
+        prev => [
+          newAnnouncement,
+          ...prev
+        ]
+      );
+
+
+      setCurrentSlide(0);
+
+      setAnnounceTitleInput('');
+
+      setAnnounceDescInput('');
+
+      setActiveModal(null);
+
+
+      alert(
+        `Announcement published for ${church.church_name}.`
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        'Announcement publish error:',
+        error
+      );
+
+
+      alert(
+        error?.message ||
+        'Could not publish announcement.'
+      );
+
+    }
+
   };
 
-  setAnnouncements(prev => [
-    newSlide,
-    ...prev
-  ]);
-
-  setCurrentSlide(0);
-  setAnnounceTitleInput('');
-  setAnnounceDescInput('');
-  setActiveModal(null);
-
-  alert(
-    "Your announcement is now live on the Sanctuary Feed."
-  );
-};
-
-
-// =========================================================
-// LIVE ANNOUNCEMENT BROADCAST STATE
-// =========================================================
-
-const [announcements, setAnnouncements] = useState([
-  {
-    badge: "ANNOUNCEMENT",
-    title: "Midweek Bible Study — Wed 7 PM",
-    desc: "Pastor will be teaching from the book of Romans this week.",
-    author: "Grace Sanctuary",
-    handle: "@grace",
-    image_url: getAnnouncementTemplate('ANNOUNCEMENT').image,
-    image_position: getAnnouncementTemplate('ANNOUNCEMENT').position,
-    accent: getAnnouncementTemplate('ANNOUNCEMENT').accent
-  },
-
-  {
-    badge: "EVENT",
-    title: "Youth Praise Night — Friday",
-    desc: "Join us for an evening of acoustic worship and fellowship.",
-    author: "Youth Ministry",
-    handle: "@youth",
-    image_url: getAnnouncementTemplate('EVENT').image,
-    image_position: getAnnouncementTemplate('EVENT').position,
-    accent: getAnnouncementTemplate('EVENT').accent
-  },
-
-  {
-    badge: "UPDATE",
-    title: "Building Fund Milestone",
-    desc: "We have reached 80% of our goal! Thank you for your KPC donations.",
-    author: "Treasury Department",
-    handle: "@finance",
-    image_url: getAnnouncementTemplate('UPDATE').image,
-    image_position: getAnnouncementTemplate('UPDATE').position,
-    accent: getAnnouncementTemplate('UPDATE').accent
-  },
-
-  {
-    badge: "URGENT",
-    title: "Prayer Meeting Tonight",
-    desc: "Join the church family tonight as we pray together for our community.",
-    author: "Grace Sanctuary",
-    handle: "@grace",
-    image_url: getAnnouncementTemplate('URGENT').image,
-    image_position: getAnnouncementTemplate('URGENT').position,
-    accent: getAnnouncementTemplate('URGENT').accent
-  }
-]);
-
-// =========================================================
-// EXISTING APP NAVIGATION + FORM HANDLERS
-// =========================================================
+const [
+  announcements,
+  setAnnouncements
+] = useState([]);
 
 const handleNextSlide = () => {
   setCurrentSlide((prev) => {
@@ -2513,10 +2655,6 @@ const handlePrevSlide = () => {
 };
 
 
-// =========================================================
-// MAIN FORM CHANGE HANDLER
-// =========================================================
-
 const handleChange = (e) => {
   const { name, value } = e.target;
 
@@ -2525,16 +2663,23 @@ const handleChange = (e) => {
     [name]: value
   }));
 
-  // When denomination changes,
-  // reload the available churches
   if (name === 'denomination') {
 
-    setFormData((prev) => ({
-      ...prev,
-      denomination: value,
-      churchName: '',
-      isCustomChurch: false
-    }));
+    setFormData(prev => ({
+  ...prev,
+
+  denomination:
+    value,
+
+  churchName:
+    '',
+
+  localChurchId:
+    '',
+
+  isCustomChurch:
+    false
+}));
 
     if (value && value !== 'Other') {
       loadChurchesByDenomination(value);
@@ -2545,10 +2690,6 @@ const handleChange = (e) => {
 };
 
 
-// =========================================================
-// MULTI-STEP FORM NAVIGATION
-// =========================================================
-
 const handleNext = () => {
   setStep((prev) => prev + 1);
 };
@@ -2558,45 +2699,76 @@ const handleBack = () => {
 };
 
 
-// =========================================================
-// LOAD CHURCHES BY DENOMINATION
-// =========================================================
-
-const loadChurchesByDenomination = async (denomination) => {
+const loadChurchesByDenomination = async (
+  denomination
+) => {
 
   if (!denomination) {
     setAvailableChurches([]);
     return;
   }
 
+
   setIsLoadingChurches(true);
+
 
   try {
 
-    const { data, error } = await supabase
+    const {
+      data,
+      error
+    } = await supabase
       .from('church_profiles')
-      .select('id, church_name, denomination')
-      .eq('denomination', denomination)
-      .order('church_name', {
-        ascending: true
-      });
-
-    if (error) {
-      console.error(
-        'Failed to load churches:',
-        error
+      .select(`
+        id,
+        church_name,
+        ministry_name,
+        username,
+        account_type,
+        ministry_type,
+        denomination
+      `)
+      .eq(
+        'denomination',
+        denomination
       );
 
-      setAvailableChurches([]);
-      return;
+
+    if (error) {
+      throw error;
     }
 
-    setAvailableChurches(data || []);
+
+    const organizations =
+      (data || [])
+        .map(org => ({
+
+          ...org,
+
+          display_name:
+            org.ministry_name ||
+            org.church_name ||
+            org.username ||
+            'Kingdom Organization'
+
+        }))
+        .sort(
+          (a, b) =>
+            a.display_name.localeCompare(
+              b.display_name
+            )
+        );
+
+
+    setAvailableChurches(
+      organizations
+    );
+
 
   } catch (error) {
 
     console.error(
-      'Church loading error:',
+      'Organization loading error:',
       error
     );
 
@@ -2604,12 +2776,13 @@ const loadChurchesByDenomination = async (denomination) => {
 
   } finally {
 
-    setIsLoadingChurches(false);
+    setIsLoadingChurches(
+      false
+    );
 
   }
 };
 
- // --- STEP 1 VALIDATION ---
 const handleStep1Validation = (e) => {
   e.preventDefault();
 
@@ -2658,8 +2831,6 @@ const handleStep1Validation = (e) => {
     }
   };
 
-
-// Prayer Room Base Metadata & State
   const PRAYER_ROOMS_META = [
     { id: 'Breakthrough', title: 'Breakthrough', sub: 'Strongholds broken, new doors', color: '#e5c158', bg: '#8C7A3E', img: 'https://images.unsplash.com/photo-1518002171953-a080ee817e1f?auto=format&fit=crop&w=150&q=80' },
     { id: 'Family', title: 'Family', sub: 'Marriages, parenting, reconciliation', color: '#f39c12', bg: '#2980B9', img: 'https://images.unsplash.com/photo-1476611317561-60117649dd94?auto=format&fit=crop&w=150&q=80' },
@@ -4159,6 +4330,14 @@ const profileData = {
     isMinistry
       ? null
       : (formData.churchName || null),
+
+local_church_id:
+  isMinistry
+    ? null
+    : (
+        formData.localChurchId ||
+        null
+      ),
 
   phone_number:
     formData.phone || null,
@@ -7825,6 +8004,11 @@ const [studioSub, setStudioSub] =
 const [studioBody, setStudioBody] =
   useState('');
 
+const [
+  studioReadingGuide,
+  setStudioReadingGuide
+] = useState([]);
+
 const KINGDOM_REWARD_KPC = 5;
 
 const [studioBookPrice, setStudioBookPrice] =
@@ -7843,13 +8027,91 @@ const [isPublishingKingdomContent, setIsPublishingKingdomContent] =
   useState(false);
 
 const resetKingdomStudioForm = () => {
+
   setStudioTitle('');
+
   setStudioSub('');
+
   setStudioBody('');
 
+  setStudioReadingGuide([]);
+
   setStudioCoverFile(null);
+
   setStudioVideoFile(null);
+
   setStudioAudioFile(null);
+
+};
+
+const addReadingGuideDay = () => {
+
+  setStudioReadingGuide(
+    prev => [
+      ...prev,
+
+      {
+        day:
+          prev.length + 1,
+
+        title:
+          `Day ${prev.length + 1}`,
+
+        reference:
+          '',
+
+        instruction:
+          ''
+      }
+    ]
+  );
+
+};
+
+
+const updateReadingGuideDay = (
+  index,
+  field,
+  value
+) => {
+
+  setStudioReadingGuide(
+    prev =>
+      prev.map(
+        (item, itemIndex) =>
+          itemIndex === index
+            ? {
+                ...item,
+                [field]:
+                  value
+              }
+            : item
+      )
+  );
+
+};
+
+
+const removeReadingGuideDay = (
+  index
+) => {
+
+  setStudioReadingGuide(
+    prev =>
+      prev
+        .filter(
+          (_, itemIndex) =>
+            itemIndex !== index
+        )
+        .map(
+          (item, itemIndex) => ({
+            ...item,
+            day:
+              itemIndex + 1
+          })
+        )
+  );
+
 };
 
 const uploadKingdomStudioFile = async (
@@ -8127,57 +8389,64 @@ const fetchKingdomContent = async () => {
       );
 
     const normalizedBiblePlans =
-      (
-        biblePlanResult.data ||
-        []
-      ).map(
-        item => ({
+  (
+    biblePlanResult.data ||
+    []
+  ).map(
+    item => ({
 
-          ...item,
+      ...item,
 
-          img:
-            item.cover_url ||
-            '',
+      img:
+        item.cover_url ||
+        '',
 
-          desc:
-            item.body ||
-            item.scripture ||
-            '',
+      desc:
+        item.body ||
+        '',
 
-          scripture:
-            item.scripture ||
-            '',
+      scripture:
+        item.scripture ||
+        '',
 
-          reward:
-            Number(
-              item.reward ||
-              KINGDOM_REWARD_KPC
-            ),
+      readingGuide:
+        Array.isArray(
+          item.reading_guide
+        )
+          ? item.reading_guide
+          : [],
 
-          rewardText:
-            `✨ +${
-              Number(
-                item.reward ||
-                KINGDOM_REWARD_KPC
-              )
-            } KPC upon completion`,
+      planBody:
+        item.body ||
+        '',
 
-          author:
-            item.church_name ||
-            item.author_name ||
-            'Ministry',
+      reward:
+        Number(
+          item.reward ||
+          KINGDOM_REWARD_KPC
+        ),
 
-          authorId:
-            item.author_id,
+      rewardText:
+        `✨ +${
+          Number(
+            item.reward ||
+            KINGDOM_REWARD_KPC
+          )
+        } KPC upon completion`,
 
-          createdAt:
-            item.created_at,
+      author:
+        item.church_name ||
+        item.author_name ||
+        'Ministry',
 
-          planBody:
-            item.body ||
-            ''
-        })
-      );
+      authorId:
+        item.author_id,
+
+      createdAt:
+        item.created_at
+
+    })
+  );
 
     setDevotionsList(
       normalizedDevotions
@@ -8226,6 +8495,326 @@ useEffect(() => {
 
 }, [step]);
 
+const fetchAnnouncements =
+  async () => {
+
+    try {
+
+      const {
+        data,
+        error
+      } =
+        await supabase
+          .from('kingdom_content')
+          .select(`
+            id,
+            author_id,
+            author_name,
+            title,
+            body,
+            cover_url,
+            announcement_type,
+            created_at
+          `)
+          .eq(
+            'content_type',
+            'ANNOUNCEMENT'
+          )
+          .eq(
+            'is_published',
+            true
+          )
+          .order(
+            'created_at',
+            {
+              ascending: false
+            }
+          );
+
+
+      if (error) {
+        throw error;
+      }
+
+
+      const normalized =
+        (
+          data || []
+        ).map(
+          item => {
+
+            const type =
+              item.announcement_type ||
+              item.scripture ||
+              'ANNOUNCEMENT';
+
+
+            const template =
+              getAnnouncementTemplate(
+                type
+              );
+
+
+            return {
+
+              id:
+                item.id,
+
+              badge:
+                type,
+
+              title:
+                item.title,
+
+              desc:
+                item.body ||
+                '',
+
+              author:
+                item.author_name ||
+                'KingdomPlus',
+
+              handle:
+                '@kingdomplus',
+
+              image_url:
+                item.cover_url ||
+                template.image,
+
+              image_position:
+                template.position,
+
+              accent:
+                template.accent,
+
+              created_at:
+                item.created_at
+            };
+          }
+        );
+
+
+      setAnnouncements(
+        normalized
+      );
+
+
+      setCurrentSlide(0);
+
+    } catch (error) {
+
+      console.error(
+        'Announcement loading error:',
+        error
+      );
+
+    }
+  };
+
+useEffect(() => {
+
+  if (
+    step === 6
+  ) {
+
+    fetchAnnouncements();
+
+  }
+
+}, [step]);
+
+const fetchSanctuaryAnnouncements =
+  async () => {
+
+    try {
+
+      const {
+        data: {
+          user
+        }
+      } =
+        await supabase.auth.getUser();
+
+
+      if (!user) {
+        setAnnouncements([]);
+        return;
+      }
+
+
+      const {
+        data: profile,
+        error: profileError
+      } =
+        await supabase
+          .from('user_profiles')
+          .select(`
+            local_church,
+            local_church_id
+          `)
+          .eq(
+            'id',
+            user.id
+          )
+          .single();
+
+
+      if (profileError) {
+        throw profileError;
+      }
+
+
+      if (
+        !profile?.local_church_id
+      ) {
+
+        setAnnouncements([]);
+
+        return;
+      }
+
+
+      const {
+        data,
+        error
+      } =
+        await supabase
+          .from('kingdom_content')
+          .select(`
+            id,
+            author_id,
+            author_name,
+            title,
+            body,
+            cover_url,
+            announcement_type,
+            audience_type,
+            audience_org_id,
+            created_at
+          `)
+          .eq(
+            'content_type',
+            'ANNOUNCEMENT'
+          )
+          .eq(
+            'is_published',
+            true
+          )
+          .eq(
+            'audience_type',
+            'LOCAL_ORGANIZATION'
+          )
+          .eq(
+            'audience_org_id',
+            profile.local_church_id
+          )
+          .order(
+            'created_at',
+            {
+              ascending: false
+            }
+          );
+
+
+      if (error) {
+        throw error;
+      }
+
+
+      const normalized =
+        (
+          data || []
+        ).map(
+          item => {
+
+            const template =
+              getAnnouncementTemplate(
+                item.announcement_type
+              );
+
+
+            return {
+
+              id:
+                item.id,
+
+              badge:
+                item.announcement_type ||
+                'ANNOUNCEMENT',
+
+              title:
+                item.title,
+
+              desc:
+                item.body ||
+                '',
+
+              author:
+                item.author_name ||
+                'Ministry',
+
+              handle:
+                '@ministry',
+
+              image_url:
+                item.cover_url ||
+                template.image,
+
+              image_position:
+                template.position,
+
+              accent:
+                template.accent,
+
+              audience_type:
+                item.audience_type,
+
+              audience_org_id:
+                item.audience_org_id,
+
+              created_at:
+                item.created_at
+
+            };
+
+          }
+        );
+
+
+      setAnnouncements(
+        normalized
+      );
+
+      setCurrentSlide(0);
+
+
+    } catch (error) {
+
+      console.error(
+        'Sanctuary announcement loading failed:',
+        error
+      );
+
+      setAnnouncements([]);
+
+    }
+
+  };
+
+useEffect(() => {
+
+  if (
+    step === 6
+  ) {
+
+    fetchSanctuaryAnnouncements();
+
+  }
+
+}, [
+  step,
+  currentUser?.id
+]);
 
 const handleKingdomPublish = async (
   e,
@@ -8418,8 +9007,10 @@ if (
 
       const payload = {
 
-        author_id:
-          user.id,
+         author_id:
+    isMinistryPublish
+      ? ministryId
+      : user.id,
 
         church_name:
           authorName,
@@ -8469,7 +9060,8 @@ if (
         throw error;
       }
 await registerMinistryActivity({
-  ministryId: user.id,
+  ministryId:
+    ministryId,
   contentId: createdContent.id,
   activityType: 'message',
   title: studioTitle.trim(),
@@ -8484,47 +9076,103 @@ else if (
   publishCategory === 'Bible Plans'
 ) {
 
+  if (
+    !Array.isArray(
+      studioReadingGuide
+    ) ||
+    studioReadingGuide.length === 0
+  ) {
+
+    throw new Error(
+      'Please add at least one reading day to the Bible plan.'
+    );
+  }
+
+
+  const incompleteDay =
+    studioReadingGuide.find(
+      day =>
+        !day.title?.trim() ||
+        !day.reference?.trim() ||
+        !day.instruction?.trim()
+    );
+
+
+  if (
+    incompleteDay
+  ) {
+
+    throw new Error(
+      `Please complete all fields for Day ${incompleteDay.day}.`
+    );
+  }
+
+  const cleanReadingGuide =
+    studioReadingGuide.map(
+      (day, index) => ({
+
+        day:
+          index + 1,
+
+        title:
+          day.title.trim(),
+
+        reference:
+          day.reference.trim(),
+
+        instruction:
+          day.instruction.trim()
+
+      })
+    );
+
   const {
-  error
-} = await supabase
-  .from('kingdom_content')
-  .insert([{
-    author_id:
-      isMinistryPublish
-        ? ministryId
-        : user.id,
+    error
+  } = await supabase
+    .from('kingdom_content')
+    .insert([{
 
-    author_name:
-      authorName,
+      author_id:
+        isMinistryPublish
+          ? ministryId
+          : user.id,
 
-    title:
-      studioTitle.trim(),
+      author_name:
+        authorName,
 
-    scripture:
-      studioSub.trim() ||
-      null,
+      title:
+        studioTitle.trim(),
 
-    body:
-      studioBody.trim(),
+      scripture:
+        studioSub.trim() ||
+        null,
 
-    reward_kpc:
-      KINGDOM_REWARD_KPC,
+      body:
+        studioBody.trim(),
 
-    cover_url:
-      coverUrl,
+      reading_guide:
+        cleanReadingGuide,
 
-    content_type:
-      'BIBLE_PLAN',
+      reward_kpc:
+        KINGDOM_REWARD_KPC,
 
-    is_published:
-      true
-  }]);
+      cover_url:
+        coverUrl,
 
-if (error) {
-  throw error;
+      content_type:
+        'BIBLE_PLAN',
+
+      is_published:
+        true
+
+    }]);
+
+
+  if (error) {
+    throw error;
+  }
+
 }
-}
-
     else {
 
       alert(
@@ -8579,6 +9227,241 @@ await fetchKingdomContent();
 
   }
 };
+
+const handleMinistryAnnouncementPublish =
+  async (e) => {
+
+    e?.preventDefault?.();
+
+
+    if (
+      !announceTitleInput.trim()
+    ) {
+
+      alert(
+        'Please enter an announcement headline.'
+      );
+
+      return;
+    }
+
+
+    if (
+      !announceDescInput.trim()
+    ) {
+
+      alert(
+        'Please enter the announcement details.'
+      );
+
+      return;
+    }
+
+
+    try {
+
+      const {
+        data: {
+          user
+        }
+      } =
+        await supabase.auth.getUser();
+
+
+      if (!user) {
+        throw new Error(
+          'Please sign in first.'
+        );
+      }
+
+
+      const ministryId =
+        activeMinistryWorkspace?.ministry?.id ||
+        (
+          userProfile?.account_type ===
+          'Ministry'
+            ? userProfile.id
+            : null
+        );
+
+
+      if (!ministryId) {
+        throw new Error(
+          'The current Ministry could not be identified.'
+        );
+      }
+
+
+      const template =
+        getAnnouncementTemplate(
+          announceBadgeInput
+        );
+
+
+      const ministryName =
+        activeMinistryWorkspace?.ministry?.ministry_name ||
+        activeMinistryWorkspace?.ministry?.church_name ||
+        userProfile?.ministry_name ||
+        formData.churchName ||
+        'KingdomPlus Ministry';
+
+
+      setIsPublishingKingdomContent(
+        true
+      );
+
+
+      const {
+        data,
+        error
+      } =
+        await supabase
+          .from('kingdom_content')
+          .insert([{
+
+            author_id:
+              ministryId,
+
+            author_name:
+              ministryName,
+
+            title:
+              announceTitleInput.trim(),
+
+            scripture:
+              announceBadgeInput,
+
+            body:
+              announceDescInput.trim(),
+
+            cover_url:
+              template.image,
+
+            announcement_type:
+              announceBadgeInput,
+
+            audience_type:
+              'LOCAL_ORGANIZATION',
+
+            audience_org_id:
+              ministryId,
+
+            content_type:
+              'ANNOUNCEMENT',
+
+            is_published:
+              true
+
+          }])
+          .select()
+          .single();
+
+
+      if (error) {
+        throw error;
+      }
+
+      const newAnnouncement = {
+
+        id:
+          data.id,
+
+        badge:
+          announceBadgeInput,
+
+        title:
+          data.title,
+
+        desc:
+          data.body,
+
+        author:
+          ministryName,
+
+        handle:
+          `@${
+            activeMinistryWorkspace?.ministry?.username ||
+            userProfile?.username ||
+            'ministry'
+          }`,
+
+        image_url:
+          data.cover_url ||
+          template.image,
+
+        image_position:
+          template.position,
+
+        accent:
+          template.accent,
+
+        audience_type:
+          data.audience_type,
+
+        audience_org_id:
+          data.audience_org_id,
+
+        created_at:
+          data.created_at
+
+      };
+
+
+      setAnnouncements(
+        prev => [
+          newAnnouncement,
+          ...prev
+        ]
+      );
+
+
+      setCurrentSlide(0);
+
+
+      setAnnounceTitleInput('');
+
+      setAnnounceDescInput('');
+
+      setIsMinistryPublisherOpen(
+        false
+      );
+
+      setMinistryPublishType(
+        null
+      );
+
+      setMinistryPublishSource(
+        false
+      );
+
+
+      alert(
+        `Announcement published to ${ministryName} members.`
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        'Ministry announcement publish failed:',
+        error
+      );
+
+
+      alert(
+        error?.message ||
+        'Could not publish the announcement.'
+      );
+
+    } finally {
+
+      setIsPublishingKingdomContent(
+        false
+      );
+
+    }
+
+  };
 
 
 // --- CHURCH CRM & GAMIFIED ATTENDANCE STATE ---
@@ -11312,9 +12195,22 @@ const isPositive =
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [completedKingdomContentIds, setCompletedKingdomContentIds] =
   useState([]);
-  const openKingdomPublishModal = (category) => {
-  setActiveKingdomPublishModal(category);
-   };
+  const openKingdomPublishModal = (
+  category
+) => {
+
+  resetKingdomStudioForm();
+
+  setStudioCategory(
+    category
+  );
+
+  setActiveKingdomPublishModal(
+    category
+  );
+
+};
+
   const closeKingdomPublishModal = () => {
   resetKingdomStudioForm();
   setActiveKingdomPublishModal(null);
@@ -13425,14 +14321,13 @@ const membersToNextMilestone =
     <div className="form-scroll-area">
 
       <h1 className="onboarding-title">
-        Your local church
+        Your local church / ministry
       </h1>
 
       <p className="onboarding-subtitle">
-        Choose your home church or add a new one to connect locally.
+        Choose your home church / ministry or add a new one to connect locally.
       </p>
 
-      {/* SHOW SELECTED DENOMINATION */}
       {formData.denomination && (
         <div
           style={{
@@ -13461,36 +14356,78 @@ const membersToNextMilestone =
           <div className="input-group">
 
             <label className="input-label">
-              LOCAL CHURCH
+              LOCAL CHURCH / MINISTRY
             </label>
 
             <select
-              name="churchName"
-              value={formData.churchName}
-              onChange={handleChange}
-              className="app-select"
-              disabled={isLoadingChurches}
-            >
+  name="localChurchId"
+  value={
+    formData.localChurchId ||
+    ''
+  }
+  onChange={(e) => {
 
-              <option value="">
-                {isLoadingChurches
-                  ? 'Loading churches...'
-                  : availableChurches.length > 0
-                    ? 'Select your church'
-                    : 'No registered churches found'}
-              </option>
+    const selectedId =
+      e.target.value;
 
-              {availableChurches.map((church) => (
-                <option
-                  key={church.id}
-                  value={church.church_name}
-                >
-                  {church.church_name}
-                </option>
-              ))}
 
-            </select>
+    const selectedOrg =
+      availableChurches.find(
+        org =>
+          String(org.id) ===
+          String(selectedId)
+      );
 
+
+    setFormData(prev => ({
+      ...prev,
+
+      localChurchId:
+        selectedId,
+
+      churchName:
+        selectedOrg
+          ?.display_name ||
+        '',
+
+      isCustomChurch:
+        false
+    }));
+
+  }}
+  className="app-select"
+  disabled={
+    isLoadingChurches
+  }
+>
+
+  <option value="">
+    {isLoadingChurches
+      ? 'Loading churches and ministries...'
+      : availableChurches.length > 0
+        ? 'Select your local church / ministry'
+        : 'No registered churches or ministries found'}
+  </option>
+
+
+  {availableChurches.map(
+    organization => (
+
+      <option
+        key={
+          organization.id
+        }
+        value={
+          organization.id
+        }
+      >
+        {organization.display_name}
+      </option>
+
+    )
+  )}
+
+</select>
           </div>
 
           {!isLoadingChurches &&
@@ -13513,13 +14450,20 @@ const membersToNextMilestone =
             className="add-link"
             onClick={() =>
               setFormData(prev => ({
-                ...prev,
-                churchName: '',
-                isCustomChurch: true
-              }))
+  ...prev,
+
+  churchName:
+    '',
+
+  localChurchId:
+    '',
+
+  isCustomChurch:
+    true
+}))
             }
           >
-            + My church isn't listed
+            + My local church / ministry isn't listed
           </button>
         </>
 
@@ -15705,43 +16649,6 @@ maxHeight:
             )}
 
           </div>
-{/* --- BROADCAST ANNOUNCEMENT MODAL --- */}
-  {activeModal === 'announcement' && (
-    <div className="modal-overlay" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(8px)', zIndex: 60000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px' }}>
-      <div className="modal-box" style={{ background: '#101926', border: '1px solid rgba(243, 202, 88, 0.3)', borderRadius: '20px', padding: '25px', width: '100%', maxWidth: '450px', boxShadow: '0 20px 50px rgba(0,0,0,0.5)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-          <h3 className="metallic-gold-text" style={{ margin: 0, fontSize: '18px' }}>Broadcast to Sanctuary Feed</h3>
-          <button onClick={() => setActiveModal(null)} style={{ background: 'none', border: 'none', color: '#8e9aab', cursor: 'pointer' }}><XIcon /></button>
-        </div>
-
-        <form onSubmit={handleBroadcastAnnouncement} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-          <div>
-            <label className="input-label">ANNOUNCEMENT TYPE</label>
-            <select value={announceBadgeInput} onChange={(e) => setAnnounceBadgeInput(e.target.value)} className="app-select">
-              <option value="ANNOUNCEMENT">General Announcement</option>
-              <option value="EVENT">Upcoming Event / Service</option>
-              <option value="UPDATE">Ministry / Treasury Update</option>
-              <option value="URGENT">Urgent Prayer Request</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="input-label">HEADLINE TITLE</label>
-            <input type="text" placeholder="e.g. 3-Day Global Fasting Begins Tomorrow" value={announceTitleInput} onChange={(e) => setAnnounceTitleInput(e.target.value)} className="app-input" />
-          </div>
-
-          <div>
-            <label className="input-label">MESSAGE DETAILS</label>
-            <textarea placeholder="Provide the full details, times, and instructions for believers..." value={announceDescInput} onChange={(e) => setAnnounceDescInput(e.target.value)} className="app-input" style={{ minHeight: '100px', resize: 'none' }} />
-          </div>
-
-          <button type="submit" className="action-button" style={{ background: 'linear-gradient(90deg, #f3ca58, #29beaf)', color: '#101926', fontWeight: '800', marginTop: '10px' }}>
-            Push Live to Believers
-          </button>
-        </form>
-      </div>
-    </div>
-  )}
 
 {/* =========================================================
           CHURCH STUDIO MODALS
@@ -15937,39 +16844,315 @@ maxHeight:
 </div>
 
 
-        <div>
+       <div>
 
   <label className="input-label">
     {studioCategory === 'Devotions'
       ? 'DEVOTIONAL TEXT'
-      : studioCategory === 'Bible Plans'
-        ? 'PLAN DESCRIPTION / READING GUIDE'
-        : 'MESSAGE / TRANSCRIPT'}
+      : studioCategory === 'Messages'
+        ? 'MESSAGE / TRANSCRIPT'
+        : 'PLAN DESCRIPTION'}
   </label>
 
   <textarea
     value={studioBody}
     onChange={(e) =>
-      setStudioBody(
-        e.target.value
-      )
+      setStudioBody(e.target.value)
     }
-    className="app-input"
-    style={{
-      minHeight: '170px',
-      resize: 'vertical',
-      lineHeight: '1.6'
-    }}
+    className="app-textarea"
     placeholder={
       studioCategory === 'Devotions'
-        ? 'Write the full devotional message...'
+        ? 'Write the devotional message...'
         : studioCategory === 'Bible Plans'
-          ? 'Explain the reading plan, daily assignments, chapters, and instructions...'
-          : 'Write the sermon text or transcript...'
+          ? 'Explain what this Bible plan is about...'
+          : 'Write the message or transcript...'
     }
+    rows={6}
   />
 
 </div>
+
+{isMinistryPublisherOpen &&
+  ministryPublishType === 'bible_plan' && (
+  <div>
+
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '10px'
+      }}
+    >
+
+      <div>
+
+        <label className="input-label">
+          READING GUIDE
+        </label>
+
+        <div
+          style={{
+            color: '#8e9aab',
+            fontSize: '10px',
+            marginTop: '3px'
+          }}
+        >
+          Add the Bible reading for each day.
+        </div>
+
+      </div>
+
+      <button
+        type="button"
+        onClick={
+          addReadingGuideDay
+        }
+        style={{
+          border: '1px solid rgba(243,202,88,.35)',
+
+          background:
+            'rgba(243,202,88,.08)',
+
+          color:
+            '#f3ca58',
+
+          borderRadius:
+            '999px',
+
+          padding:
+            '7px 12px',
+
+          fontSize:
+            '11px',
+
+          fontWeight:
+            '900',
+
+          cursor:
+            'pointer'
+        }}
+      >
+        + Add Day
+      </button>
+
+    </div>
+
+
+    {studioReadingGuide.length === 0 && (
+      <div
+        style={{
+          border:
+            '1px dashed rgba(255,255,255,.15)',
+
+          borderRadius:
+            '14px',
+
+          padding:
+            '18px',
+
+          textAlign:
+            'center',
+
+          color:
+            '#8e9aab',
+
+          fontSize:
+            '12px',
+
+          lineHeight:
+            '1.5'
+        }}
+      >
+        No reading days added yet.
+        <br />
+        Tap <strong>+ Add Day</strong> to start.
+      </div>
+    )}
+
+
+    <div
+      style={{
+        display:
+          'flex',
+
+        flexDirection:
+          'column',
+
+        gap:
+          '12px'
+      }}
+    >
+
+      {studioReadingGuide.map(
+        (day, index) => (
+
+          <div
+            key={
+              `reading-day-${index}`
+            }
+            style={{
+              background:
+                'rgba(255,255,255,.035)',
+
+              border:
+                '1px solid rgba(243,202,88,.15)',
+
+              borderRadius:
+                '14px',
+
+              padding:
+                '14px'
+            }}
+          >
+
+            {/* DAY HEADER */}
+
+            <div
+              style={{
+                display:
+                  'flex',
+
+                alignItems:
+                  'center',
+
+                justifyContent:
+                  'space-between',
+
+                marginBottom:
+                  '10px'
+              }}
+            >
+
+              <div
+                style={{
+                  color:
+                    '#f3ca58',
+
+                  fontSize:
+                    '12px',
+
+                  fontWeight:
+                    '900'
+                }}
+              >
+                Day {day.day}
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  removeReadingGuideDay(
+                    index
+                  )
+                }
+                style={{
+                  background:
+                    'transparent',
+
+                  border:
+                    'none',
+
+                  color:
+                    '#ff6b6b',
+
+                  fontSize:
+                    '11px',
+
+                  fontWeight:
+                    '800',
+
+                  cursor:
+                    'pointer'
+                }}
+              >
+                Remove
+              </button>
+
+            </div>
+
+
+            {/* DAY TITLE */}
+
+            <input
+              type="text"
+              value={
+                day.title
+              }
+              onChange={(e) =>
+                updateReadingGuideDay(
+                  index,
+                  'title',
+                  e.target.value
+                )
+              }
+              className="app-input"
+              placeholder="Day title"
+              style={{
+                marginBottom:
+                  '8px'
+              }}
+            />
+
+
+            {/* SCRIPTURE */}
+
+            <input
+              type="text"
+              value={
+                day.reference
+              }
+              onChange={(e) =>
+                updateReadingGuideDay(
+                  index,
+                  'reference',
+                  e.target.value
+                )
+              }
+              className="app-input"
+              placeholder="Bible reference e.g. Proverbs 1:1-7"
+              style={{
+                marginBottom:
+                  '8px'
+              }}
+            />
+
+
+            {/* INSTRUCTION */}
+
+            <textarea
+              value={
+                day.instruction
+              }
+              onChange={(e) =>
+                updateReadingGuideDay(
+                  index,
+                  'instruction',
+                  e.target.value
+                )
+              }
+              className="app-input"
+              placeholder="What should the believer read, reflect on, or do today?"
+              rows={4}
+              style={{
+                resize:
+                  'vertical',
+
+                lineHeight:
+                  '1.5'
+              }}
+            />
+
+          </div>
+
+        )
+      )}
+
+    </div>
+
+  </div>
+)}
+
 
         <div>
 
@@ -16006,8 +17189,7 @@ maxHeight:
 
         </div>
 
-
-        {/* MESSAGE MEDIA */}
+       {/* MESSAGE MEDIA */}
         {studioCategory === 'Messages' && (
           <>
             <div>
@@ -17115,9 +18297,8 @@ maxHeight:
             lineHeight: '1.6'
           }}
         >
-          {selectedPlan.planBody ||
-            selectedPlan.desc ||
-            'Follow the reading plan provided above.'}
+          {selectedPlan.readingGuide ||
+    'No reading guide has been added for this plan yet.'}
         </p>
 
       </div>
@@ -17162,7 +18343,7 @@ maxHeight:
           marginTop:
             '20px',
 
-    marginBottom: '75px'
+          marginBottom: '75px'
         }}
       >
         Complete Today's Reading
@@ -17393,6 +18574,7 @@ maxHeight:
         style={{
           width: '100%',
           padding: '16px',
+          marginBottom: '75px',
           background:
             completedKingdomContentIds.includes(
               String(selectedMessage.id)
@@ -24323,13 +25505,13 @@ const displayName =
             }
             placeholder="Write your devotional message..."
             className="app-input"
-            rows={10}
+            rows={8}
             style={{
               width: '100%',
               boxSizing: 'border-box',
               margin: 0,
               resize: 'vertical',
-              minHeight: '180px'
+              minHeight: '120px'
             }}
           />
         </div>
@@ -24625,17 +25807,298 @@ const displayName =
             }
             placeholder="Explain the purpose of this plan, daily readings, chapters, instructions and what believers should expect..."
             className="app-input"
-            rows={10}
+            rows={8}
             style={{
               width: '100%',
               boxSizing: 'border-box',
               margin: 0,
               resize: 'vertical',
-              minHeight: '180px',
+              minHeight: '120px',
               lineHeight: '1.6'
             }}
           />
         </div>
+
+{isMinistryPublisherOpen &&
+  ministryPublishType === 'bible_plan' && (
+  <div>
+
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '10px'
+      }}
+    >
+
+      <div>
+
+        <label className="input-label">
+          READING GUIDE
+        </label>
+
+        <div
+          style={{
+            color: '#8e9aab',
+            fontSize: '10px',
+            marginTop: '3px'
+          }}
+        >
+          Add the Bible reading for each day.
+        </div>
+
+      </div>
+
+      <button
+        type="button"
+        onClick={
+          addReadingGuideDay
+        }
+        style={{
+          border: '1px solid rgba(243,202,88,.35)',
+
+          background:
+            'rgba(243,202,88,.08)',
+
+          color:
+            '#f3ca58',
+
+          borderRadius:
+            '999px',
+
+          padding:
+            '7px 12px',
+
+          fontSize:
+            '11px',
+
+          fontWeight:
+            '900',
+
+          cursor:
+            'pointer'
+        }}
+      >
+        + Add Day
+      </button>
+
+    </div>
+
+
+    {studioReadingGuide.length === 0 && (
+      <div
+        style={{
+          border:
+            '1px dashed rgba(255,255,255,.15)',
+
+          borderRadius:
+            '14px',
+
+          padding:
+            '18px',
+
+          textAlign:
+            'center',
+
+          color:
+            '#8e9aab',
+
+          fontSize:
+            '12px',
+
+          lineHeight:
+            '1.5'
+        }}
+      >
+        No reading days added yet.
+        <br />
+        Tap <strong>+ Add Day</strong> to start.
+      </div>
+    )}
+
+
+    <div
+      style={{
+        display:
+          'flex',
+
+        flexDirection:
+          'column',
+
+        gap:
+          '12px'
+      }}
+    >
+
+      {studioReadingGuide.map(
+        (day, index) => (
+
+          <div
+            key={
+              `reading-day-${index}`
+            }
+            style={{
+              background:
+                'rgba(255,255,255,.035)',
+
+              border:
+                '1px solid rgba(243,202,88,.15)',
+
+              borderRadius:
+                '14px',
+
+              padding:
+                '14px'
+            }}
+          >
+
+            {/* DAY HEADER */}
+
+            <div
+              style={{
+                display:
+                  'flex',
+
+                alignItems:
+                  'center',
+
+                justifyContent:
+                  'space-between',
+
+                marginBottom:
+                  '10px'
+              }}
+            >
+
+              <div
+                style={{
+                  color:
+                    '#f3ca58',
+
+                  fontSize:
+                    '12px',
+
+                  fontWeight:
+                    '900'
+                }}
+              >
+                Day {day.day}
+              </div>
+
+              <button
+                type="button"
+                onClick={() =>
+                  removeReadingGuideDay(
+                    index
+                  )
+                }
+                style={{
+                  background:
+                    'transparent',
+
+                  border:
+                    'none',
+
+                  color:
+                    '#ff6b6b',
+
+                  fontSize:
+                    '11px',
+
+                  fontWeight:
+                    '800',
+
+                  cursor:
+                    'pointer'
+                }}
+              >
+                Remove
+              </button>
+
+            </div>
+
+
+            {/* DAY TITLE */}
+
+            <input
+              type="text"
+              value={
+                day.title
+              }
+              onChange={(e) =>
+                updateReadingGuideDay(
+                  index,
+                  'title',
+                  e.target.value
+                )
+              }
+              className="app-input"
+              placeholder="Day title"
+              style={{
+                marginBottom:
+                  '8px'
+              }}
+            />
+
+
+            {/* SCRIPTURE */}
+
+            <input
+              type="text"
+              value={
+                day.reference
+              }
+              onChange={(e) =>
+                updateReadingGuideDay(
+                  index,
+                  'reference',
+                  e.target.value
+                )
+              }
+              className="app-input"
+              placeholder="Bible reference e.g. Proverbs 1:1-7"
+              style={{
+                marginBottom:
+                  '8px'
+              }}
+            />
+
+
+            {/* INSTRUCTION */}
+
+            <textarea
+              value={
+                day.instruction
+              }
+              onChange={(e) =>
+                updateReadingGuideDay(
+                  index,
+                  'instruction',
+                  e.target.value
+                )
+              }
+              className="app-input"
+              placeholder="What should the believer read, reflect on, or do today?"
+              rows={4}
+              style={{
+                resize:
+                  'vertical',
+
+                lineHeight:
+                  '1.5'
+              }}
+            />
+
+          </div>
+
+        )
+      )}
+
+    </div>
+
+  </div>
+)}
 
         {/* COVER IMAGE */}
         <div style={{ marginBottom: '15px' }}>
@@ -24786,6 +26249,1038 @@ const displayName =
         </div>
 
       </div>
+    </div>
+  )}
+
+{isMinistryPublisherOpen &&
+  ministryPublishType === 'message' && (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 60000,
+        background:
+          'rgba(3,8,15,0.92)',
+        backdropFilter:
+          'blur(12px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        paddingBottom: '95px',
+        boxSizing: 'border-box'
+      }}
+    >
+
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '680px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          borderRadius: '24px',
+          background: '#101926',
+          border:
+            '1px solid rgba(255,255,255,0.10)',
+          boxShadow:
+            '0 30px 90px rgba(0,0,0,0.55)',
+          padding: '22px',
+          boxSizing: 'border-box'
+        }}
+      >
+
+        {/* HEADER */}
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '12px',
+            marginBottom: '20px'
+          }}
+        >
+
+          <div>
+
+            <div
+              style={{
+                color: '#29beaf',
+                fontSize: '9px',
+                fontWeight: '900',
+                letterSpacing: '1.2px',
+                textTransform: 'uppercase'
+              }}
+            >
+              Ministry Publisher
+            </div>
+
+            <h2
+              style={{
+                margin:
+                  '5px 0 0',
+                color: '#fff',
+                fontSize: '21px',
+                fontWeight: '900'
+              }}
+            >
+              Publish Message
+            </h2>
+
+            <div
+              style={{
+                marginTop: '4px',
+                color: '#8e9aab',
+                fontSize: '10px'
+              }}
+            >
+              Publish a sermon, teaching,
+              audio message or video message
+              from the active Ministry.
+            </div>
+
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+
+              setIsMinistryPublisherOpen(
+                false
+              );
+
+              setMinistryPublishType(
+                null
+              );
+
+              setMinistryPublishSource(
+                false
+              );
+
+              resetKingdomStudioForm();
+
+            }}
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              border:
+                '1px solid rgba(255,255,255,0.08)',
+              background:
+                'rgba(255,255,255,0.04)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              flexShrink: 0
+            }}
+          >
+            <XIcon />
+          </button>
+
+        </div>
+
+
+        {/* TITLE */}
+
+        <div
+          style={{
+            marginBottom: '15px'
+          }}
+        >
+
+          <label className="input-label">
+            MESSAGE TITLE
+          </label>
+
+          <input
+            type="text"
+            value={studioTitle}
+            onChange={e =>
+              setStudioTitle(
+                e.target.value
+              )
+            }
+            placeholder="e.g. Walking by Faith"
+            className="app-input"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              margin: 0
+            }}
+          />
+
+        </div>
+
+
+        {/* SCRIPTURE */}
+
+        <div
+          style={{
+            marginBottom: '15px'
+          }}
+        >
+
+          <label className="input-label">
+            SCRIPTURE / REFERENCE
+          </label>
+
+          <input
+            type="text"
+            value={studioSub}
+            onChange={e =>
+              setStudioSub(
+                e.target.value
+              )
+            }
+            placeholder="e.g. Romans 8:1–17"
+            className="app-input"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              margin: 0
+            }}
+          />
+
+        </div>
+
+
+        {/* MESSAGE BODY */}
+
+        <div
+          style={{
+            marginBottom: '15px'
+          }}
+        >
+
+          <label className="input-label">
+            MESSAGE / TRANSCRIPT
+          </label>
+
+          <textarea
+            value={studioBody}
+            onChange={e =>
+              setStudioBody(
+                e.target.value
+              )
+            }
+            placeholder="Write the message, teaching or transcript..."
+            className="app-input"
+            rows={7}
+            style={{
+              width: '100%',
+              boxSizing: 'border-box',
+              margin: 0,
+              resize: 'vertical',
+              minHeight: '130px',
+              lineHeight: '1.6'
+            }}
+          />
+
+        </div>
+
+
+        {/* COVER */}
+
+        <div
+          style={{
+            marginBottom: '15px'
+          }}
+        >
+
+          <label className="input-label">
+            COVER IMAGE — OPTIONAL
+          </label>
+
+          <input
+            type="file"
+            accept="image/*"
+            onChange={e =>
+              setStudioCoverFile(
+                e.target.files?.[0] ||
+                null
+              )
+            }
+            style={{
+              width: '100%',
+              color: '#cbd5e1'
+            }}
+          />
+
+          {studioCoverFile && (
+            <div
+              style={{
+                color: '#29beaf',
+                fontSize: '10px',
+                marginTop: '6px'
+              }}
+            >
+              ✓ {studioCoverFile.name}
+            </div>
+          )}
+
+        </div>
+
+
+        {/* VIDEO */}
+
+        <div
+          style={{
+            marginBottom: '15px'
+          }}
+        >
+
+          <label className="input-label">
+            VIDEO — OPTIONAL
+          </label>
+
+          <input
+            type="file"
+            accept="video/*"
+            onChange={e =>
+              setStudioVideoFile(
+                e.target.files?.[0] ||
+                null
+              )
+            }
+            style={{
+              width: '100%',
+              color: '#cbd5e1'
+            }}
+          />
+
+          {studioVideoFile && (
+            <div
+              style={{
+                color: '#29beaf',
+                fontSize: '10px',
+                marginTop: '6px'
+              }}
+            >
+              ✓ {studioVideoFile.name}
+            </div>
+          )}
+
+        </div>
+
+
+        {/* AUDIO */}
+
+        <div
+          style={{
+            marginBottom: '18px'
+          }}
+        >
+
+          <label className="input-label">
+            AUDIO — OPTIONAL
+          </label>
+
+          <input
+            type="file"
+            accept="audio/*"
+            onChange={e =>
+              setStudioAudioFile(
+                e.target.files?.[0] ||
+                null
+              )
+            }
+            style={{
+              width: '100%',
+              color: '#cbd5e1'
+            }}
+          />
+
+          {studioAudioFile && (
+            <div
+              style={{
+                color: '#29beaf',
+                fontSize: '10px',
+                marginTop: '6px'
+              }}
+            >
+              ✓ {studioAudioFile.name}
+            </div>
+          )}
+
+        </div>
+
+
+        {/* INFO */}
+
+        <div
+          style={{
+            background:
+              'rgba(41,190,175,0.08)',
+            border:
+              '1px solid rgba(41,190,175,0.25)',
+            padding: '13px',
+            borderRadius: '12px',
+            color: '#9ddfd6',
+            fontSize: '11px',
+            lineHeight: '1.5',
+            marginBottom: '16px'
+          }}
+        >
+          This message will be published
+          under the active Ministry.
+        </div>
+
+
+        {/* ACTIONS */}
+
+        <div
+          style={{
+            display: 'flex',
+            gap: '8px'
+          }}
+        >
+
+          <button
+            type="button"
+            onClick={() => {
+
+              setIsMinistryPublisherOpen(
+                false
+              );
+
+              setMinistryPublishType(
+                null
+              );
+
+              setMinistryPublishSource(
+                false
+              );
+
+              resetKingdomStudioForm();
+
+            }}
+            style={{
+              flex: 1,
+              padding: '12px',
+              borderRadius: '10px',
+              border:
+                '1px solid rgba(255,255,255,0.08)',
+              background:
+                'rgba(255,255,255,0.03)',
+              color: '#fff',
+              cursor: 'pointer',
+              fontWeight: '800'
+            }}
+          >
+            Cancel
+          </button>
+
+
+          <button
+            type="button"
+            onClick={e =>
+              handleKingdomPublish(
+                e,
+                'Messages',
+                true
+              )
+            }
+            disabled={
+              isPublishingKingdomContent
+            }
+            style={{
+              flex: 2,
+              padding: '12px',
+              border: 'none',
+              borderRadius: '10px',
+              background:
+                isPublishingKingdomContent
+                  ? 'rgba(41,190,175,0.45)'
+                  : '#29beaf',
+              color: '#08111d',
+              cursor:
+                isPublishingKingdomContent
+                  ? 'wait'
+                  : 'pointer',
+              fontWeight: '900'
+            }}
+          >
+            {isPublishingKingdomContent
+              ? 'Publishing...'
+              : 'Publish Message'}
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+  )}
+
+{isMinistryPublisherOpen &&
+  ministryPublishType === 'announcement' && (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 60000,
+        background:
+          'rgba(3,8,15,0.93)',
+        backdropFilter:
+          'blur(12px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        paddingBottom: '95px',
+        boxSizing: 'border-box'
+      }}
+    >
+
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '560px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          background: '#101926',
+          borderRadius: '24px',
+          border:
+            '1px solid rgba(243,202,88,.22)',
+          boxShadow:
+            '0 30px 90px rgba(0,0,0,.60)',
+          padding: '22px',
+          boxSizing: 'border-box'
+        }}
+      >
+
+        {/* HEADER */}
+
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+            marginBottom: '20px'
+          }}
+        >
+
+          <div>
+
+            <div
+              style={{
+                color: '#f3ca58',
+                fontSize: '9px',
+                fontWeight: '900',
+                letterSpacing: '1.2px',
+                textTransform:
+                  'uppercase'
+              }}
+            >
+              Sanctuary Publisher
+            </div>
+
+            <h2
+              style={{
+                margin: '5px 0 0',
+                color: '#fff',
+                fontSize: '21px',
+                fontWeight: '900'
+              }}
+            >
+              Publish Announcement
+            </h2>
+
+            <div
+              style={{
+                marginTop: '5px',
+                color: '#8e9aab',
+                fontSize: '10px',
+                lineHeight: '1.5'
+              }}
+            >
+              This announcement will only
+              be shown to members whose
+              Local Church / Ministry is
+              this organization.
+            </div>
+
+          </div>
+
+
+          <button
+            type="button"
+            onClick={() => {
+
+              setIsMinistryPublisherOpen(false);
+
+              setMinistryPublishType(null);
+
+              setMinistryPublishSource(false);
+
+              setAnnounceTitleInput('');
+
+              setAnnounceDescInput('');
+
+            }}
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '10px',
+              border:
+                '1px solid rgba(255,255,255,.08)',
+              background:
+                'rgba(255,255,255,.04)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer'
+            }}
+          >
+            <XIcon />
+          </button>
+
+        </div>
+
+
+        {/* AUDIENCE NOTICE */}
+
+        <div
+          style={{
+            background:
+              'linear-gradient(135deg, rgba(41,190,175,.10), rgba(243,202,88,.07))',
+
+            border:
+              '1px solid rgba(41,190,175,.18)',
+
+            borderRadius:
+              '14px',
+
+            padding:
+              '14px',
+
+            marginBottom:
+              '18px'
+          }}
+        >
+
+          <div
+            style={{
+              color:
+                '#29beaf',
+
+              fontSize:
+                '10px',
+
+              fontWeight:
+                '900',
+
+              letterSpacing:
+                '.8px',
+
+              textTransform:
+                'uppercase',
+
+              marginBottom:
+                '5px'
+            }}
+          >
+            SANCTUARY AUDIENCE
+          </div>
+
+          <div
+            style={{
+              color:
+                '#fff',
+
+              fontSize:
+                '14px',
+
+              fontWeight:
+                '900'
+            }}
+          >
+            {activeMinistryWorkspace?.ministry?.ministry_name ||
+              activeMinistryWorkspace?.ministry?.church_name ||
+              userProfile?.ministry_name ||
+              formData.churchName ||
+              'Current Ministry'}
+          </div>
+
+          <div
+            style={{
+              color:
+                '#8e9aab',
+
+              fontSize:
+                '10px',
+
+              marginTop:
+                '4px'
+            }}
+          >
+            Only members attached to this
+            Local Church / Ministry will
+            receive this announcement.
+          </div>
+
+        </div>
+
+
+        {/* TYPE */}
+
+        <div
+          style={{
+            marginBottom: '15px'
+          }}
+        >
+
+          <label className="input-label">
+            ANNOUNCEMENT TYPE
+          </label>
+
+          <select
+            value={
+              announceBadgeInput
+            }
+            onChange={e =>
+              setAnnounceBadgeInput(
+                e.target.value
+              )
+            }
+            className="app-select"
+            style={{
+              width: '100%',
+              boxSizing: 'border-box'
+            }}
+          >
+
+            <option value="ANNOUNCEMENT">
+              General Announcement
+            </option>
+
+            <option value="EVENT">
+              Upcoming Event / Service
+            </option>
+
+            <option value="UPDATE">
+              Ministry / Treasury Update
+            </option>
+
+            <option value="URGENT">
+              Urgent Prayer Request
+            </option>
+
+          </select>
+
+        </div>
+
+
+        {/* TITLE */}
+
+        <div
+          style={{
+            marginBottom:
+              '15px'
+          }}
+        >
+
+          <label className="input-label">
+            HEADLINE
+          </label>
+
+          <input
+            type="text"
+            value={
+              announceTitleInput
+            }
+            onChange={e =>
+              setAnnounceTitleInput(
+                e.target.value
+              )
+            }
+            placeholder="e.g. Sunday Service begins at 9 AM"
+            className="app-input"
+            style={{
+              width:
+                '100%',
+              boxSizing:
+                'border-box',
+              margin:
+                0
+            }}
+          />
+
+        </div>
+
+
+        {/* DETAILS */}
+
+        <div
+          style={{
+            marginBottom:
+              '18px'
+          }}
+        >
+
+          <label className="input-label">
+            ANNOUNCEMENT DETAILS
+          </label>
+
+          <textarea
+            value={
+              announceDescInput
+            }
+            onChange={e =>
+              setAnnounceDescInput(
+                e.target.value
+              )
+            }
+            placeholder="Share the time, location, instructions or other important details..."
+            className="app-input"
+            rows={7}
+            style={{
+              width:
+                '100%',
+              boxSizing:
+                'border-box',
+              margin:
+                0,
+              resize:
+                'vertical',
+              minHeight:
+                '140px',
+              lineHeight:
+                '1.6'
+            }}
+          />
+
+        </div>
+
+
+        {/* VISUAL PREVIEW */}
+
+        {announceTitleInput.trim() && (
+          <div
+            style={{
+              marginBottom:
+                '18px',
+
+              borderRadius:
+                '16px',
+
+              overflow:
+                'hidden',
+
+              border:
+                '1px solid rgba(255,255,255,.08)',
+
+              background:
+                '#0c1420'
+            }}
+          >
+
+            <div
+              style={{
+                height:
+                  '80px',
+
+                background:
+                  `url(${
+                    getAnnouncementTemplate(
+                      announceBadgeInput
+                    ).image
+                  }) center/cover`,
+
+                position:
+                  'relative'
+              }}
+            >
+
+              <div
+                style={{
+                  position:
+                    'absolute',
+
+                  inset:
+                    0,
+
+                  background:
+                    'linear-gradient(to top, rgba(0,0,0,.78), rgba(0,0,0,.05))'
+                }}
+              />
+
+            </div>
+
+            <div
+              style={{
+                padding:
+                  '12px'
+              }}
+            >
+
+              <div
+                style={{
+                  color:
+                    getAnnouncementTemplate(
+                      announceBadgeInput
+                    ).accent,
+
+                  fontSize:
+                    '9px',
+
+                  fontWeight:
+                    '900',
+
+                  marginBottom:
+                    '4px'
+                }}
+              >
+                {announceBadgeInput}
+              </div>
+
+              <div
+                style={{
+                  color:
+                    '#fff',
+
+                  fontSize:
+                    '14px',
+
+                  fontWeight:
+                    '900'
+                }}
+              >
+                {announceTitleInput}
+              </div>
+
+              <div
+                style={{
+                  color:
+                    '#9aa5b5',
+
+                  fontSize:
+                    '11px',
+
+                  marginTop:
+                    '4px',
+
+                  lineHeight:
+                    '1.4'
+                }}
+              >
+                {announceDescInput}
+              </div>
+
+            </div>
+
+          </div>
+        )}
+
+
+        {/* ACTIONS */}
+
+        <div
+          style={{
+            display:
+              'flex',
+
+            gap:
+              '10px'
+          }}
+        >
+
+          <button
+            type="button"
+            onClick={() => {
+
+              setIsMinistryPublisherOpen(false);
+
+              setMinistryPublishType(null);
+
+              setMinistryPublishSource(false);
+
+              setAnnounceTitleInput('');
+
+              setAnnounceDescInput('');
+
+            }}
+            style={{
+              flex:
+                1,
+
+              padding:
+                '13px',
+
+              borderRadius:
+                '12px',
+
+              border:
+                '1px solid rgba(255,255,255,.08)',
+
+              background:
+                'rgba(255,255,255,.03)',
+
+              color:
+                '#fff',
+
+              fontWeight:
+                '800',
+
+              cursor:
+                'pointer'
+            }}
+          >
+            Cancel
+          </button>
+
+
+          <button
+            type="submit"
+            onClick={
+              handleMinistryAnnouncementPublish
+            }
+            disabled={
+              isPublishingKingdomContent
+            }
+            style={{
+              flex:
+                2,
+
+              padding:
+                '13px',
+
+              border:
+                'none',
+
+              borderRadius:
+                '12px',
+
+              background:
+                isPublishingKingdomContent
+                  ? 'rgba(243,202,88,.4)'
+                  : 'linear-gradient(90deg,#f3ca58,#29beaf)',
+
+              color:
+                '#07131c',
+
+              fontWeight:
+                '900',
+
+              cursor:
+                isPublishingKingdomContent
+                  ? 'wait'
+                  : 'pointer'
+            }}
+          >
+            {isPublishingKingdomContent
+              ? 'Publishing...'
+              : 'Publish Announcement'}
+          </button>
+
+        </div>
+
+      </div>
+
     </div>
   )}
 
@@ -24984,8 +27479,9 @@ const displayName =
               marginTop: '4px'
             }}
           >
-            Share teaching, devotion and updates
-            with your KingdomPlus community.
+            Share Kingdom teaching, resources and
+Sanctuary announcements with your
+community.
           </div>
         </div>
 
@@ -25082,13 +27578,29 @@ const displayName =
         {/* BIBLE PLAN */}
         <button
           onClick={() => {
-  setIsMinistryContentModalOpen(false);
 
-  setMinistryPublishType('bible_plan');
-  setMinistryPublishSource(true);
-  setIsMinistryPublisherOpen(true);
+  setIsMinistryContentModalOpen(
+    false
+  );
+
+  setStudioCategory(
+    'Bible Plans'
+  );
+
+  setMinistryPublishType(
+    'bible_plan'
+  );
+
+  setMinistryPublishSource(
+    true
+  );
+
+  setIsMinistryPublisherOpen(
+    true
+  );
 
   resetKingdomStudioForm();
+
 }}
           style={{
             textAlign: 'left',
@@ -25138,11 +27650,28 @@ const displayName =
         {/* MESSAGE */}
         <button
           onClick={() => {
-            setIsMinistryContentModalOpen(false);
 
-            setStudioCategory('Messages');
-            setActiveStudioModal('kingdom_publish');
-          }}
+  setIsMinistryContentModalOpen(false);
+
+  setStudioCategory(
+    'Messages'
+  );
+
+  setMinistryPublishType(
+    'message'
+  );
+
+  setMinistryPublishSource(
+    true
+  );
+
+  setIsMinistryPublisherOpen(
+    true
+  );
+
+  resetKingdomStudioForm();
+
+}}
           style={{
             textAlign: 'left',
             padding: '16px',
@@ -25191,9 +27720,24 @@ const displayName =
         {/* ANNOUNCEMENT */}
         <button
           onClick={() => {
-            setIsMinistryContentModalOpen(false);
-            setActiveModal('announcement');
-          }}
+
+  setIsMinistryContentModalOpen(false);
+
+  setMinistryPublishType('announcement');
+
+  setMinistryPublishSource(true);
+
+  setIsMinistryPublisherOpen(true);
+
+  setAnnounceBadgeInput(
+    'ANNOUNCEMENT'
+  );
+
+  setAnnounceTitleInput('');
+
+  setAnnounceDescInput('');
+
+}}
           style={{
             textAlign: 'left',
             padding: '16px',
