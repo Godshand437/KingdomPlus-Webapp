@@ -2640,6 +2640,21 @@ const [
   setAnnouncements
 ] = useState([]);
 
+const [
+  viewedAnnouncementIds,
+  setViewedAnnouncementIds
+] = useState(new Set());
+
+const [
+  unreadAnnouncementCount,
+  setUnreadAnnouncementCount
+] = useState(0);
+
+const [
+  isLoadingAnnouncements,
+  setIsLoadingAnnouncements
+] = useState(false);
+
 const handleNextSlide = () => {
   setCurrentSlide((prev) => {
     if (!announcements.length) return 0;
@@ -7265,32 +7280,8 @@ membership_source
             4. DYNAMIC SECTION: ATTENDANCE CRM & GAMIFIED ROSTER
             ========================================================================= */}
         {churchSubTab === 'attendance' && (
-          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}>
-            
-            {/* Top Control Bar for Pastor */}
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.05)', marginBottom: '16px' }}>
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: isCheckInActive ? '#2ecc71' : '#8e9aab', display: 'inline-block' }}></span>
-                  <span style={{ color: isCheckInActive ? '#2ecc71' : '#8e9aab', fontSize: '11px', fontWeight: '800', letterSpacing: '0.5px' }}>
-                    {isCheckInActive ? 'CHECK-IN PORTAL ACTIVE' : 'PORTAL CURRENTLY CLOSED'}
-                  </span>
-                </div>
-                <h3 style={{ color: '#fff', fontSize: '16px', margin: '4px 0 0 0' }}>{checkInSessionTitle}</h3>
-              </div>
-
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {isCheckInActive && (
-                  <button onClick={handleSimulateMemberCheckIn} style={{ background: 'rgba(41, 190, 175, 0.15)', border: '1px solid #29beaf', color: '#29beaf', padding: '8px 14px', borderRadius: '12px', fontSize: '11px', fontWeight: '800', cursor: 'pointer' }}>
-                    + Simulate Member Entry
-                  </button>
-                )}
-                <button onClick={handleToggleCheckInSession} style={{ background: isCheckInActive ? '#e74c3c' : 'linear-gradient(90deg, #f3ca58, #29beaf)', border: 'none', color: isCheckInActive ? '#fff' : '#101926', padding: '8px 16px', borderRadius: '12px', fontSize: '12px', fontWeight: '800', cursor: 'pointer' }}>
-                  {isCheckInActive ? 'Close Check-In' : 'Open Live Check-In'}
-                </button>
-              </div>
-            </div>
-
+          <div style={{ background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '20px', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '20px', boxShadow: '0 10px 30px rgba(0,0,0,0.3)' }}> 
+           
             {/* Attendance Analytics Bar */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: '18px' }}>
               <div style={{ background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '12px' }}>
@@ -9463,8 +9454,137 @@ const handleMinistryAnnouncementPublish =
 
   };
 
+const loadSanctuaryAnnouncementReads =
+  async (userId) => {
 
-// --- CHURCH CRM & GAMIFIED ATTENDANCE STATE ---
+    if (!userId) {
+
+      setViewedAnnouncementIds(
+        new Set()
+      );
+
+      return;
+
+    }
+
+
+    const {
+      data,
+      error
+    } =
+      await supabase
+        .from(
+          'sanctuary_announcement_reads'
+        )
+        .select(
+          'announcement_id'
+        )
+        .eq(
+          'user_id',
+          userId
+        );
+
+
+    if (error) {
+
+      console.error(
+        'Failed to load announcement read state:',
+        error
+      );
+
+      return;
+    }
+
+
+    const ids =
+      new Set(
+        (data || []).map(
+          row =>
+            row.announcement_id
+        )
+      );
+
+
+    setViewedAnnouncementIds(
+      ids
+    );
+
+  };
+
+const markSanctuaryAnnouncementViewed =
+  async (announcementId) => {
+
+    if (
+      !announcementId ||
+      !authUserId
+    ) {
+      return;
+    }
+
+    if (
+      viewedAnnouncementIds.has(
+        announcementId
+      )
+    ) {
+      return;
+    }
+
+
+    const {
+      error
+    } =
+      await supabase
+        .from(
+          'sanctuary_announcement_reads'
+        )
+        .upsert(
+          {
+            announcement_id:
+              announcementId,
+
+            user_id:
+              authUserId,
+
+            viewed_at:
+              new Date().toISOString()
+
+          },
+          {
+            onConflict:
+              'announcement_id,user_id'
+          }
+        );
+
+
+    if (error) {
+
+      console.error(
+        'Failed to mark announcement viewed:',
+        error
+      );
+
+      return;
+    }
+
+
+    setViewedAnnouncementIds(
+      prev => {
+
+        const next =
+          new Set(prev);
+
+        next.add(
+          announcementId
+        );
+
+        return next;
+
+      }
+    );
+
+  };
+
+
   const [churchSubTab, setChurchSubTab] = useState('attendance');
   const [isCheckInActive, setIsCheckInActive] = useState(false);
   const [checkInSessionTitle, setCheckInSessionTitle] = useState('Sunday Morning Gathering');
@@ -9698,6 +9818,30 @@ const [hasMoreMinistryMembers, setHasMoreMinistryMembers] = useState(true);
 const [isMinistryPublisherOpen, setIsMinistryPublisherOpen] = useState(false);
 const [ministryPublishType, setMinistryPublishType] = useState(null);
 const [ministryPublishSource, setMinistryPublishSource] = useState(false);
+const [
+  isMinistryContentLibraryOpen,
+  setIsMinistryContentLibraryOpen
+] = useState(false);
+
+const [
+  ministryContentItems,
+  setMinistryContentItems
+] = useState([]);
+
+const [
+  isLoadingMinistryContent,
+  setIsLoadingMinistryContent
+] = useState(false);
+
+const [
+  editingMinistryContent,
+  setEditingMinistryContent
+] = useState(null);
+
+const [
+  isEditingMinistryContent,
+  setIsEditingMinistryContent
+] = useState(false);
 const [isLoadingMemberDirectory, setIsLoadingMemberDirectory] = useState(false);
 
 const MINISTRY_MEMBERS_PAGE_SIZE = 30;
@@ -9858,23 +10002,670 @@ const MINISTRY_MEMBERS_PAGE_SIZE = 30;
   }
 };
 
-  // Simulate a believer checking in (for demonstration/testing on the dashboard)
-  const handleSimulateMemberCheckIn = () => {
-    const mockNames = ['Tobi Oba', 'Mercy Johnson', 'Elijah Peter', 'David King', 'Ruth Abiodun'];
-    const randomName = mockNames[Math.floor(Math.random() * mockNames.length)];
-    const newAttendee = {
-      id: `att_${Date.now()}`,
-      name: randomName,
-      handle: `@${randomName.toLowerCase().replace(/\s/g, '')}`,
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      tier: Math.random() > 0.5 ? 'Disciple' : 'Seeker',
-      avatar: randomName.charAt(0)
-    };
+const loadMinistryContent =
+  async () => {
 
-    setAttendanceRoster(prev => [newAttendee, ...prev]);
-    alert(`Roster Updated: ${randomName} just checked in and claimed +5 KPC!`);
+    const ministryId =
+      activeMinistryWorkspace?.ministry?.id ||
+      (
+        userProfile?.account_type ===
+        'Ministry'
+          ? userProfile.id
+          : null
+      );
+
+
+    if (!ministryId) {
+
+      setMinistryContentItems([]);
+
+      return;
+    }
+
+
+    setIsLoadingMinistryContent(
+      true
+    );
+
+
+    try {
+
+      const {
+        data:
+          kingdomItems,
+        error:
+          kingdomError
+      } =
+        await supabase
+          .from(
+            'kingdom_content'
+          )
+          .select(`
+            id,
+            title,
+            scripture,
+            body,
+            cover_url,
+            video_url,
+            audio_url,
+            reading_guide,
+            announcement_type,
+            audience_type,
+            audience_org_id,
+            content_type,
+            reward_kpc,
+            duration_seconds,
+            is_published,
+            created_at
+          `)
+          .eq(
+            'author_id',
+            ministryId
+          )
+          .order(
+            'created_at',
+            {
+              ascending:
+                false
+            }
+          );
+
+
+      if (kingdomError) {
+        throw kingdomError;
+      }
+
+      const {
+        data:
+          devotionItems,
+        error:
+          devotionError
+      } =
+        await supabase
+          .from(
+            'devotions'
+          )
+          .select(`
+            id,
+            title,
+            scripture,
+            body,
+            img_url,
+            reward,
+            is_featured,
+            author_id,
+            church_name,
+            created_at
+          `)
+          .eq(
+            'author_id',
+            ministryId
+          )
+          .order(
+            'created_at',
+            {
+              ascending:
+                false
+            }
+          );
+
+
+      if (devotionError) {
+        throw devotionError;
+      }
+
+      const normalizedKingdom =
+        (
+          kingdomItems || []
+        ).map(
+          item => ({
+
+            id:
+              item.id,
+
+            contentId:
+              item.id,
+
+            type:
+              item.content_type,
+
+            title:
+              item.title,
+
+            scripture:
+              item.scripture,
+
+            body:
+              item.body,
+
+            coverUrl:
+              item.cover_url,
+
+            videoUrl:
+              item.video_url,
+
+            audioUrl:
+              item.audio_url,
+
+            readingGuide:
+              Array.isArray(
+                item.reading_guide
+              )
+                ? item.reading_guide
+                : [],
+
+            announcementType:
+              item.announcement_type,
+
+            audienceType:
+              item.audience_type,
+
+            audienceOrgId:
+              item.audience_org_id,
+
+            reward:
+              item.reward_kpc,
+
+            durationSeconds:
+              item.duration_seconds,
+
+            isPublished:
+              item.is_published,
+
+            createdAt:
+              item.created_at
+
+          })
+        );
+
+const openMinistryContentLibrary =
+  async () => {
+
+    await loadMinistryContent();
+
+    setIsMinistryContentLibraryOpen(
+      true
+    );
+
   };
-// --- MINISTRY TIMELINE STATE & HANDLERS ---
+
+      const normalizedDevotions =
+        (
+          devotionItems || []
+        ).map(
+          item => ({
+
+            id:
+              `devotion-${item.id}`,
+
+            contentId:
+              item.id,
+
+            type:
+              'DEVOTION',
+
+            title:
+              item.title,
+
+            scripture:
+              item.scripture,
+
+            body:
+              item.body,
+
+            coverUrl:
+              item.img_url,
+
+            videoUrl:
+              null,
+
+            audioUrl:
+              null,
+
+            readingGuide:
+              [],
+
+            announcementType:
+              null,
+
+            audienceType:
+              null,
+
+            audienceOrgId:
+              null,
+
+            reward:
+              item.reward,
+
+            durationSeconds:
+              null,
+
+            isPublished:
+              true,
+
+            createdAt:
+              item.created_at,
+
+            devotionId:
+              item.id
+
+          })
+        );
+
+
+      setMinistryContentItems([
+        ...normalizedDevotions,
+        ...normalizedKingdom
+      ]);
+
+
+    } catch (error) {
+
+      console.error(
+        'Failed to load Ministry content:',
+        error
+      );
+
+      alert(
+        error?.message ||
+        'Could not load Ministry content.'
+      );
+
+    } finally {
+
+      setIsLoadingMinistryContent(
+        false
+      );
+
+    }
+
+  };
+
+const openMinistryContentLibrary =
+  async () => {
+
+    await loadMinistryContent();
+
+    setIsMinistryContentLibraryOpen(
+      true
+    );
+
+  };
+
+
+const openMinistryContentForEdit =
+  (item) => {
+
+    setEditingMinistryContent(
+      item
+    );
+
+    setStudioTitle(
+      item.title || ''
+    );
+
+    setStudioSub(
+      item.scripture || ''
+    );
+
+    setStudioBody(
+      item.body || ''
+    );
+
+    setStudioReadingGuide(
+      Array.isArray(
+        item.readingGuide
+      )
+        ? item.readingGuide
+        : []
+    );
+
+    setIsMinistryContentLibraryOpen(
+      false
+    );
+
+    setIsEditingMinistryContent(
+      true
+    );
+
+  };
+
+
+const [
+  isEditingKingdomContent,
+  setIsEditingKingdomContent
+] = useState(false);
+
+
+const handleUpdateMinistryContent =
+  async () => {
+
+    if (
+      !editingMinistryContent
+    ) {
+      return;
+    }
+
+
+    const ministryId =
+      activeMinistryWorkspace?.ministry?.id ||
+      (
+        userProfile?.account_type ===
+        'Ministry'
+          ? userProfile.id
+          : null
+      );
+
+
+    if (!ministryId) {
+
+      alert(
+        'The active Ministry could not be identified.'
+      );
+
+      return;
+    }
+
+
+    if (
+      !studioTitle.trim()
+    ) {
+
+      alert(
+        'Please enter a title.'
+      );
+
+      return;
+    }
+
+
+    setIsEditingKingdomContent(
+      true
+    );
+
+
+    try {
+
+      if (
+        editingMinistryContent.type ===
+          'BIBLE_PLAN' ||
+        editingMinistryContent.type ===
+          'MESSAGE' ||
+        editingMinistryContent.type ===
+          'ANNOUNCEMENT'
+      ) {
+
+        const updatePayload = {
+
+          title:
+            studioTitle.trim(),
+
+          scripture:
+            editingMinistryContent.type ===
+              'ANNOUNCEMENT'
+              ? editingMinistryContent.announcementType ||
+                null
+              : studioSub.trim() ||
+                null,
+
+          body:
+            studioBody.trim()
+
+        };
+
+
+        if (
+          editingMinistryContent.type ===
+          'BIBLE_PLAN'
+        ) {
+
+          updatePayload.reading_guide =
+            Array.isArray(
+              studioReadingGuide
+            )
+              ? studioReadingGuide
+              : [];
+
+        }
+
+
+        const {
+          error
+        } =
+          await supabase
+            .from(
+              'kingdom_content'
+            )
+            .update(
+              updatePayload
+            )
+            .eq(
+              'id',
+              editingMinistryContent.contentId
+            )
+            .eq(
+              'author_id',
+              ministryId
+            );
+
+
+        if (error) {
+          throw error;
+        }
+
+      }
+
+
+      if (
+        editingMinistryContent.type ===
+        'DEVOTION'
+      ) {
+
+        const {
+          error
+        } =
+          await supabase
+            .from(
+              'devotions'
+            )
+            .update({
+
+              title:
+                studioTitle.trim(),
+
+              scripture:
+                studioSub.trim() ||
+                null,
+
+              body:
+                studioBody.trim()
+
+            })
+            .eq(
+              'id',
+              editingMinistryContent.devotionId
+            )
+            .eq(
+              'author_id',
+              ministryId
+            );
+
+
+        if (error) {
+          throw error;
+        }
+
+      }
+
+
+      alert(
+        'Content updated successfully.'
+      );
+
+
+      setIsEditingMinistryContent(
+        false
+      );
+
+      setEditingMinistryContent(
+        null
+      );
+
+      resetKingdomStudioForm();
+
+      await loadMinistryContent();
+
+
+    } catch (error) {
+
+      console.error(
+        'Content update failed:',
+        error
+      );
+
+      alert(
+        error?.message ||
+        'Could not update content.'
+      );
+
+    } finally {
+
+      setIsEditingKingdomContent(
+        false
+      );
+
+    }
+
+  };
+
+
+const handleDeleteMinistryContent =
+  async (item) => {
+
+    const ministryId =
+      activeMinistryWorkspace?.ministry?.id ||
+      (
+        userProfile?.account_type ===
+        'Ministry'
+          ? userProfile.id
+          : null
+      );
+
+
+    if (!ministryId) {
+
+      alert(
+        'The active Ministry could not be identified.'
+      );
+
+      return;
+    }
+
+
+    const confirmed =
+      window.confirm(
+        `Delete "${item.title}"?\n\nThis cannot be undone.`
+      );
+
+
+    if (!confirmed) {
+      return;
+    }
+
+
+    try {
+
+      if (
+        item.type ===
+        'DEVOTION'
+      ) {
+
+        const {
+          error
+        } =
+          await supabase
+            .from(
+              'devotions'
+            )
+            .delete()
+            .eq(
+              'id',
+              item.devotionId
+            )
+            .eq(
+              'author_id',
+              ministryId
+            );
+
+
+        if (error) {
+          throw error;
+        }
+
+      } else {
+
+        const {
+          error
+        } =
+          await supabase
+            .from(
+              'kingdom_content'
+            )
+            .delete()
+            .eq(
+              'id',
+              item.contentId
+            )
+            .eq(
+              'author_id',
+              ministryId
+            );
+
+
+        if (error) {
+          throw error;
+        }
+
+      }
+
+
+      setMinistryContentItems(
+        prev =>
+          prev.filter(
+            existing =>
+              !(
+                existing.type ===
+                  item.type &&
+                existing.contentId ===
+                  item.contentId
+              )
+          )
+      );
+
+
+      alert(
+        'Content deleted successfully.'
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        'Content deletion failed:',
+        error
+      );
+
+      alert(
+        error?.message ||
+        'Could not delete content.'
+      );
+
+    }
+
+  };
+
+
+  // --- MINISTRY TIMELINE STATE & HANDLERS ---
   const [ministryTimeline, setMinistryTimeline] = useState([
     {
       id: 'tl_1',
@@ -14040,9 +14831,41 @@ const [isModalOpen, setIsModalOpen] = useState(false);
 const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
 
 const handleOpenModal = (announcement) => {
+if (
+  announcement?.id
+) {
+
+  markSanctuaryAnnouncementViewed(
+    announcement.id
+  );
+
+}
   setSelectedAnnouncement(announcement);
   setIsModalOpen(true);
 };
+
+
+useEffect(() => {
+
+  const unread =
+    announcements.filter(
+      announcement =>
+        announcement.id &&
+        !viewedAnnouncementIds.has(
+          announcement.id
+        )
+    ).length;
+
+
+  setUnreadAnnouncementCount(
+    unread
+  );
+
+}, [
+  announcements,
+  viewedAnnouncementIds
+]);
+
 
 const handleCloseModal = () => {
   setIsModalOpen(false);
@@ -14718,6 +15541,14 @@ const membersToNextMilestone =
     announcement.accent ||
     template.accent;
 
+const isAnnouncementViewed =
+  Boolean(
+    announcement.id &&
+    viewedAnnouncementIds.has(
+      announcement.id
+    )
+  );
+
   return (
     <div
       className="announcement-card"
@@ -14735,7 +15566,9 @@ const membersToNextMilestone =
         background: '#08111d',
 
         border:
-          '1px solid rgba(255,255,255,0.10)',
+  isAnnouncementViewed
+    ? '1px solid rgba(255,255,255,0.10)'
+    : '2px solid #f3ca58',
 
         boxShadow:
           '0 20px 55px rgba(0,0,0,0.38)',
@@ -14824,6 +15657,40 @@ const membersToNextMilestone =
           color: '#fff'
         }}
       >
+
+{!isAnnouncementViewed && (
+  <div
+    style={{
+      position: 'absolute',
+      top: '-6px',
+      right: '-1px',
+      zIndex: 4,
+
+      padding:
+        '5px 9px',
+
+      borderRadius:
+        '999px',
+
+      background:
+        '#f3ca58',
+
+      color:
+        '#08111d',
+
+      fontSize:
+        '8px',
+
+      fontWeight:
+        '900',
+
+      letterSpacing:
+        '.6px'
+    }}
+  >
+    NEW
+  </div>
+)}
 
         <div
           style={{
@@ -27284,6 +28151,809 @@ const displayName =
     </div>
   )}
 
+{isMinistryContentLibraryOpen && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 60000,
+      background:
+        'rgba(3,8,15,.93)',
+      backdropFilter:
+        'blur(12px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '16px',
+      paddingBottom: '95px',
+      boxSizing: 'border-box'
+    }}
+  >
+
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '720px',
+        maxHeight: '90vh',
+        overflowY: 'auto',
+        background:
+          '#101926',
+        borderRadius:
+          '24px',
+        border:
+          '1px solid rgba(255,255,255,.10)',
+        padding:
+          '22px',
+        boxSizing:
+          'border-box'
+      }}
+    >
+
+      <div
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: '12px',
+          marginBottom: '20px'
+        }}
+      >
+
+        <div>
+
+          <div
+            style={{
+              color:
+                '#29beaf',
+              fontSize:
+                '9px',
+              fontWeight:
+                '900',
+              letterSpacing:
+                '1.2px'
+            }}
+          >
+            MINISTRY CONTENT CENTER
+          </div>
+
+          <h2
+            style={{
+              color:
+                '#fff',
+              margin:
+                '5px 0 0',
+              fontSize:
+                '21px',
+              fontWeight:
+                '900'
+            }}
+          >
+            My Content
+          </h2>
+
+        </div>
+
+
+        <button
+          type="button"
+          onClick={() =>
+            setIsMinistryContentLibraryOpen(
+              false
+            )
+          }
+          style={{
+            width:
+              '38px',
+            height:
+              '38px',
+            borderRadius:
+              '10px',
+            border:
+              '1px solid rgba(255,255,255,.08)',
+            background:
+              'rgba(255,255,255,.04)',
+            color:
+              '#fff',
+            cursor:
+              'pointer'
+          }}
+        >
+          <XIcon />
+        </button>
+
+      </div>
+
+
+      {isLoadingMinistryContent ? (
+
+        <div
+          style={{
+            textAlign:
+              'center',
+            padding:
+              '40px',
+            color:
+              '#8e9aab',
+            fontSize:
+              '12px'
+          }}
+        >
+          Loading your content...
+        </div>
+
+      ) : ministryContentItems.length === 0 ? (
+
+        <div
+          style={{
+            textAlign:
+              'center',
+            padding:
+              '40px 20px',
+            color:
+              '#8e9aab',
+            fontSize:
+              '12px',
+            lineHeight:
+              '1.6'
+          }}
+        >
+          You haven't published any content yet.
+        </div>
+
+      ) : (
+
+        <div
+          style={{
+            display:
+              'flex',
+            flexDirection:
+              'column',
+            gap:
+              '10px'
+          }}
+        >
+
+          {ministryContentItems.map(
+            item => (
+
+              <div
+                key={
+                  `${item.type}-${item.contentId}`
+                }
+                style={{
+                  display:
+                    'flex',
+                  alignItems:
+                    'center',
+                  gap:
+                    '12px',
+                  padding:
+                    '12px',
+                  borderRadius:
+                    '14px',
+                  background:
+                    'rgba(255,255,255,.035)',
+                  border:
+                    '1px solid rgba(255,255,255,.07)'
+                }}
+              >
+
+                {item.coverUrl ? (
+
+                  <img
+                    src={
+                      item.coverUrl
+                    }
+                    alt=""
+                    style={{
+                      width:
+                        '58px',
+                      height:
+                        '58px',
+                      objectFit:
+                        'cover',
+                      borderRadius:
+                        '10px',
+                      flexShrink:
+                        0
+                    }}
+                  />
+
+                ) : (
+
+                  <div
+                    style={{
+                      width:
+                        '58px',
+                      height:
+                        '58px',
+                      borderRadius:
+                        '10px',
+                      background:
+                        'rgba(41,190,175,.08)',
+                      display:
+                        'flex',
+                      alignItems:
+                        'center',
+                      justifyContent:
+                        'center',
+                      color:
+                        '#29beaf',
+                      fontSize:
+                        '11px',
+                      fontWeight:
+                        '900',
+                      flexShrink:
+                        0
+                    }}
+                  >
+                    {item.type ===
+                      'BIBLE_PLAN'
+                      ? 'PLAN'
+                      : item.type ===
+                        'MESSAGE'
+                        ? 'MSG'
+                        : item.type ===
+                          'ANNOUNCEMENT'
+                          ? 'NEWS'
+                          : 'DEV'}
+                  </div>
+
+                )}
+
+
+                <div
+                  style={{
+                    flex:
+                      1,
+                    minWidth:
+                      0
+                  }}
+                >
+
+                  <div
+                    style={{
+                      color:
+                        '#f3ca58',
+                      fontSize:
+                        '8px',
+                      fontWeight:
+                        '900',
+                      letterSpacing:
+                        '.7px',
+                      marginBottom:
+                        '4px'
+                    }}
+                  >
+                    {item.type}
+                  </div>
+
+                  <div
+                    style={{
+                      color:
+                        '#fff',
+                      fontSize:
+                        '13px',
+                      fontWeight:
+                        '900',
+                      whiteSpace:
+                        'nowrap',
+                      overflow:
+                        'hidden',
+                      textOverflow:
+                        'ellipsis'
+                    }}
+                  >
+                    {item.title}
+                  </div>
+
+                  <div
+                    style={{
+                      color:
+                        '#718096',
+                      fontSize:
+                        '9px',
+                      marginTop:
+                        '4px'
+                    }}
+                  >
+                    {item.isPublished
+                      ? 'Published'
+                      : 'Draft'}
+                  </div>
+
+                </div>
+
+
+                <div
+                  style={{
+                    display:
+                      'flex',
+                    gap:
+                      '6px',
+                    flexShrink:
+                      0
+                  }}
+                >
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openMinistryContentForEdit(
+                        item
+                      )
+                    }
+                    style={{
+                      padding:
+                        '8px 10px',
+                      borderRadius:
+                        '9px',
+                      border:
+                        '1px solid rgba(41,190,175,.25)',
+                      background:
+                        'rgba(41,190,175,.07)',
+                      color:
+                        '#29beaf',
+                      fontSize:
+                        '9px',
+                      fontWeight:
+                        '900',
+                      cursor:
+                        'pointer'
+                    }}
+                  >
+                    Edit
+                  </button>
+
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      handleDeleteMinistryContent(
+                        item
+                      )
+                    }
+                    style={{
+                      padding:
+                        '8px 10px',
+                      borderRadius:
+                        '9px',
+                      border:
+                        '1px solid rgba(255,99,99,.20)',
+                      background:
+                        'rgba(255,99,99,.05)',
+                      color:
+                        '#ff7b7b',
+                      fontSize:
+                        '9px',
+                      fontWeight:
+                        '900',
+                      cursor:
+                        'pointer'
+                    }}
+                  >
+                    Delete
+                  </button>
+
+                </div>
+
+              </div>
+
+            )
+          )}
+
+        </div>
+
+      )}
+
+    </div>
+
+  </div>
+)}
+
+{isEditingMinistryContent &&
+  editingMinistryContent && (
+    <div
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 61000,
+        background:
+          'rgba(3,8,15,.94)',
+        backdropFilter:
+          'blur(12px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+        paddingBottom: '95px',
+        boxSizing: 'border-box'
+      }}
+    >
+
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '680px',
+          maxHeight: '90vh',
+          overflowY: 'auto',
+          background:
+            '#101926',
+          borderRadius:
+            '24px',
+          border:
+            '1px solid rgba(255,255,255,.10)',
+          padding:
+            '22px'
+        }}
+      >
+
+        <div
+          style={{
+            display:
+              'flex',
+            justifyContent:
+              'space-between',
+            alignItems:
+              'center',
+            marginBottom:
+              '20px'
+          }}
+        >
+
+          <div>
+
+            <div
+              style={{
+                color:
+                  '#29beaf',
+                fontSize:
+                  '9px',
+                fontWeight:
+                  '900',
+                letterSpacing:
+                  '1px'
+              }}
+            >
+              EDIT CONTENT
+            </div>
+
+            <h2
+              style={{
+                color:
+                  '#fff',
+                margin:
+                  '4px 0 0',
+                fontSize:
+                  '20px'
+              }}
+            >
+              {editingMinistryContent.type}
+            </h2>
+
+          </div>
+
+          <button
+            type="button"
+            onClick={() => {
+
+              setIsEditingMinistryContent(
+                false
+              );
+
+              setEditingMinistryContent(
+                null
+              );
+
+              resetKingdomStudioForm();
+
+            }}
+            style={{
+              width:
+                '38px',
+              height:
+                '38px',
+              borderRadius:
+                '10px',
+              border:
+                '1px solid rgba(255,255,255,.08)',
+              background:
+                'rgba(255,255,255,.04)',
+              color:
+                '#fff'
+            }}
+          >
+            <XIcon />
+          </button>
+
+        </div>
+
+
+        <label className="input-label">
+          TITLE
+        </label>
+
+        <input
+          value={
+            studioTitle
+          }
+          onChange={e =>
+            setStudioTitle(
+              e.target.value
+            )
+          }
+          className="app-input"
+          style={{
+            width:
+              '100%',
+            boxSizing:
+              'border-box',
+            marginBottom:
+              '14px'
+          }}
+        />
+
+
+        {editingMinistryContent.type !==
+          'ANNOUNCEMENT' && (
+          <>
+            <label className="input-label">
+              SCRIPTURE / REFERENCE
+            </label>
+
+            <input
+              value={
+                studioSub
+              }
+              onChange={e =>
+                setStudioSub(
+                  e.target.value
+                )
+              }
+              className="app-input"
+              style={{
+                width:
+                  '100%',
+                boxSizing:
+                  'border-box',
+                marginBottom:
+                  '14px'
+              }}
+            />
+          </>
+        )}
+
+
+        <label className="input-label">
+          {editingMinistryContent.type ===
+            'ANNOUNCEMENT'
+            ? 'ANNOUNCEMENT DETAILS'
+            : 'CONTENT BODY'}
+        </label>
+
+        <textarea
+          value={
+            studioBody
+          }
+          onChange={e =>
+            setStudioBody(
+              e.target.value
+            )
+          }
+          className="app-input"
+          rows={8}
+          style={{
+            width:
+              '100%',
+            boxSizing:
+              'border-box',
+            resize:
+              'vertical',
+            minHeight:
+              '140px',
+            marginBottom:
+              '18px',
+            lineHeight:
+              '1.6'
+          }}
+        />
+
+
+        {editingMinistryContent.type ===
+          'BIBLE_PLAN' && (
+
+          <div
+            style={{
+              marginBottom:
+                '18px'
+            }}
+          >
+
+            <label className="input-label">
+              READING GUIDE
+            </label>
+
+            {studioReadingGuide.map(
+              (day, index) => (
+
+                <div
+                  key={
+                    `edit-day-${index}`
+                  }
+                  style={{
+                    padding:
+                      '12px',
+                    borderRadius:
+                      '12px',
+                    background:
+                      'rgba(255,255,255,.03)',
+                    marginBottom:
+                      '8px'
+                  }}
+                >
+
+                  <strong
+                    style={{
+                      color:
+                        '#f3ca58',
+                      fontSize:
+                        '11px'
+                    }}
+                  >
+                    Day {day.day}
+                  </strong>
+
+                  <input
+                    value={
+                      day.title
+                    }
+                    onChange={e =>
+                      updateReadingGuideDay(
+                        index,
+                        'title',
+                        e.target.value
+                      )
+                    }
+                    className="app-input"
+                    placeholder="Day title"
+                    style={{
+                      marginTop:
+                        '8px'
+                    }}
+                  />
+
+                  <input
+                    value={
+                      day.reference
+                    }
+                    onChange={e =>
+                      updateReadingGuideDay(
+                        index,
+                        'reference',
+                        e.target.value
+                      )
+                    }
+                    className="app-input"
+                    placeholder="Bible reference"
+                    style={{
+                      marginTop:
+                        '8px'
+                    }}
+                  />
+
+                  <textarea
+                    value={
+                      day.instruction
+                    }
+                    onChange={e =>
+                      updateReadingGuideDay(
+                        index,
+                        'instruction',
+                        e.target.value
+                      )
+                    }
+                    className="app-input"
+                    placeholder="Instructions"
+                    rows={3}
+                    style={{
+                      marginTop:
+                        '8px'
+                    }}
+                  />
+
+                </div>
+
+              )
+            )}
+
+          </div>
+
+        )}
+
+
+        <div
+          style={{
+            display:
+              'flex',
+            gap:
+              '10px'
+          }}
+        >
+
+          <button
+            type="button"
+            onClick={() => {
+
+              setIsEditingMinistryContent(
+                false
+              );
+
+              setEditingMinistryContent(
+                null
+              );
+
+              resetKingdomStudioForm();
+
+            }}
+            style={{
+              flex:
+                1,
+              padding:
+                '13px',
+              borderRadius:
+                '12px',
+              border:
+                '1px solid rgba(255,255,255,.08)',
+              background:
+                'rgba(255,255,255,.03)',
+              color:
+                '#fff',
+              fontWeight:
+                '800'
+            }}
+          >
+            Cancel
+          </button>
+
+
+          <button
+            type="button"
+            onClick={
+              handleUpdateMinistryContent
+            }
+            disabled={
+              isEditingKingdomContent
+            }
+            style={{
+              flex:
+                2,
+              padding:
+                '13px',
+              border:
+                'none',
+              borderRadius:
+                '12px',
+              background:
+                '#29beaf',
+              color:
+                '#07131c',
+              fontWeight:
+                '900'
+            }}
+          >
+            {isEditingKingdomContent
+              ? 'Saving...'
+              : 'Save Changes'}
+          </button>
+
+        </div>
+
+      </div>
+
+    </div>
+  )}
+
+
 
 
       {/* OVERVIEW CARDS */}
@@ -27509,7 +29179,6 @@ community.
         </button>
       </div>
 
-      {/* OPTIONS */}
       <div
         style={{
           display: 'grid',
@@ -27518,6 +29187,36 @@ community.
           gap: '10px'
         }}
       >
+<button
+  type="button"
+  onClick={() => {
+
+    setIsMinistryContentModalOpen(
+      false
+    );
+
+    openMinistryContentLibrary();
+
+  }}
+  style={{
+    width: '100%',
+    marginBottom: '12px',
+    padding: '13px',
+    borderRadius: '12px',
+    border:
+      '1px solid rgba(243,202,88,.18)',
+    background:
+      'rgba(243,202,88,.05)',
+    color:
+      '#f3ca58',
+    fontWeight:
+      '900',
+    cursor:
+      'pointer'
+  }}
+>
+  Manage My Content
+</button>
 
         {/* DEVOTION */}
         <button
