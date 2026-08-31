@@ -11844,99 +11844,348 @@ const loadMinistryActivities = async (
 const loadMinistryAnalytics = async (
   ministryIdOverride = null
 ) => {
+
   const ministryId =
     ministryIdOverride ||
     activeMinistryWorkspace?.ministry?.id ||
     (
-      userProfile?.account_type === 'Ministry'
+      userProfile?.account_type ===
+      'Ministry'
         ? userProfile.id
         : null
     );
 
+
   if (!ministryId) {
+
+    setMinistryAnalytics({
+      totalViews: 0,
+      uniqueViewers: 0,
+      memberViews: 0,
+      publicViews: 0,
+      participations: 0,
+      completions: 0,
+      reactions: 0
+    });
+
     return;
   }
 
+
   try {
+
     const {
-      data,
+      data:
+        events,
       error
-    } = await supabase
-      .from('ministry_activity_events')
-      .select(`
-        id,
-        activity_id,
-        user_id,
-        event_type,
-        created_at
-      `)
-      .eq(
-        'ministry_id',
-        ministryId
-      );
+    } =
+      await supabase
+        .from(
+          'ministry_activity_events'
+        )
+        .select(`
+          id,
+          activity_id,
+          user_id,
+          event_type,
+          created_at
+        `)
+        .eq(
+          'ministry_id',
+          ministryId
+        )
+        .order(
+          'created_at',
+          {
+            ascending: false
+          }
+        );
+
 
     if (error) {
       throw error;
     }
 
-    const events =
-      data || [];
+
+    const allEvents =
+      events || [];
+
 
     const viewEvents =
-      events.filter(
+      allEvents.filter(
         event =>
-          event.event_type === 'view'
+          event.event_type ===
+          'view'
       );
 
-    const uniqueViewers =
+
+    const participationEvents =
+      allEvents.filter(
+        event =>
+          event.event_type ===
+          'participation'
+      );
+
+
+    const completionEvents =
+      allEvents.filter(
+        event =>
+          event.event_type ===
+          'completion'
+      );
+
+
+    const reactionEvents =
+      allEvents.filter(
+        event =>
+          event.event_type ===
+          'reaction'
+      );
+
+
+    const uniqueViewerIds =
       new Set(
         viewEvents
           .map(
-            event => event.user_id
+            event =>
+              event.user_id
           )
           .filter(Boolean)
-      ).size;
+      );
 
     setMinistryAnalytics({
+
       totalViews:
         viewEvents.length,
 
-      uniqueViewers,
+      uniqueViewers:
+        uniqueViewerIds.size,
 
-      memberViews: 0,
+      memberViews:
+        0,
 
       publicViews:
         viewEvents.length,
 
       participations:
-        events.filter(
-          event =>
-            event.event_type ===
-            'participation'
-        ).length,
+        participationEvents.length,
 
       completions:
-        events.filter(
-          event =>
-            event.event_type ===
-            'completion'
-        ).length,
+        completionEvents.length,
 
       reactions:
-        events.filter(
-          event =>
-            event.event_type ===
-            'reaction'
-        ).length
+        reactionEvents.length
+
     });
 
+
   } catch (error) {
+
     console.error(
       'Failed to load Ministry analytics:',
       error
     );
+
+    setMinistryAnalytics({
+      totalViews: 0,
+      uniqueViewers: 0,
+      memberViews: 0,
+      publicViews: 0,
+      participations: 0,
+      completions: 0,
+      reactions: 0
+    });
+
   }
+
 };
+
+const loadMinistryAnalyticsContent =
+  async () => {
+
+    const ministryId =
+      activeMinistryWorkspace?.ministry?.id ||
+      (
+        userProfile?.account_type ===
+        'Ministry'
+          ? userProfile.id
+          : null
+      );
+
+
+    if (!ministryId) {
+
+      setMinistryAnalyticsContent({
+        total: 0,
+        devotions: 0,
+        biblePlans: 0,
+        messages: 0,
+        announcements: 0
+      });
+
+      return;
+    }
+
+
+    setIsLoadingMinistryAnalyticsContent(
+      true
+    );
+
+
+    try {
+
+      const [
+        kingdomResult,
+        devotionResult
+      ] =
+        await Promise.all([
+
+          supabase
+            .from(
+              'kingdom_content'
+            )
+            .select(
+              'content_type',
+              {
+                count:
+                  'exact',
+                head:
+                  false
+              }
+            )
+            .eq(
+              'author_id',
+              ministryId
+            ),
+
+          supabase
+            .from(
+              'devotions'
+            )
+            .select(
+              'id',
+              {
+                count:
+                  'exact',
+                head:
+                  true
+              }
+            )
+            .eq(
+              'author_id',
+              ministryId
+            )
+
+        ]);
+
+
+      if (
+        kingdomResult.error
+      ) {
+        throw kingdomResult.error;
+      }
+
+
+      if (
+        devotionResult.error
+      ) {
+        throw devotionResult.error;
+      }
+
+
+      const kingdomRows =
+        kingdomResult.data ||
+        [];
+
+
+      const devotions =
+        devotionResult.count ||
+        0;
+
+
+      const biblePlans =
+        kingdomRows.filter(
+          item =>
+            item.content_type ===
+            'BIBLE_PLAN'
+        ).length;
+
+
+      const messages =
+        kingdomRows.filter(
+          item =>
+            item.content_type ===
+            'MESSAGE'
+        ).length;
+
+
+      const announcements =
+        kingdomRows.filter(
+          item =>
+            item.content_type ===
+            'ANNOUNCEMENT'
+        ).length;
+
+
+      setMinistryAnalyticsContent({
+
+        total:
+          devotions +
+          biblePlans +
+          messages +
+          announcements,
+
+        devotions,
+
+        biblePlans,
+
+        messages,
+
+        announcements
+
+      });
+
+
+    } catch (error) {
+
+      console.error(
+        'Failed to load Ministry analytics content:',
+        error
+      );
+
+      setMinistryAnalyticsContent({
+        total: 0,
+        devotions: 0,
+        biblePlans: 0,
+        messages: 0,
+        announcements: 0
+      });
+
+    } finally {
+
+      setIsLoadingMinistryAnalyticsContent(
+        false
+      );
+
+    }
+
+  };
+
+const [
+  ministryAnalyticsContent,
+  setMinistryAnalyticsContent
+] = useState({
+  total: 0,
+  devotions: 0,
+  biblePlans: 0,
+  messages: 0,
+  announcements: 0
+});
+
+const [
+  isLoadingMinistryAnalyticsContent,
+  setIsLoadingMinistryAnalyticsContent
+] = useState(false);
 
 const loadMinistryLeaders = async (ministryIdOverride = null) => {
   const ministryId =
@@ -12130,6 +12379,417 @@ useEffect(() => {
   userProfile?.id,
   userProfile?.account_type
 ]);
+
+const trackMinistryContentRead =
+  async ({
+    ministryId,
+    contentId,
+    contentType
+  }) => {
+
+    if (
+      !ministryId ||
+      !contentId
+    ) {
+      return;
+    }
+
+
+    try {
+
+      const {
+        data: {
+          user
+        }
+      } =
+        await supabase.auth.getUser();
+
+
+      if (!user) {
+        return;
+      }
+
+
+      const {
+        error
+      } =
+        await supabase
+          .from(
+            'ministry_content_reads'
+          )
+          .upsert(
+            {
+              ministry_id:
+                ministryId,
+
+              content_id:
+                contentId,
+
+              content_type:
+                contentType,
+
+              user_id:
+                user.id,
+
+              last_read_at:
+                new Date().toISOString()
+            },
+            {
+              onConflict:
+                'content_id,user_id'
+            }
+          );
+
+
+      if (error) {
+
+        console.error(
+          'Failed to track content read:',
+          error
+        );
+
+      }
+
+    } catch (error) {
+
+      console.error(
+        'Content read tracking error:',
+        error
+      );
+
+    }
+
+  };
+
+const [
+  ministryContentPerformance,
+  setMinistryContentPerformance
+] = useState([]);
+
+const [
+  isLoadingContentPerformance,
+  setIsLoadingContentPerformance
+] = useState(false);
+
+const loadMinistryContentPerformance =
+  async () => {
+
+    const ministryId =
+      activeMinistryWorkspace?.ministry?.id ||
+      (
+        userProfile?.account_type ===
+        'Ministry'
+          ? userProfile.id
+          : null
+      );
+
+
+    if (!ministryId) {
+      setMinistryContentPerformance([]);
+      return;
+    }
+
+
+    setIsLoadingContentPerformance(
+      true
+    );
+
+
+    try {
+
+      const [
+        devotionResult,
+        kingdomResult,
+        readResult
+      ] =
+        await Promise.all([
+
+          supabase
+            .from('devotions')
+            .select(`
+              id,
+              title,
+              scripture,
+              created_at
+            `)
+            .eq(
+              'author_id',
+              ministryId
+            )
+            .order(
+              'created_at',
+              {
+                ascending: false
+              }
+            ),
+
+          supabase
+            .from('kingdom_content')
+            .select(`
+              id,
+              title,
+              content_type,
+              created_at
+            `)
+            .eq(
+              'author_id',
+              ministryId
+            )
+            .in(
+              'content_type',
+              [
+                'BIBLE_PLAN',
+                'MESSAGE',
+                'ANNOUNCEMENT'
+              ]
+            )
+            .order(
+              'created_at',
+              {
+                ascending: false
+              }
+            ),
+
+          supabase
+            .from(
+              'ministry_content_reads'
+            )
+            .select(`
+              content_id,
+              content_type,
+              user_id
+            `)
+            .eq(
+              'ministry_id',
+              ministryId
+            )
+
+        ]);
+
+
+      if (
+        devotionResult.error
+      ) {
+        throw devotionResult.error;
+      }
+
+
+      if (
+        kingdomResult.error
+      ) {
+        throw kingdomResult.error;
+      }
+
+
+      if (
+        readResult.error
+      ) {
+        throw readResult.error;
+      }
+
+
+      const devotions =
+        (
+          devotionResult.data ||
+          []
+        ).map(
+          item => ({
+
+            id:
+              item.id,
+
+            title:
+              item.title,
+
+            type:
+              'DEVOTION',
+
+            createdAt:
+              item.created_at
+
+          })
+        );
+
+
+      const kingdom =
+        (
+          kingdomResult.data ||
+          []
+        ).map(
+          item => ({
+
+            id:
+              item.id,
+
+            title:
+              item.title,
+
+            type:
+              item.content_type,
+
+            createdAt:
+              item.created_at
+
+          })
+        );
+
+
+      const allContent = [
+        ...devotions,
+        ...kingdom
+      ];
+
+
+      const contentIds =
+        allContent.map(
+          item =>
+            item.id
+        );
+
+
+      /*
+       * LOAD COMPLETIONS
+       */
+
+      let completionRows = [];
+
+
+      if (
+        contentIds.length > 0
+      ) {
+
+        const {
+          data,
+          error
+        } =
+          await supabase
+            .from(
+              'kingdom_content_completions'
+            )
+            .select(`
+              content_id,
+              user_id
+            `)
+            .in(
+              'content_id',
+              contentIds
+            );
+
+
+        if (error) {
+          throw error;
+        }
+
+
+        completionRows =
+          data || [];
+
+      }
+
+
+      /*
+       * BUILD METRICS
+       */
+
+      const results =
+        allContent
+          .map(content => {
+
+            const readers =
+              new Set(
+                (
+                  readResult.data ||
+                  []
+                )
+                  .filter(
+                    row =>
+                      row.content_id ===
+                      content.id
+                  )
+                  .map(
+                    row =>
+                      row.user_id
+                  )
+              ).size;
+
+
+            const completed =
+              new Set(
+                completionRows
+                  .filter(
+                    row =>
+                      String(
+                        row.content_id
+                      ) ===
+                      String(
+                        content.id
+                      )
+                  )
+                  .map(
+                    row =>
+                      row.user_id
+                  )
+              ).size;
+
+
+            const completionRate =
+              readers > 0
+                ? Math.round(
+                    (
+                      completed /
+                      readers
+                    ) *
+                    100
+                  )
+                : 0;
+
+
+            return {
+
+              ...content,
+
+              readers,
+
+              completed,
+
+              completionRate
+
+            };
+
+          })
+          .sort(
+            (
+              a,
+              b
+            ) =>
+              b.readers -
+              a.readers
+          );
+
+
+      setMinistryContentPerformance(
+        results
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        'Content performance loading failed:',
+        error
+      );
+
+      setMinistryContentPerformance([]);
+
+    } finally {
+
+      setIsLoadingContentPerformance(
+        false
+      );
+
+    }
+
+  };
 
 
 // ==========================================
@@ -18550,7 +19210,26 @@ maxHeight:
 )}
                 </div>
                 {devotionsList.map(item => (
-                  <div key={item.id} className="devotion-card" onClick={() => setSelectedDevotion(item)} style={{ cursor: 'pointer', marginBottom: '15px' }}>
+                  <div key={item.id} className="devotion-card" onClick={async () => {
+
+  await trackMinistryContentRead({
+
+    ministryId:
+      item.author_id,
+
+    contentId:
+      item.id,
+
+    contentType:
+      'DEVOTION'
+
+  });
+
+  setSelectedDevotion(
+    item
+  );
+
+}} style={{ cursor: 'pointer', marginBottom: '15px' }}>
                     <img src={item.img || 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?w=200'} alt="devotion" className="devotion-img" />
                     <div className="devotion-info">
                       <h4 className="devotion-title">{item.title}</h4>
@@ -18605,7 +19284,26 @@ maxHeight:
   )}
 </div>
                 {biblePlansList.map(plan => (
-                  <div key={plan.id} className="devotion-card" onClick={() => setSelectedPlan(plan)} style={{ flexDirection: 'column', alignItems: 'flex-start', marginBottom: '15px', cursor: 'pointer' }}>
+                  <div key={plan.id} className="devotion-card" onClick={async () => {
+
+  await trackMinistryContentRead({
+
+    ministryId:
+      plan.author_id,
+
+    contentId:
+      plan.id,
+
+    contentType:
+      'BIBLE_PLAN'
+
+  });
+
+  setSelectedPlan(
+    plan
+  );
+
+}} style={{ flexDirection: 'column', alignItems: 'flex-start', marginBottom: '15px', cursor: 'pointer' }}>
                     <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
                       <img src={plan.img} alt="plan" className="devotion-img" />
                       <div className="devotion-info">
@@ -18705,7 +19403,26 @@ maxHeight:
 </div>
                 <div className="horizontal-scroll" style={{ paddingBottom: '10px' }}>
                   {messagesList.map(msg => (
-                    <div key={msg.id} className="message-card" onClick={() => setSelectedMessage(msg)} style={{ cursor: 'pointer' }}>
+                    <div key={msg.id} className="message-card" onClick={async () => {
+
+  await trackMinistryContentRead({
+
+    ministryId:
+      msg.author_id,
+
+    contentId:
+      msg.id,
+
+    contentType:
+      'MESSAGE'
+
+  });
+
+  setSelectedMessage(
+    msg
+  );
+
+}} style={{ cursor: 'pointer' }}>
                       <div className="message-img-wrapper">
                         <img src={msg.img} alt="msg" className="message-img" />
                         <div className="message-play-btn" style={{ background: msg.format === 'audio' ? 'rgba(155, 89, 182, 0.8)' : msg.format === 'text' ? 'rgba(243, 202, 88, 0.8)' : 'rgba(41, 190, 175, 0.8)' }}>
@@ -25839,6 +26556,10 @@ const displayName =
 >
     <div
   style={{
+    display:
+  ministryWorkspaceSection === 'overview'
+    ? 'block'
+    : 'none',
     position: 'relative',
     overflow: 'hidden',
     borderRadius: '24px',
@@ -26042,7 +26763,10 @@ const displayName =
 
 <div
   style={{
-    display: 'flex',
+    display:
+  ministryWorkspaceSection === 'overview'
+    ? 'flex'
+    : 'none',
     alignItems: 'center',
     gap: '12px',
     padding: '15px',
@@ -29490,7 +30214,10 @@ community.
       {/* MODULE GRID */}
       <div
         style={{
-          display: 'grid',
+          display:
+  ministryWorkspaceSection === 'overview'
+    ? 'grid'
+    : 'none',
           gridTemplateColumns:
             'repeat(auto-fit,minmax(220px,1fr))',
           gap: '12px',
@@ -29539,19 +30266,20 @@ community.
     setIsMinistryContentModalOpen(true);
   }
 },
-          {
-            title: 'Events',
-            icon: '/ministry-icons/events.png',
-            desc: 'Create and manage Ministry events.'
-          },
-          {
-            title: 'Growth',
-            icon: '/ministry-icons/growth.png',
-            desc: 'Monitor Ministry growth and engagement.'
-          },
+         {
+  title: 'Events',
+  icon: '/ministry-icons/events.png',
+  desc: 'Create and manage Ministry events.',
+  action: () => {
+    alert(
+      'Events is coming soon. We are preparing this feature for a future update.'
+    );
+  }
+},
+
 {
   title: 'Analytics',
-  icon: '/ministry-icons/analytics.png',
+  icon: '/ministry-icons/growth.png',
   desc: 'Track Ministry reach, engagement and activity.',
   action: async () => {
     const ministryId =
@@ -29560,13 +30288,20 @@ community.
 
     if (ministryId) {
       await Promise.all([
-        loadMinistryActivities(
-          ministryId
-        ),
-        loadMinistryAnalytics(
-          ministryId
-        )
-      ]);
+
+  loadMinistryActivities(
+    ministryId
+  ),
+
+  loadMinistryAnalytics(
+    ministryId
+  ),
+
+  loadMinistryAnalyticsContent(),
+
+  loadMinistryContentPerformance()
+
+]);
     }
 
     setMinistryWorkspaceSection(
@@ -29700,6 +30435,1305 @@ community.
       </div>
     </div>
   </div>
+)}
+
+
+{ministryWorkspaceSection === 'analytics' && (
+  <div
+    className="constrained-overlay"
+    style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 30000,
+      background: 'rgba(3,8,15,0.90)',
+      backdropFilter: 'blur(12px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '16px',
+      paddingBottom: '95px',
+      boxSizing: 'border-box',
+  paddingTop: '20px'
+    }}
+  >
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '760px',
+        height: 'min(88vh, 860px)',
+        minHeight: '520px',
+        background: '#101926',
+        border: '1px solid rgba(255,255,255,0.10)',
+        borderRadius: '24px',
+        boxShadow: '0 25px 80px rgba(0,0,0,0.55)',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden'
+      }}
+    >
+
+      <div
+        style={{
+          flex: 1,
+          overflowY: 'auto',
+          overflowX: 'hidden',
+          padding: '18px 18px 24px',
+          boxSizing: 'border-box'
+        }}
+      >
+
+    {/* ANALYTICS HEADER */}
+
+    <div
+      style={{
+        background:
+          'linear-gradient(145deg, rgba(21,32,49,0.98), rgba(14,23,38,0.98))',
+        border:
+          '1px solid rgba(255,255,255,0.08)',
+        borderRadius:
+          '20px',
+        padding:
+          '20px',
+        marginBottom:
+          '14px',
+        boxSizing:
+          'border-box'
+      }}
+    >
+
+      <div
+        style={{
+          display:
+            'flex',
+          alignItems:
+            'flex-start',
+          justifyContent:
+            'space-between',
+          gap:
+            '12px'
+        }}
+      >
+
+        <div
+          style={{
+            minWidth:
+              0
+          }}
+        >
+
+          <div
+            style={{
+              color:
+                '#29beaf',
+              fontSize:
+                '9px',
+              fontWeight:
+                '900',
+              letterSpacing:
+                '1.2px',
+              textTransform:
+                'uppercase'
+            }}
+          >
+            Ministry Insights
+          </div>
+
+          <h2
+            style={{
+              color:
+                '#ffffff',
+              margin:
+                '5px 0 0',
+              fontSize:
+                '24px',
+              lineHeight:
+                '1.15',
+              fontWeight:
+                '900'
+            }}
+          >
+            Analytics
+          </h2>
+
+          <p
+            style={{
+              margin:
+                '7px 0 0',
+              color:
+                '#8e9aab',
+              fontSize:
+                '11px',
+              lineHeight:
+                '1.55'
+            }}
+          >
+            Track your Ministry's reach,
+            engagement and published content.
+          </p>
+
+        </div>
+
+
+        <button
+          type="button"
+          onClick={async () => {
+
+            const ministryId =
+              activeMinistryWorkspace?.ministry?.id ||
+              (
+                userProfile?.account_type ===
+                'Ministry'
+                  ? userProfile.id
+                  : null
+              );
+
+
+            if (!ministryId) {
+              return;
+            }
+
+
+            await Promise.all([
+
+  loadMinistryActivities(
+    ministryId
+  ),
+
+  loadMinistryAnalytics(
+    ministryId
+  ),
+
+  loadMinistryAnalyticsContent(),
+
+  loadMinistryContentPerformance()
+
+]);
+
+          }}
+          style={{
+            width:
+              '42px',
+            height:
+              '42px',
+            borderRadius:
+              '12px',
+            border:
+              '1px solid rgba(41,190,175,0.22)',
+            background:
+              'rgba(41,190,175,0.08)',
+            color:
+              '#29beaf',
+            display:
+              'flex',
+            alignItems:
+              'center',
+            justifyContent:
+              'center',
+            cursor:
+              'pointer',
+            flexShrink:
+              0,
+            fontSize:
+              '16px'
+          }}
+          title="Refresh analytics"
+        >
+          ↻
+        </button>
+
+      </div>
+
+    </div>
+
+
+    {/* PRIMARY METRICS */}
+
+    <div
+      style={{
+        display:
+          'grid',
+        gridTemplateColumns:
+          'repeat(2, minmax(0, 1fr))',
+        gap:
+          '10px',
+        marginBottom:
+          '14px'
+      }}
+    >
+
+      {/* VIEWS */}
+
+      <div
+        style={{
+          background:
+            'rgba(255,255,255,0.035)',
+          border:
+            '1px solid rgba(255,255,255,0.07)',
+          borderRadius:
+            '16px',
+          padding:
+            '15px',
+          minWidth:
+            0,
+          boxSizing:
+            'border-box'
+        }}
+      >
+
+        <div
+          style={{
+            display:
+              'flex',
+            justifyContent:
+              'space-between',
+            alignItems:
+              'center',
+            marginBottom:
+              '13px'
+          }}
+        >
+
+          <span
+            style={{
+              color:
+                '#8e9aab',
+              fontSize:
+                '9px',
+              fontWeight:
+                '900',
+              textTransform:
+                'uppercase'
+            }}
+          >
+            Total Views
+          </span>
+
+          <span
+            style={{
+              width:
+                '30px',
+              height:
+                '30px',
+              borderRadius:
+                '9px',
+              display:
+                'flex',
+              alignItems:
+                'center',
+              justifyContent:
+                'center',
+              background:
+                'rgba(41,190,175,0.10)',
+              color:
+                '#29beaf'
+            }}
+          >
+            <EyeIcon />
+          </span>
+
+        </div>
+
+
+        <div
+          style={{
+            color:
+              '#ffffff',
+            fontSize:
+              '25px',
+            lineHeight:
+              '1',
+            fontWeight:
+              '900'
+          }}
+        >
+          {ministryAnalytics.totalViews || 0}
+        </div>
+
+
+        <div
+          style={{
+            color:
+              '#64748b',
+            fontSize:
+              '9px',
+            marginTop:
+              '6px'
+          }}
+        >
+          Recorded content views
+        </div>
+
+      </div>
+
+
+      {/* UNIQUE VIEWERS */}
+
+      <div
+        style={{
+          background:
+            'rgba(255,255,255,0.035)',
+          border:
+            '1px solid rgba(255,255,255,0.07)',
+          borderRadius:
+            '16px',
+          padding:
+            '15px',
+          minWidth:
+            0,
+          boxSizing:
+            'border-box'
+        }}
+      >
+
+        <div
+          style={{
+            display:
+              'flex',
+            justifyContent:
+              'space-between',
+            alignItems:
+              'center',
+            marginBottom:
+              '13px'
+          }}
+        >
+
+          <span
+            style={{
+              color:
+                '#8e9aab',
+              fontSize:
+                '9px',
+              fontWeight:
+                '900',
+              textTransform:
+                'uppercase'
+            }}
+          >
+            Unique Viewers
+          </span>
+
+          <span
+            style={{
+              width:
+                '30px',
+              height:
+                '30px',
+              borderRadius:
+                '9px',
+              display:
+                'flex',
+              alignItems:
+                'center',
+              justifyContent:
+                'center',
+              background:
+                'rgba(79,172,254,0.10)',
+              color:
+                '#4facfe'
+            }}
+          >
+            <RosterUsersIcon />
+          </span>
+
+        </div>
+
+
+        <div
+          style={{
+            color:
+              '#ffffff',
+            fontSize:
+              '25px',
+            lineHeight:
+              '1',
+            fontWeight:
+              '900'
+          }}
+        >
+          {ministryAnalytics.uniqueViewers || 0}
+        </div>
+
+
+        <div
+          style={{
+            color:
+              '#64748b',
+            fontSize:
+              '9px',
+            marginTop:
+              '6px'
+          }}
+        >
+          Distinct viewers
+        </div>
+
+      </div>
+
+
+      {/* PARTICIPATIONS */}
+
+      <div
+        style={{
+          background:
+            'rgba(255,255,255,0.035)',
+          border:
+            '1px solid rgba(255,255,255,0.07)',
+          borderRadius:
+            '16px',
+          padding:
+            '15px',
+          minWidth:
+            0,
+          boxSizing:
+            'border-box'
+        }}
+      >
+
+        <div
+          style={{
+            display:
+              'flex',
+            justifyContent:
+              'space-between',
+            alignItems:
+              'center',
+            marginBottom:
+              '13px'
+          }}
+        >
+
+          <span
+            style={{
+              color:
+                '#8e9aab',
+              fontSize:
+                '9px',
+              fontWeight:
+                '900',
+              textTransform:
+                'uppercase'
+            }}
+          >
+            Participations
+          </span>
+
+          <span
+            style={{
+              width:
+                '30px',
+              height:
+                '30px',
+              borderRadius:
+                '9px',
+              display:
+                'flex',
+              alignItems:
+                'center',
+              justifyContent:
+                'center',
+              background:
+                'rgba(243,202,88,0.10)',
+              color:
+                '#f3ca58'
+            }}
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+            </svg>
+          </span>
+
+        </div>
+
+
+        <div
+          style={{
+            color:
+              '#ffffff',
+            fontSize:
+              '25px',
+            lineHeight:
+              '1',
+            fontWeight:
+              '900'
+          }}
+        >
+          {ministryAnalytics.participations || 0}
+        </div>
+
+
+        <div
+          style={{
+            color:
+              '#64748b',
+            fontSize:
+              '9px',
+            marginTop:
+              '6px'
+          }}
+        >
+          Recorded participation
+        </div>
+
+      </div>
+
+
+      {/* REACTIONS */}
+
+      <div
+        style={{
+          background:
+            'rgba(255,255,255,0.035)',
+          border:
+            '1px solid rgba(255,255,255,0.07)',
+          borderRadius:
+            '16px',
+          padding:
+            '15px',
+          minWidth:
+            0,
+          boxSizing:
+            'border-box'
+        }}
+      >
+
+        <div
+          style={{
+            display:
+              'flex',
+            justifyContent:
+              'space-between',
+            alignItems:
+              'center',
+            marginBottom:
+              '13px'
+          }}
+        >
+
+          <span
+            style={{
+              color:
+                '#8e9aab',
+              fontSize:
+                '9px',
+              fontWeight:
+                '900',
+              textTransform:
+                'uppercase'
+            }}
+          >
+            Reactions
+          </span>
+
+          <span
+            style={{
+              width:
+                '30px',
+              height:
+                '30px',
+              borderRadius:
+                '9px',
+              display:
+                'flex',
+              alignItems:
+                'center',
+              justifyContent:
+                'center',
+              background:
+                'rgba(231,76,60,0.10)',
+              color:
+                '#e74c3c'
+            }}
+          >
+            <HeartIcon />
+          </span>
+
+        </div>
+
+
+        <div
+          style={{
+            color:
+              '#ffffff',
+            fontSize:
+              '25px',
+            lineHeight:
+              '1',
+            fontWeight:
+              '900'
+          }}
+        >
+          {ministryAnalytics.reactions || 0}
+        </div>
+
+
+        <div
+          style={{
+            color:
+              '#64748b',
+            fontSize:
+              '9px',
+            marginTop:
+              '6px'
+          }}
+        >
+          Recorded reactions
+        </div>
+
+      </div>
+
+    </div>
+
+
+    {/* CONTENT PUBLISHED */}
+
+    <div
+      style={{
+        background:
+          'rgba(255,255,255,0.035)',
+        border:
+          '1px solid rgba(255,255,255,0.07)',
+        borderRadius:
+          '18px',
+        padding:
+          '18px',
+        marginBottom:
+          '14px',
+        boxSizing:
+          'border-box'
+      }}
+    >
+
+      <div
+        style={{
+          color:
+            '#f3ca58',
+          fontSize:
+            '10px',
+          fontWeight:
+            '900',
+          letterSpacing:
+            '1px',
+          textTransform:
+            'uppercase',
+          marginBottom:
+            '14px'
+        }}
+      >
+        Content Published
+      </div>
+
+
+      <div
+        style={{
+          display:
+            'grid',
+          gridTemplateColumns:
+            'repeat(2, minmax(0,1fr))',
+          gap:
+            '9px'
+        }}
+      >
+
+        {[
+          {
+            label:
+              'Total',
+            value:
+              ministryAnalyticsContent.total
+          },
+          {
+            label:
+              'Devotions',
+            value:
+              ministryAnalyticsContent.devotions
+          },
+          {
+            label:
+              'Bible Plans',
+            value:
+              ministryAnalyticsContent.biblePlans
+          },
+          {
+            label:
+              'Messages',
+            value:
+              ministryAnalyticsContent.messages
+          },
+          {
+            label:
+              'Announcements',
+            value:
+              ministryAnalyticsContent.announcements
+          }
+
+        ].map(item => (
+
+          <div
+            key={
+              item.label
+            }
+            style={{
+              padding:
+                '12px',
+              borderRadius:
+                '12px',
+              background:
+                'rgba(255,255,255,0.025)',
+              border:
+                '1px solid rgba(255,255,255,0.05)'
+            }}
+          >
+
+            <div
+              style={{
+                display:
+                  'flex',
+                alignItems:
+                  'center',
+                gap:
+                  '8px'
+              }}
+            >
+
+              <div
+                style={{
+                  width:
+                    '6px',
+                  height:
+                    '6px',
+                  borderRadius:
+                    '50%',
+                  background:
+                    '#29beaf',
+                  flexShrink:
+                    0
+                }}
+              />
+
+              <span
+                style={{
+                  color:
+                    '#718096',
+                  fontSize:
+                    '9px'
+                }}
+              >
+                {item.label}
+              </span>
+
+            </div>
+
+            <div
+              style={{
+                color:
+                  '#ffffff',
+                fontSize:
+                  '19px',
+                fontWeight:
+                  '900',
+                marginTop:
+                  '6px'
+              }}
+            >
+              {item.value || 0}
+            </div>
+
+          </div>
+
+        ))}
+
+      </div>
+
+    </div>
+
+
+    {/* ENGAGEMENT */}
+
+    <div
+      style={{
+        background:
+          'rgba(255,255,255,0.035)',
+        border:
+          '1px solid rgba(255,255,255,0.07)',
+        borderRadius:
+          '18px',
+        padding:
+          '18px',
+        marginBottom:
+          '14px',
+        boxSizing:
+          'border-box'
+      }}
+    >
+
+      <div
+        style={{
+          display:
+            'flex',
+          alignItems:
+            'center',
+          justifyContent:
+            'space-between',
+          marginBottom:
+            '15px'
+        }}
+      >
+
+        <div
+          style={{
+            color:
+              '#29beaf',
+            fontSize:
+              '10px',
+            fontWeight:
+              '900',
+            letterSpacing:
+              '1px',
+            textTransform:
+              'uppercase'
+          }}
+        >
+          Engagement
+        </div>
+
+        <div
+          style={{
+            width:
+              '28px',
+            height:
+              '28px',
+            borderRadius:
+              '9px',
+            background:
+              'rgba(41,190,175,0.08)',
+            color:
+              '#29beaf',
+            display:
+              'flex',
+            alignItems:
+              'center',
+            justifyContent:
+              'center'
+          }}
+        >
+          <EyeIcon />
+        </div>
+
+      </div>
+
+
+      {[
+        {
+          label:
+            'Views',
+          value:
+            ministryAnalytics.totalViews
+        },
+
+        {
+          label:
+            'Unique Viewers',
+          value:
+            ministryAnalytics.uniqueViewers
+        },
+
+        {
+          label:
+            'Participations',
+          value:
+            ministryAnalytics.participations
+        },
+
+        {
+          label:
+            'Completions',
+          value:
+            ministryAnalytics.completions
+        },
+
+        {
+          label:
+            'Reactions',
+          value:
+            ministryAnalytics.reactions
+        }
+
+      ].map(item => {
+
+        const max =
+          Math.max(
+            ministryAnalytics.totalViews ||
+              1,
+            ministryAnalytics.uniqueViewers ||
+              1,
+            ministryAnalytics.participations ||
+              1,
+            ministryAnalytics.completions ||
+              1,
+            ministryAnalytics.reactions ||
+              1
+          );
+
+
+        const percentage =
+          Math.min(
+            100,
+            Math.round(
+              ((item.value || 0) /
+                max) *
+                100
+            )
+          );
+
+
+        return (
+
+          <div
+            key={
+              item.label
+            }
+            style={{
+              marginBottom:
+                '13px'
+            }}
+          >
+
+            <div
+              style={{
+                display:
+                  'flex',
+                justifyContent:
+                  'space-between',
+                marginBottom:
+                  '6px'
+              }}
+            >
+
+              <span
+                style={{
+                  color:
+                    '#9aa5b5',
+                  fontSize:
+                    '9px'
+                }}
+              >
+                {item.label}
+              </span>
+
+              <span
+                style={{
+                  color:
+                    '#ffffff',
+                  fontSize:
+                    '9px',
+                  fontWeight:
+                    '900'
+                }}
+              >
+                {item.value || 0}
+              </span>
+
+            </div>
+
+
+            <div
+              style={{
+                height:
+                  '5px',
+                borderRadius:
+                  '999px',
+                background:
+                  'rgba(255,255,255,0.06)',
+                overflow:
+                  'hidden'
+              }}
+            >
+
+              <div
+                style={{
+                  width:
+                    `${percentage}%`,
+                  height:
+                    '100%',
+                  borderRadius:
+                    '999px',
+                  background:
+                    'linear-gradient(90deg,#29beaf,#f3ca58)',
+                  transition:
+                    'width .35s ease'
+                }}
+              />
+
+            </div>
+
+          </div>
+
+        );
+
+      })}
+
+    </div>
+
+
+    {/* RECENT ACTIVITY */}
+
+    <div
+      style={{
+        background:
+          'rgba(255,255,255,0.035)',
+        border:
+          '1px solid rgba(255,255,255,0.07)',
+        borderRadius:
+          '18px',
+        padding:
+          '18px',
+        marginBottom:
+          '14px',
+        boxSizing:
+          'border-box'
+      }}
+    >
+
+      <div
+        style={{
+          color:
+            '#ffffff',
+          fontSize:
+            '12px',
+          fontWeight:
+            '900',
+          marginBottom:
+            '14px'
+        }}
+      >
+        Recent Activity
+      </div>
+
+
+      {isLoadingMinistryActivities ? (
+
+        <div
+          style={{
+            padding:
+              '25px 10px',
+            textAlign:
+              'center',
+            color:
+              '#64748b',
+            fontSize:
+              '10px'
+          }}
+        >
+          Loading activity...
+        </div>
+
+      ) : ministryActivities.length === 0 ? (
+
+        <div
+          style={{
+            padding:
+              '25px 10px',
+            textAlign:
+              'center',
+            color:
+              '#64748b',
+            fontSize:
+              '10px',
+            lineHeight:
+              '1.5'
+          }}
+        >
+          No Ministry activity has been
+          recorded yet.
+        </div>
+
+      ) : (
+
+        <div
+          style={{
+            display:
+              'flex',
+            flexDirection:
+              'column',
+            gap:
+              '8px'
+          }}
+        >
+
+          {ministryActivities
+            .slice(0, 8)
+            .map(activity => (
+
+              <div
+                key={
+                  activity.id
+                }
+                style={{
+                  display:
+                    'flex',
+                  alignItems:
+                    'center',
+                  gap:
+                    '10px',
+                  padding:
+                    '11px',
+                  borderRadius:
+                    '11px',
+                  background:
+                    'rgba(255,255,255,0.025)'
+                }}
+              >
+
+                <div
+                  style={{
+                    width:
+                      '30px',
+                    height:
+                      '30px',
+                    borderRadius:
+                      '9px',
+                    background:
+                      'rgba(41,190,175,0.08)',
+                    color:
+                      '#29beaf',
+                    display:
+                      'flex',
+                    alignItems:
+                      'center',
+                    justifyContent:
+                      'center',
+                    flexShrink:
+                      0
+                  }}
+                >
+                  <svg
+                    width="15"
+                    height="15"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="3 17 9 11 13 15 21 7" />
+                    <polyline points="14 7 21 7 21 14" />
+                  </svg>
+                </div>
+
+
+                <div
+                  style={{
+                    flex:
+                      1,
+                    minWidth:
+                      0
+                  }}
+                >
+
+                  <div
+                    style={{
+                      color:
+                        '#ffffff',
+                      fontSize:
+                        '10px',
+                      fontWeight:
+                        '800',
+                      overflow:
+                        'hidden',
+                      textOverflow:
+                        'ellipsis',
+                      whiteSpace:
+                        'nowrap'
+                    }}
+                  >
+                    {activity.title ||
+                      'Ministry activity'}
+                  </div>
+
+                  <div
+                    style={{
+                      color:
+                        '#64748b',
+                      fontSize:
+                        '8px',
+                      marginTop:
+                        '3px'
+                    }}
+                  >
+                    {activity.activity_type}
+                  </div>
+
+                </div>
+
+
+                <div
+                  style={{
+                    color:
+                      '#64748b',
+                    fontSize:
+                      '8px',
+                    flexShrink:
+                      0
+                  }}
+                >
+                  {activity.created_at
+                    ? new Date(
+                        activity.created_at
+                      ).toLocaleDateString()
+                    : ''}
+                </div>
+
+              </div>
+
+            ))}
+
+        </div>
+
+      )}
+
+    </div>
+
+
+    {/* BACK */}
+
+    <button
+      type="button"
+      onClick={() =>
+        setMinistryWorkspaceSection(
+          'overview'
+        )
+      }
+     style={{
+  width: '100%',
+  padding: '12px',
+  borderRadius: '11px',
+  border: '1px solid rgba(255,255,255,0.08)',
+  background: 'rgba(255,255,255,0.04)',
+  color: '#fff',
+  fontSize: '10px',
+  fontWeight: '900',
+  cursor: 'pointer',
+  marginTop: '4px',
+ marginBottom: '20px'
+}}
+    >
+      Back to Overview
+    </button>
+
+  </div>
+</div>
+</div>
 )}
 
 {ministryWorkspaceSection === 'members' && (
