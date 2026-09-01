@@ -341,9 +341,48 @@ const IconGlobe = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="no
 
 export default function App() {
   const [step, setStep] = useState(() => {
-  const saved = localStorage.getItem('kp_current_user');
-  return saved ? 6 : 0;
-  });
+
+  const saved =
+    localStorage.getItem(
+      'kp_current_user'
+    );
+
+
+  if (!saved) {
+    return 0;
+  }
+
+
+  try {
+
+    const parsed =
+      JSON.parse(saved);
+
+
+    const isMinistry =
+      parsed?.account_type ===
+        'Ministry' ||
+      parsed?.accountType ===
+        'Ministry';
+
+
+    return isMinistry
+      ? 26
+      : 6;
+
+  } catch (error) {
+
+    console.error(
+      'Could not restore saved app state:',
+      error
+    );
+
+    return 0;
+
+  }
+
+});
+
   const [isAuthLoading, setIsAuthLoading] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [authError, setAuthError] = useState(null);
@@ -356,6 +395,52 @@ export default function App() {
     const saved = localStorage.getItem('kp_current_user');
     return saved ? JSON.parse(saved) : null;
   });
+
+// ==========================================
+// GLOBAL SESSION / PROFILE STATE
+// Keep these near the top because many
+// functions below depend on them.
+// ==========================================
+
+const [
+  userProfile,
+  setUserProfile
+] = useState(null);
+
+const [
+  authUserId,
+  setAuthUserId
+] = useState(null);
+
+const [
+  activeMinistryWorkspace,
+  setActiveMinistryWorkspace
+] = useState(null);
+
+const [
+  isOpeningMinistryWorkspace,
+  setIsOpeningMinistryWorkspace
+] = useState(false);
+
+const [
+  ministryWorkspaceSection,
+  setMinistryWorkspaceSection
+] = useState('overview');
+
+const isMinistryOwner =
+  userProfile?.account_type ===
+    'Ministry' ||
+  currentUser?.account_type ===
+    'Ministry' ||
+  currentUser?.accountType ===
+    'Ministry';
+
+const isInsideMinistryDashboard =
+  step === 26 &&
+  Boolean(
+    activeMinistryWorkspace
+  );
+
 const [isBottomNavDimmed, setIsBottomNavDimmed] = useState(false);
 
 const handleBottomNavScroll = (event) => {
@@ -4796,10 +4881,116 @@ profileData.last_login_date =
       profileData?.wallet_balance || 0
     )
 };
-      setCurrentUser(sessionRecord);
-      localStorage.setItem('kp_current_user', JSON.stringify(sessionRecord));
-      
-      setStep(6);
+      setCurrentUser(
+  sessionRecord
+);
+
+localStorage.setItem(
+  'kp_current_user',
+  JSON.stringify(
+    sessionRecord
+  )
+);
+
+
+if (
+  profileData.account_type ===
+  'Ministry'
+) {
+
+  try {
+
+    const {
+      data:
+        ministry,
+      error:
+        ministryError
+    } =
+      await supabase
+        .from(
+          'church_profiles'
+        )
+        .select(`
+          id,
+          ministry_name,
+          username,
+          email,
+          account_type,
+          membership_tier,
+          ministry_type,
+          denomination,
+          image,
+          wallpaper_url,
+          country,
+          city,
+          street_address,
+          main_service_day,
+          service_time,
+          mission_statement,
+          wallet_balance
+        `)
+        .eq(
+          'id',
+          userId
+        )
+        .single();
+
+
+    if (ministryError) {
+      throw ministryError;
+    }
+
+
+    setActiveMinistryWorkspace({
+
+      ministry,
+
+      role:
+        'Owner',
+
+      dashboardAccess:
+        'full'
+
+    });
+
+
+    setMinistryWorkspaceSection(
+      'overview'
+    );
+
+    setActiveTab(
+      'sanctuary'
+    );
+
+    setStep(
+      26
+    );
+
+
+  } catch (ministryError) {
+
+    console.error(
+      'Failed to open Ministry Dashboard after login:',
+      ministryError
+    );
+
+    throw new Error(
+      'Your Ministry profile could not be loaded.'
+    );
+
+  }
+
+} else {
+
+  setActiveMinistryWorkspace(
+    null
+  );
+
+  setStep(
+    6
+  );
+
+}
 
     } catch (error) {
       setAuthError("Invalid credentials.");
@@ -5836,11 +6027,13 @@ const playPreviousMusicTrack = () => {
         <div className="nav-icon-wrapper"><HomeIcon /></div>
         <span className="nav-label">Sanctuary</span>
       </div>
-      <div className={`nav-item ${activeTab === 'media' ? 'active' : ''}`} onClick={() => { setActiveTab('media'); setStep(17); }}>
+      <div className={`nav-item ${!isInsideMinistryDashboard &&
+activeTab === 'media' ? 'active' : ''}`} onClick={() => { setActiveTab('media'); setStep(17); }}>
         <div className="nav-icon-wrapper"><VolumeIcon /></div>
         <span className="nav-label">Media</span>
       </div>
-      <div className={`nav-item ${activeTab === 'chat' ? 'active' : ''}`} onClick={() => { setActiveTab('chat'); setStep(23); setHubTab('INBOX'); }}>
+      <div className={`nav-item ${!isInsideMinistryDashboard &&
+activeTab === 'chat' ? 'active' : ''}`} onClick={() => { setActiveTab('chat'); setStep(23); setHubTab('INBOX'); }}>
         <div className="nav-icon-wrapper" style={{ position: 'relative' }}>
           <ChatIcon />
           {unreadChatCount > 0 && (
@@ -5861,16 +6054,20 @@ const playPreviousMusicTrack = () => {
         <span className="nav-label">Chat</span>
       </div>
       
-      <div className={`nav-item ${activeTab === 'kingdom' ? 'active' : ''}`} onClick={() => { setActiveTab('kingdom'); setKingdomTab('Devotions'); setStep(10); }}>
+      <div className={`nav-item ${!isInsideMinistryDashboard &&
+activeTab === 'kingdom' ? 'active' : ''}`} onClick={() => { setActiveTab('kingdom'); setKingdomTab('Devotions'); setStep(10); }}>
         <div className="nav-icon-wrapper"><GlobeIcon /></div>
         <span className="nav-label">Kingdom</span>
       </div>
       
-      <div className={`nav-item ${activeTab === 'treasury' ? 'active' : ''}`} onClick={() => { setActiveTab('treasury'); setStep(11); }}>
+      <div className={`nav-item ${!isInsideMinistryDashboard &&
+activeTab === 'treasury' ? 'active' : ''}`} onClick={() => { setActiveTab('treasury'); setStep(11); }}>
         <div className="nav-icon-wrapper"><WalletIcon2 /></div>
         <span className="nav-label">Treasury</span>
       </div>
-      <div className={`nav-item ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); setStep(18); }}>
+      <div className={`nav-item ${isMinistryOwner &&
+!isInsideMinistryDashboard &&
+activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); setStep(18); }}>
         <div className="nav-icon-wrapper"><ProfileIcon /></div>
         <span className="nav-label">Profile</span>
       </div>
@@ -5890,6 +6087,7 @@ const handleMinistryWorkspaceHome = () => {
   setActiveTab('sanctuary');
   setStep(6);
 };
+
 
 const MinistryBottomNav = () => (
   <div
@@ -5920,8 +6118,11 @@ const MinistryBottomNav = () => (
   >
     <div
       className={`nav-item ${
-        step === 26 ? 'active' : ''
-      }`}
+  userProfile?.account_type === 'Ministry' &&
+  step === 26
+    ? 'active'
+    : ''
+}`}
       onClick={handleMinistryWorkspaceHome}
     >
       <div className="nav-icon-wrapper">
@@ -6036,8 +6237,11 @@ const MinistryBottomNav = () => (
 
     <div
       className={`nav-item ${
-        activeTab === 'profile' ? 'active' : ''
-      }`}
+  userProfile?.account_type === 'Ministry' &&
+  activeTab === 'profile'
+    ? 'active'
+    : ''
+}`}
       onClick={() => {
         setActiveTab('profile');
         setStep(18);
@@ -7044,8 +7248,871 @@ membership_source
     }
   };
 
+const renderMinistryPublicProfile = () => {
 
-// --- THE CHURCH / MINISTRY COMMAND HUB ---
+  const ministry =
+    activeMinistryWorkspace?.ministry ||
+    {};
+
+
+  return (
+
+    <div
+      className="feed-screen-container"
+      style={{
+        position:
+          'relative',
+
+        height:
+          '100vh',
+
+        width:
+          '100vw',
+
+        display:
+          'flex',
+
+        flexDirection:
+          'column'
+      }}
+    >
+
+      {/* HEADER */}
+
+      <div
+        style={{
+          position:
+            'absolute',
+
+          top: 0,
+
+          left: 0,
+
+          right: 0,
+
+          zIndex: 50,
+
+          padding:
+            '12px 16px',
+
+          display:
+            'flex',
+
+          alignItems:
+            'center',
+
+          justifyContent:
+            'space-between'
+        }}
+      >
+
+        <button
+          className="back-button"
+          onClick={() =>
+            setStep(26)
+          }
+          style={{
+            width:
+              '38px',
+
+            height:
+              '38px',
+
+            background:
+              'rgba(3,8,15,.55)',
+
+            backdropFilter:
+              'blur(10px)'
+          }}
+        >
+          <BackArrowIcon />
+        </button>
+
+
+        <button
+          type="button"
+          onClick={() =>
+            navigator.clipboard?.writeText(
+              `@${ministry.username || ''}`
+            )
+          }
+          style={{
+            width:
+              '38px',
+
+            height:
+              '38px',
+
+            borderRadius:
+              '50%',
+
+            border:
+              '1px solid rgba(255,255,255,.12)',
+
+            background:
+              'rgba(3,8,15,.55)',
+
+            backdropFilter:
+              'blur(10px)',
+
+            color:
+              '#fff',
+
+            display:
+              'flex',
+
+            alignItems:
+              'center',
+
+            justifyContent:
+              'center',
+
+            cursor:
+              'pointer'
+          }}
+        >
+          <ShareIcon />
+        </button>
+
+      </div>
+
+
+      {/* SCROLL AREA */}
+
+      <div
+        className="feed-scroll-area"
+        onScroll={
+          handleBottomNavScroll
+        }
+        style={{
+          flexGrow:
+            1,
+
+          overflowY:
+            'auto',
+
+          paddingBottom:
+            '140px'
+        }}
+      >
+
+        {/* COVER */}
+
+        <div
+          style={{
+            position:
+              'relative',
+
+            height:
+              '210px',
+
+            background:
+              ministry.wallpaper_url
+                ? `url(${ministry.wallpaper_url}) center/cover`
+                : 'linear-gradient(135deg,#1f3752,#101926 55%,#0d2b28)',
+
+            flexShrink:
+              0
+          }}
+        >
+
+          <div
+            style={{
+              position:
+                'absolute',
+
+              inset:
+                0,
+
+              background:
+                'linear-gradient(to bottom,rgba(0,0,0,.05),rgba(3,8,15,.82))'
+            }}
+          />
+
+        </div>
+
+
+        {/* PROFILE BODY */}
+
+        <div
+          style={{
+            padding:
+              '0 20px 30px'
+          }}
+        >
+
+          {/* AVATAR + ACTION */}
+
+          <div
+            style={{
+              display:
+                'flex',
+
+              alignItems:
+                'flex-end',
+
+              justifyContent:
+                'space-between',
+
+              gap:
+                '12px',
+
+              marginTop:
+                '-50px',
+
+              position:
+                'relative',
+
+              zIndex:
+                10
+            }}
+          >
+
+            <div
+              style={{
+                width:
+                  '96px',
+
+                height:
+                  '96px',
+
+                borderRadius:
+                  '24px',
+
+                padding:
+                  '3px',
+
+                background:
+                  'linear-gradient(135deg,#f3ca58,#29beaf)',
+
+                boxShadow:
+                  '0 10px 30px rgba(0,0,0,.5)',
+
+                flexShrink:
+                  0
+              }}
+            >
+
+              <div
+                style={{
+                  width:
+                    '100%',
+
+                  height:
+                    '100%',
+
+                  borderRadius:
+                    '21px',
+
+                  overflow:
+                    'hidden',
+
+                  background:
+                    '#101926',
+
+                  display:
+                    'flex',
+
+                  alignItems:
+                    'center',
+
+                  justifyContent:
+                    'center'
+                }}
+              >
+
+                {ministry.image ? (
+
+                  <img
+                    src={
+                      ministry.image
+                    }
+                    alt={
+                      ministry.ministry_name ||
+                      'Ministry'
+                    }
+                    style={{
+                      width:
+                        '100%',
+
+                      height:
+                        '100%',
+
+                      objectFit:
+                        'cover'
+                    }}
+                  />
+
+                ) : (
+
+                  <span
+                    style={{
+                      color:
+                        '#29beaf',
+
+                      fontSize:
+                        '32px',
+
+                      fontWeight:
+                        '900'
+                    }}
+                  >
+                    {(
+                      ministry.ministry_name ||
+                      'M'
+                    )
+                      .substring(
+                        0,
+                        1
+                      )
+                      .toUpperCase()}
+                  </span>
+
+                )}
+
+              </div>
+
+            </div>
+
+
+            <button
+              type="button"
+              onClick={() =>
+                setIsMinistrySettingsOpen(
+                  true
+                )
+              }
+              style={{
+                display:
+                  'flex',
+
+                alignItems:
+                  'center',
+
+                gap:
+                  '7px',
+
+                padding:
+                  '9px 13px',
+
+                borderRadius:
+                  '11px',
+
+                border:
+                  '1px solid rgba(41,190,175,.24)',
+
+                background:
+                  'rgba(41,190,175,.08)',
+
+                color:
+                  '#29beaf',
+
+                fontSize:
+                  '9px',
+
+                fontWeight:
+                  '900',
+
+                cursor:
+                  'pointer'
+              }}
+            >
+              <EditIcon />
+              Edit Profile
+            </button>
+
+          </div>
+
+
+          {/* NAME */}
+
+          <div
+            style={{
+              marginTop:
+                '13px'
+            }}
+          >
+
+            <div
+              style={{
+                display:
+                  'flex',
+
+                alignItems:
+                  'center',
+
+                gap:
+                  '5px',
+
+                flexWrap:
+                  'wrap'
+              }}
+            >
+
+              <h1
+                style={{
+                  margin:
+                    0,
+
+                  color:
+                    '#fff',
+
+                  fontSize:
+                    '23px',
+
+                  lineHeight:
+                    '1.15',
+
+                  fontWeight:
+                    '900'
+                }}
+              >
+                {ministry.ministry_name ||
+                  'Ministry'}
+              </h1>
+
+              <VerifiedIcon />
+
+            </div>
+
+
+            <div
+              style={{
+                color:
+                  '#29beaf',
+
+                fontSize:
+                  '10px',
+
+                fontWeight:
+                  '800',
+
+                marginTop:
+                  '5px'
+              }}
+            >
+              @{ministry.username ||
+                'ministry'}
+            </div>
+
+
+            <div
+              style={{
+                display:
+                  'inline-flex',
+
+                marginTop:
+                  '8px',
+
+                padding:
+                  '5px 8px',
+
+                borderRadius:
+                  '999px',
+
+                background:
+                  'rgba(243,202,88,.07)',
+
+                color:
+                  '#f3ca58',
+
+                fontSize:
+                  '8px',
+
+                fontWeight:
+                  '900'
+              }}
+            >
+              OFFICIAL MINISTRY
+            </div>
+
+          </div>
+
+
+          {/* BIO */}
+
+          <p
+            style={{
+              color:
+                '#cbd5e1',
+
+              fontSize:
+                '12px',
+
+              lineHeight:
+                '1.65',
+
+              margin:
+                '15px 0'
+            }}
+          >
+            {ministry.mission_statement ||
+              'This Ministry has not added a mission statement yet.'}
+          </p>
+
+
+          {/* DETAILS */}
+
+          <div
+            style={{
+              display:
+                'flex',
+
+              flexDirection:
+                'column',
+
+              gap:
+                '9px',
+
+              padding:
+                '14px 0',
+
+              borderTop:
+                '1px solid rgba(255,255,255,.06)',
+
+              borderBottom:
+                '1px solid rgba(255,255,255,.06)'
+            }}
+          >
+
+            {(ministry.city ||
+              ministry.country) && (
+
+              <div
+                style={{
+                  display:
+                    'flex',
+
+                  alignItems:
+                    'center',
+
+                  gap:
+                    '8px',
+
+                  color:
+                    '#8e9aab',
+
+                  fontSize:
+                    '9px'
+                }}
+              >
+                <GlobeIcon />
+
+                {[
+                  ministry.city,
+                  ministry.country
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+
+              </div>
+
+            )}
+
+
+            {ministry.denomination && (
+
+              <div
+                style={{
+                  display:
+                    'flex',
+
+                  alignItems:
+                    'center',
+
+                  gap:
+                    '8px',
+
+                  color:
+                    '#8e9aab',
+
+                  fontSize:
+                    '9px'
+                }}
+              >
+                <ChurchIcon />
+
+                {ministry.denomination}
+
+              </div>
+
+            )}
+
+
+            {(ministry.main_service_day ||
+              ministry.service_time) && (
+
+              <div
+                style={{
+                  display:
+                    'flex',
+
+                  alignItems:
+                    'center',
+
+                  gap:
+                    '8px',
+
+                  color:
+                    '#8e9aab',
+
+                  fontSize:
+                    '9px'
+                }}
+              >
+                <CalendarIcon />
+
+                {[
+                  ministry.main_service_day,
+                  ministry.service_time
+                ]
+                  .filter(Boolean)
+                  .join(' • ')}
+
+              </div>
+
+            )}
+
+          </div>
+
+
+          {/* PROFILE STATS */}
+
+          <div
+            style={{
+              display:
+                'grid',
+
+              gridTemplateColumns:
+                'repeat(3,minmax(0,1fr))',
+
+              gap:
+                '8px',
+
+              marginTop:
+                '15px'
+            }}
+          >
+
+            <div
+              style={{
+                padding:
+                  '13px',
+
+                borderRadius:
+                  '13px',
+
+                background:
+                  'rgba(255,255,255,.03)',
+
+                textAlign:
+                  'center'
+              }}
+            >
+
+              <div
+                style={{
+                  color:
+                    '#fff',
+
+                  fontSize:
+                    '18px',
+
+                  fontWeight:
+                    '900'
+                }}
+              >
+                {ministryMemberCount || 0}
+              </div>
+
+              <div
+                style={{
+                  color:
+                    '#64748b',
+
+                  fontSize:
+                    '8px',
+
+                  marginTop:
+                    '4px'
+                }}
+              >
+                MEMBERS
+              </div>
+
+            </div>
+
+
+            <div
+              style={{
+                padding:
+                  '13px',
+
+                borderRadius:
+                  '13px',
+
+                background:
+                  'rgba(255,255,255,.03)',
+
+                textAlign:
+                  'center'
+              }}
+            >
+
+              <div
+                style={{
+                  color:
+                    '#fff',
+
+                  fontSize:
+                    '18px',
+
+                  fontWeight:
+                    '900'
+                }}
+              >
+                {verifiedMinistersList.length}
+              </div>
+
+              <div
+                style={{
+                  color:
+                    '#64748b',
+
+                  fontSize:
+                    '8px',
+
+                  marginTop:
+                    '4px'
+                }}
+              >
+                LEADERS
+              </div>
+
+            </div>
+
+
+            <div
+              style={{
+                padding:
+                  '13px',
+
+                borderRadius:
+                  '13px',
+
+                background:
+                  'rgba(255,255,255,.03)',
+
+                textAlign:
+                  'center'
+              }}
+            >
+
+              <div
+                style={{
+                  color:
+                    '#f3ca58',
+
+                  fontSize:
+                    '18px',
+
+                  fontWeight:
+                    '900'
+                }}
+              >
+                0
+              </div>
+
+              <div
+                style={{
+                  color:
+                    '#64748b',
+
+                  fontSize:
+                    '8px',
+
+                  marginTop:
+                    '4px'
+                }}
+              >
+                KINGDOM IMPACT
+              </div>
+
+            </div>
+
+          </div>
+
+
+          {/* PROFILE SECTIONS */}
+
+          <div
+            style={{
+              marginTop:
+                '20px'
+            }}
+          >
+
+            <div
+              style={{
+                color:
+                  '#fff',
+
+                fontSize:
+                  '13px',
+
+                fontWeight:
+                  '900',
+
+                marginBottom:
+                  '10px'
+              }}
+            >
+              Ministry on KingdomPlus
+            </div>
+
+
+            <div
+              style={{
+                color:
+                  '#718096',
+
+                fontSize:
+                  '9px',
+
+                lineHeight:
+                  '1.6',
+
+                padding:
+                  '14px',
+
+                borderRadius:
+                  '13px',
+
+                background:
+                  'rgba(255,255,255,.03)',
+
+                border:
+                  '1px solid rgba(255,255,255,.06)'
+              }}
+            >
+              Follow this Ministry to keep up
+              with its teachings, devotionals,
+              Bible plans, announcements and
+              Kingdom activity.
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  );
+
+};
+
   const renderChurchDashboard = () => {
     const givingInflow = txHistory.filter(tx => tx.amount > 0);
     const totalInflow = givingInflow.reduce((acc, curr) => acc + curr.amount, 0);
@@ -8602,18 +9669,6 @@ const fetchAnnouncements =
     }
   };
 
-useEffect(() => {
-
-  if (
-    step === 6
-  ) {
-
-    fetchAnnouncements();
-
-  }
-
-}, [step]);
-
 const fetchSanctuaryAnnouncements =
   async () => {
 
@@ -8795,12 +9850,38 @@ const fetchSanctuaryAnnouncements =
 useEffect(() => {
 
   if (
-    step === 6
+    step !== 6
   ) {
-
-    fetchSanctuaryAnnouncements();
-
+    return;
   }
+
+
+  const loadSanctuaryData =
+    async () => {
+
+      if (
+        currentUser?.id
+      ) {
+
+        await loadSanctuaryAnnouncementReads(
+          currentUser.id
+        );
+
+      } else {
+
+        setViewedAnnouncementIds(
+          new Set()
+        );
+
+      }
+
+
+      await fetchSanctuaryAnnouncements();
+
+    };
+
+
+  loadSanctuaryData();
 
 }, [
   step,
@@ -9514,76 +10595,114 @@ const loadSanctuaryAnnouncementReads =
 const markSanctuaryAnnouncementViewed =
   async (announcementId) => {
 
-    if (
-      !announcementId ||
-      !authUserId
-    ) {
-      return;
-    }
-
-    if (
-      viewedAnnouncementIds.has(
-        announcementId
-      )
-    ) {
-      return;
+    if (!announcementId) {
+      return false;
     }
 
 
-    const {
-      error
-    } =
-      await supabase
-        .from(
-          'sanctuary_announcement_reads'
-        )
-        .upsert(
-          {
-            announcement_id:
-              announcementId,
+    try {
 
-            user_id:
-              authUserId,
+      const {
+        data: {
+          user
+        },
+        error:
+          authError
+      } =
+        await supabase.auth.getUser();
 
-            viewed_at:
-              new Date().toISOString()
 
-          },
-          {
-            onConflict:
-              'announcement_id,user_id'
+      if (authError) {
+        throw authError;
+      }
+
+
+      if (!user) {
+        return false;
+      }
+
+      setViewedAnnouncementIds(
+        prev => {
+
+          const next =
+            new Set(prev);
+
+          next.add(
+            announcementId
+          );
+
+          return next;
+
+        }
+      );
+
+
+      const {
+        error
+      } =
+        await supabase
+          .from(
+            'sanctuary_announcement_reads'
+          )
+          .upsert(
+            {
+              announcement_id:
+                announcementId,
+
+              user_id:
+                user.id,
+
+              viewed_at:
+                new Date().toISOString()
+            },
+            {
+              onConflict:
+                'announcement_id,user_id'
+            }
+          );
+
+
+      if (error) {
+
+        setViewedAnnouncementIds(
+          prev => {
+
+            const next =
+              new Set(prev);
+
+            next.delete(
+              announcementId
+            );
+
+            return next;
+
           }
         );
 
 
-    if (error) {
+        console.error(
+          'Failed to mark announcement viewed:',
+          error
+        );
+
+        return false;
+      }
+
+
+      return true;
+
+    } catch (error) {
 
       console.error(
-        'Failed to mark announcement viewed:',
+        'Announcement read-state error:',
         error
       );
 
-      return;
+      return false;
+
     }
 
-
-    setViewedAnnouncementIds(
-      prev => {
-
-        const next =
-          new Set(prev);
-
-        next.add(
-          announcementId
-        );
-
-        return next;
-
-      }
-    );
-
   };
-
 
   const [churchSubTab, setChurchSubTab] = useState('attendance');
   const [isCheckInActive, setIsCheckInActive] = useState(false);
@@ -10852,14 +11971,100 @@ const handleDeleteMinistryContent =
 useEffect(() => {
   let timer;
   if (activeNewsArticle && !claimedArticles[activeNewsArticle.id]) {
-    timer = setTimeout(() => {
-      const reward = activeNewsArticle.reward || 5;
-      setKpcBalance(prev => prev + reward);
-      setClaimedArticles(prev => ({ ...prev, [activeNewsArticle.id]: true }));
-      logTransaction(`Read News: ${activeNewsArticle.title.substring(0, 15)}...`, reward, 'EARN');
-      
-      alert(`Hallelujah! You earned ${reward} KPC for reading: ${activeNewsArticle.title}!`);
-    }, 10000);
+    timer = setTimeout(
+  async () => {
+
+    try {
+
+      const reward =
+        Number(
+          activeNewsArticle.reward ||
+          5
+        );
+
+
+      const {
+        data:
+          rewardResult,
+        error:
+          rewardError
+      } =
+        await supabase.rpc(
+          'award_user_kpc',
+          {
+            p_amount:
+              reward,
+
+            p_title:
+              `Read News: ${
+                activeNewsArticle.title
+                  .substring(
+                    0,
+                    50
+                  )
+              }`,
+
+            p_source_type:
+              'NEWS',
+
+            p_source_id:
+              activeNewsArticle.id
+
+          }
+        );
+
+
+      if (
+        rewardError
+      ) {
+        throw rewardError;
+      }
+
+
+      if (
+        rewardResult?.already_rewarded
+      ) {
+        return;
+      }
+
+
+      setKpcBalance(
+        Number(
+          rewardResult?.new_balance ||
+          kpcBalance ||
+          0
+        )
+      );
+
+
+      setClaimedArticles(
+        prev => ({
+          ...prev,
+
+          [activeNewsArticle.id]:
+            true
+
+        })
+      );
+
+
+      alert(
+        `Hallelujah! You earned ${reward} KPC for reading this news.`
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        'News reward failed:',
+        error
+      );
+
+    }
+
+  },
+  10000
+);
   }
   return () => clearTimeout(timer);
 }, [activeNewsArticle, claimedArticles]);
@@ -10872,15 +12077,9 @@ useEffect(() => {
   }
 }, [notifications, currentUser]);
 
-// ==========================================
-      //ADMIN DESK STATES & FUNCTIONS
-  // ==========================================
 
   const [isAdmin, setIsAdmin] = useState(true); 
   const [profileTab, setProfileTab] = useState('All');
-  const [userProfile, setUserProfile] = useState(null);
-  const [authUserId, setAuthUserId] = useState(null);
-  
 
   const [isLoadingProfile, setIsLoadingProfile] = useState(true);
   const getEffectiveMembershipTier = (profile) => {
@@ -11215,8 +12414,6 @@ const loadMinistryMemberDirectory = async (
 
 
 const [ministryLeaderships, setMinistryLeaderships] = useState([]);
-const [activeMinistryWorkspace, setActiveMinistryWorkspace] = useState(null);
-const [isOpeningMinistryWorkspace, setIsOpeningMinistryWorkspace] = useState(false);
 useEffect(() => {
   if (!userProfile?.id) {
     return;
@@ -11257,7 +12454,478 @@ const [ministryAnalytics, setMinistryAnalytics] = useState({
   reactions: 0
 });
 
-const [ministryWorkspaceSection, setMinistryWorkspaceSection] = useState('overview');
+const [
+  isMinistrySettingsOpen,
+  setIsMinistrySettingsOpen
+] = useState(false);
+
+
+const [
+  ministrySettingsForm,
+  setMinistrySettingsForm
+] = useState({});
+
+
+const [
+  isSavingMinistrySettings,
+  setIsSavingMinistrySettings
+] = useState(false);
+
+
+const ministryWallpaperInputRef =
+  useRef(null);
+
+const ministryProfileInputRef =
+  useRef(null);
+
+const openMinistrySettings =
+  () => {
+
+    const ministry =
+      activeMinistryWorkspace
+        ?.ministry;
+
+
+    if (!ministry) {
+
+      alert(
+        'Ministry profile could not be loaded.'
+      );
+
+      return;
+    }
+
+
+    setMinistrySettingsForm({
+
+      ministry_name:
+        ministry.ministry_name ||
+        '',
+
+      username:
+        ministry.username ||
+        '',
+
+      denomination:
+  [
+    'Anglican / Episcopal',
+    'Assemblies of God',
+    'Baptist',
+    'Catholic',
+    'Evangelical',
+    'Lutheran',
+    'Methodist',
+    'Non-denominational',
+    'Orthodox',
+    'Pentecostal',
+    'Presbyterian',
+    'Seventh-day Adventist'
+  ].includes(
+    ministry.denomination
+  )
+    ? ministry.denomination
+    : (
+        ministry.denomination
+          ? 'Other'
+          : ''
+      ),
+
+custom_denomination:
+  [
+    'Anglican / Episcopal',
+    'Assemblies of God',
+    'Baptist',
+    'Catholic',
+    'Evangelical',
+    'Lutheran',
+    'Methodist',
+    'Non-denominational',
+    'Orthodox',
+    'Pentecostal',
+    'Presbyterian',
+    'Seventh-day Adventist'
+  ].includes(
+    ministry.denomination
+  )
+    ? ''
+    : (
+        ministry.denomination ||
+        ''
+      ),
+
+      ministry_type:
+        ministry.ministry_type ||
+        '',
+
+      country:
+        ministry.country ||
+        '',
+
+      city:
+        ministry.city ||
+        '',
+
+      street_address:
+        ministry.street_address ||
+        '',
+
+      main_service_day:
+        ministry.main_service_day ||
+        '',
+
+      service_time:
+        ministry.service_time ||
+        '',
+
+      mission_statement:
+        ministry.mission_statement ||
+        '',
+
+      image:
+        ministry.image ||
+        '',
+
+      wallpaper_url:
+        ministry.wallpaper_url ||
+        ''
+
+    });
+
+
+    setIsMinistrySettingsOpen(
+      true
+    );
+
+  };
+
+const handleMinistryImageUpload =
+  async (
+    event,
+    field
+  ) => {
+
+    const file =
+      event.target.files?.[0];
+
+
+    if (!file) {
+      return;
+    }
+
+
+    const ministryId =
+      activeMinistryWorkspace
+        ?.ministry
+        ?.id;
+
+
+    if (!ministryId) {
+
+      alert(
+        'Ministry profile could not be identified.'
+      );
+
+      return;
+    }
+
+
+    try {
+
+      const {
+        data: {
+          user
+        },
+        error:
+          authError
+      } =
+        await supabase.auth.getUser();
+
+
+      if (
+        authError ||
+        !user
+      ) {
+
+        throw new Error(
+          'You must be signed in.'
+        );
+
+      }
+
+
+      const extension =
+        file.name
+          .split('.')
+          .pop();
+
+
+      const fileName =
+        `ministry/${ministryId}/${field}-${Date.now()}.${extension}`;
+
+
+      const {
+        error:
+          uploadError
+      } =
+        await supabase.storage
+          .from(
+            'status_media'
+          )
+          .upload(
+            fileName,
+            file,
+            {
+              upsert:
+                true
+            }
+          );
+
+
+      if (uploadError) {
+        throw uploadError;
+      }
+
+
+      const {
+        data
+      } =
+        supabase.storage
+          .from(
+            'status_media'
+          )
+          .getPublicUrl(
+            fileName
+          );
+
+
+      const publicUrl =
+        data.publicUrl;
+
+
+      setMinistrySettingsForm(
+        prev => ({
+
+          ...prev,
+
+          [field]:
+            publicUrl
+
+        })
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        'Ministry image upload failed:',
+        error
+      );
+
+
+      alert(
+        error?.message ||
+        'Could not upload the image.'
+      );
+
+    } finally {
+
+      event.target.value =
+        '';
+
+    }
+
+  };
+
+const saveMinistrySettings =
+  async () => {
+
+    const ministryId =
+      activeMinistryWorkspace
+        ?.ministry
+        ?.id;
+
+
+    if (!ministryId) {
+
+      alert(
+        'Ministry profile could not be identified.'
+      );
+
+      return;
+    }
+
+
+    if (
+      !ministrySettingsForm
+        .ministry_name
+        ?.trim()
+    ) {
+
+      alert(
+        'Ministry name is required.'
+      );
+
+      return;
+    }
+
+
+    setIsSavingMinistrySettings(
+      true
+    );
+
+
+    try {
+
+      const {
+        error
+      } =
+        await supabase
+          .from(
+            'church_profiles'
+          )
+          .update({
+
+            ministry_name:
+              ministrySettingsForm
+                .ministry_name
+                .trim(),
+
+            username:
+              ministrySettingsForm
+                .username
+                .trim(),
+
+            denomination:
+  ministrySettingsForm.denomination ===
+  'Other'
+    ? (
+        ministrySettingsForm
+          .custom_denomination
+          ?.trim() ||
+        'Other'
+      )
+    : (
+        ministrySettingsForm
+          .denomination ||
+        null
+      ),
+
+            ministry_type:
+              ministrySettingsForm
+                .ministry_type ||
+              null,
+
+            country:
+              ministrySettingsForm
+                .country ||
+              null,
+
+            city:
+              ministrySettingsForm
+                .city ||
+              null,
+
+            street_address:
+              ministrySettingsForm
+                .street_address ||
+              null,
+
+            main_service_day:
+              ministrySettingsForm
+                .main_service_day ||
+              null,
+
+            service_time:
+              ministrySettingsForm
+                .service_time ||
+              null,
+
+            mission_statement:
+              ministrySettingsForm
+                .mission_statement ||
+              null,
+
+            image:
+              ministrySettingsForm
+                .image ||
+              null,
+
+            wallpaper_url:
+              ministrySettingsForm
+                .wallpaper_url ||
+              null
+
+          })
+          .eq(
+            'id',
+            ministryId
+          );
+
+
+      if (error) {
+        throw error;
+      }
+
+      setActiveMinistryWorkspace(
+        prev => {
+
+          if (!prev) {
+            return prev;
+          }
+
+
+          return {
+
+            ...prev,
+
+            ministry: {
+
+              ...prev.ministry,
+
+              ...ministrySettingsForm
+
+            }
+
+          };
+
+        }
+      );
+
+
+      setIsMinistrySettingsOpen(
+        false
+      );
+
+
+      alert(
+        'Ministry profile updated successfully.'
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        'Ministry settings update failed:',
+        error
+      );
+
+
+      alert(
+        error?.message ||
+        'Could not update Ministry profile.'
+      );
+
+
+    } finally {
+
+      setIsSavingMinistrySettings(
+        false
+      );
+
+    }
+
+  };
+
 const openMinistryMembersModal = () => {
   setIsMinistryMembersModalOpen(true);
   setMinistryMemberPage(0);
@@ -11266,6 +12934,11 @@ const openMinistryMembersModal = () => {
 
   loadMinistryMemberDirectory(0, false);
 };
+
+const [
+  isMinistryKpcInfoOpen,
+  setIsMinistryKpcInfoOpen
+] = useState(false);
 
 const loadMoreMinistryMembers = () => {
   const nextPage =
@@ -13805,195 +15478,202 @@ const fetchKingdomCompletions = async () => {
   }
 };
 
-const handleCompleteKingdomContent = async (
-  content,
-  label = 'content'
-) => {
+const handleCompleteKingdomContent =
+  async (
+    content,
+    label = 'content'
+  ) => {
 
-  try {
+    try {
 
-    const {
-      data: { user },
-      error: authError
-    } = await supabase.auth.getUser();
+      const {
+        data: {
+          user
+        },
+        error:
+          authError
+      } =
+        await supabase.auth.getUser();
 
-    if (authError) {
-      throw authError;
-    }
 
-    if (!user) {
+      if (authError) {
+        throw authError;
+      }
 
-      alert(
-        'Please sign in before claiming a reward.'
-      );
 
-      return false;
-    }
-
-    const contentId =
-      String(content.id);
-
-    const rewardAmount =
-      Math.max(
-        1,
-        Number(
-          content.reward ||
-          content.reward_kpc ||
-          5
-        )
-      );
-
-    if (
-      completedKingdomContentIds.includes(
-        contentId
-      )
-    ) {
-
-      alert(
-        `You have already completed this ${label}.`
-      );
-
-      return false;
-    }
-
-    const {
-      error: completionError
-    } = await supabase
-      .from(
-        'kingdom_content_completions'
-      )
-      .insert([{
-
-        user_id:
-          user.id,
-
-        content_id:
-          content.id,
-
-        reward_kpc:
-          rewardAmount
-
-      }]);
-
-    if (completionError) {
-
-      if (
-        completionError.code ===
-        '23505'
-      ) {
-
-        setCompletedKingdomContentIds(
-          prev => [
-            ...new Set([
-              ...prev,
-              contentId
-            ])
-          ]
-        );
+      if (!user) {
 
         alert(
-          `You have already completed this ${label}.`
+          'Please sign in before claiming a reward.'
         );
 
         return false;
+
       }
 
-      throw completionError;
-    }
 
-    const newBalance =
-      Number(kpcBalance || 0) +
-      rewardAmount;
-
-    const {
-  error: balanceError
-} = await supabase
-  .from('user_profiles')
-  .update({
-    wallet_balance:
-      newBalance
-  })
-  .eq(
-    'id',
-    user.id
-  );
-
-    if (balanceError) {
-      throw balanceError;
-    }
-
-    const {
-      error: transactionError
-    } = await supabase
-      .from('transactions')
-      .insert([{
-
-        sender_id:
-          user.id,
-
-        receiver_id:
-          user.id,
-
-        amount:
-          rewardAmount,
-
-        tx_type:
-          'EARN',
-
-        title:
-          `Completed ${label}: ${content.title}`
-
-      }]);
-
-    if (transactionError) {
-      throw transactionError;
-    }
-
-
-    setKpcBalance(
-      newBalance
-    );
-
-    setCompletedKingdomContentIds(
-      prev => [
-        ...new Set([
-          ...prev,
-          contentId
-        ])
-      ]
-    );
-
-    setReadDevotionsList(
-      prev => [
-        ...new Set([
-          ...prev,
+      const contentId =
+        String(
           content.id
-        ])
-      ]
-    );
+        );
 
-    alert(
-      `Praise God! You earned +${rewardAmount} KPC.`
-    );
 
-    return true;
+      const rewardAmount =
+        Math.max(
+          1,
+          Number(
+            content.reward ||
+            content.reward_kpc ||
+            KINGDOM_REWARD_KPC
+          )
+        );
 
-  } catch (error) {
+      const {
+        error:
+          completionError
+      } =
+        await supabase
+          .from(
+            'kingdom_content_completions'
+          )
+          .upsert(
+            {
+              user_id:
+                user.id,
 
-    console.error(
-      `Error completing ${label}:`,
-      error
-    );
+              content_id:
+                content.id,
 
-    alert(
-      error?.message ||
-      'Could not claim this reward.'
-    );
+              reward_kpc:
+                rewardAmount
 
-    return false;
-  }
-};
+            },
+            {
+              onConflict:
+                'user_id,content_id'
+            }
+          );
 
+
+      if (
+        completionError
+      ) {
+
+        if (
+          completionError.code ===
+          '23505'
+        ) {
+
+          alert(
+            `You have already completed this ${label}.`
+          );
+
+          return false;
+
+        }
+
+        throw completionError;
+
+      }
+
+      const {
+        data:
+          rewardResult,
+        error:
+          rewardError
+      } =
+        await supabase.rpc(
+          'award_user_kpc',
+          {
+            p_amount:
+              rewardAmount,
+
+            p_title:
+              `Completed ${label}: ${content.title}`,
+
+            p_source_type:
+              label.toUpperCase(),
+
+            p_source_id:
+              content.id
+          }
+        );
+
+
+      if (
+        rewardError
+      ) {
+        throw rewardError;
+      }
+
+
+      if (
+        rewardResult?.already_rewarded
+      ) {
+
+        alert(
+          `You have already received the reward for this ${label}.`
+        );
+
+        return false;
+
+      }
+
+
+      setKpcBalance(
+        Number(
+          rewardResult?.new_balance ||
+          kpcBalance ||
+          0
+        )
+      );
+
+
+      setCompletedKingdomContentIds(
+        prev => [
+          ...new Set([
+            ...prev,
+            contentId
+          ])
+        ]
+      );
+
+
+      setReadDevotionsList(
+        prev => [
+          ...new Set([
+            ...prev,
+            content.id
+          ])
+        ]
+      );
+
+
+      alert(
+        `Praise God! You earned +${rewardAmount} KPC.`
+      );
+
+
+      return true;
+
+
+    } catch (error) {
+
+      console.error(
+        'Kingdom content reward failed:',
+        error
+      );
+
+      alert(
+        error?.message ||
+        'The reward could not be processed.'
+      );
+
+      return false;
+
+    }
+
+  };
 
 useEffect(() => {
 
@@ -14102,33 +15782,121 @@ if (completionRecordError) {
     }
   };
 
-    const claimBibleReward = async () => {
+    const claimBibleReward =
+  async () => {
+
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
 
-      const rewardAmount = 5;
+      const {
+        data: {
+          user
+        }
+      } =
+        await supabase.auth.getUser();
 
-      await supabase.from('user_profiles').update({
-        wallet_balance: (kpcBalance || 0) + rewardAmount
-      }).eq('id', user.id);
 
-      await supabase.from('transactions').insert([{
-        sender_id: user.id,
-        receiver_id: user.id,
-        amount: rewardAmount,
-        tx_type: 'EARN',
-        title: `Read ${selectedBook} Chapter ${selectedChapter}`
-      }]);
+      if (!user) {
+        return;
+      }
 
-      setKpcBalance(prev => prev + rewardAmount);
-      setHasClaimedChapter(true);
-      alert(`Chapter reward claimed! +5 KPC added to your Treasury.`);
+
+      if (
+        hasClaimedChapter
+      ) {
+
+        alert(
+          'You have already claimed this chapter reward.'
+        );
+
+        return;
+
+      }
+
+
+      const rewardAmount =
+        5;
+
+
+      /*
+       * Unique chapter reward ID.
+       *
+       * We use a deterministic UUID-safe
+       * source when the Bible chapter
+       * is represented as a database UUID.
+       *
+       * Since the public Bible API chapter
+       * isn't a UUID source, use the
+       * transaction title for the current
+       * protection and keep the local state.
+       */
+
+      const {
+        data:
+          rewardResult,
+        error:
+          rewardError
+      } =
+        await supabase.rpc(
+          'award_user_kpc',
+          {
+            p_amount:
+              rewardAmount,
+
+            p_title:
+              `Read ${selectedBook} Chapter ${selectedChapter}`,
+
+            p_source_type:
+              'BIBLE_CHAPTER',
+
+            p_source_id:
+              null
+
+          }
+        );
+
+
+      if (
+        rewardError
+      ) {
+        throw rewardError;
+      }
+
+
+      setKpcBalance(
+        Number(
+          rewardResult?.new_balance ||
+          kpcBalance ||
+          0
+        )
+      );
+
+
+      setHasClaimedChapter(
+        true
+      );
+
+
+      alert(
+        `Chapter reward claimed! +${rewardAmount} KPC added to your Treasury.`
+      );
+
 
     } catch (error) {
-      console.error("Error claiming Bible reward:", error);
+
+      console.error(
+        'Error claiming Bible reward:',
+        error
+      );
+
+      alert(
+        error?.message ||
+        'Could not claim the Bible reward.'
+      );
+
     }
+
   };
+
 
 // ==========================================
   // BOOKSTORE STATES
@@ -15609,20 +17377,28 @@ const themeColors = [
 const [isModalOpen, setIsModalOpen] = useState(false);
 const [selectedAnnouncement, setSelectedAnnouncement] = useState(null);
 
-const handleOpenModal = (announcement) => {
-if (
-  announcement?.id
-) {
+const handleOpenModal =
+  async (announcement) => {
 
-  markSanctuaryAnnouncementViewed(
-    announcement.id
-  );
+    if (!announcement) {
+      return;
+    }
 
-}
-  setSelectedAnnouncement(announcement);
-  setIsModalOpen(true);
-};
 
+    await markSanctuaryAnnouncementViewed(
+      announcement.id
+    );
+
+
+    setSelectedAnnouncement(
+      announcement
+    );
+
+    setIsModalOpen(
+      true
+    );
+
+  };
 
 useEffect(() => {
 
@@ -16156,7 +17932,126 @@ const membersToNextMilestone =
           </div>
           <h1 className="onboarding-title" style={{ textAlign: 'center', fontSize: '28px' }}>Welcome to the <br /><span className="metallic-gold-text">Family</span></h1>
           <p className="onboarding-subtitle" style={{ textAlign: 'center', marginTop: '10px' }}>Your profile is complete and your vault is secured.</p>
-          <div className="footer-lock" style={{ marginTop: '40px' }}><button onClick={() => setStep(6)} className="action-button">ENTER THE HUB</button></div>
+          <div className="footer-lock" style={{ marginTop: '40px' }}><button onClick={async () => {
+
+  const isMinistryRegistration =
+    formData?.accountType ===
+      'Ministry' ||
+    currentUser?.account_type ===
+      'Ministry' ||
+    currentUser?.accountType ===
+      'Ministry';
+
+
+  if (
+    !isMinistryRegistration
+  ) {
+
+    setStep(6);
+
+    return;
+
+  }
+
+
+  const ministryId =
+    currentUser?.id;
+
+
+  if (!ministryId) {
+
+    alert(
+      'Your Ministry account could not be identified.'
+    );
+
+    return;
+
+  }
+
+
+  try {
+
+    const {
+      data:
+        ministry,
+      error
+    } =
+      await supabase
+        .from(
+          'church_profiles'
+        )
+        .select(`
+          id,
+          ministry_name,
+          username,
+          email,
+          account_type,
+          membership_tier,
+          ministry_type,
+          denomination,
+          image,
+          wallpaper_url,
+          country,
+          city,
+          street_address,
+          main_service_day,
+          service_time,
+          mission_statement,
+          wallet_balance
+        `)
+        .eq(
+          'id',
+          ministryId
+        )
+        .single();
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    setActiveMinistryWorkspace({
+
+      ministry,
+
+      role:
+        'Owner',
+
+      dashboardAccess:
+        'full'
+
+    });
+
+
+    setMinistryWorkspaceSection(
+      'overview'
+    );
+
+    setActiveTab(
+      'sanctuary'
+    );
+
+    setStep(
+      26
+    );
+
+
+  } catch (error) {
+
+    console.error(
+      'Failed to open Ministry Dashboard:',
+      error
+    );
+
+    alert(
+      error?.message ||
+      'Your Ministry Dashboard could not be opened.'
+    );
+
+  }
+
+}} className="action-button">ENTER THE HUB</button></div>
         </div>
       )}
 
@@ -16280,7 +18175,7 @@ const membersToNextMilestone =
   currentUser?.accountType === 'Ministry' ||
   formData?.accountType === 'Ministry'
 ) ? (
-  renderChurchDashboard()
+  renderMinistryPublicProfile()
 ) : (
               <>
                 <div className="search-bar">
@@ -16305,9 +18200,33 @@ const membersToNextMilestone =
     CHURCH ANNOUNCEMENT CARD
     ========================================================= */}
 
-{(() => {
-  const announcement =
-    announcements[currentSlide] || {};
+  {(() => {
+  const hasAnnouncements =
+  announcements.length > 0;
+
+
+const announcement =
+  announcements[currentSlide] || {
+
+    id:
+      null,
+
+    badge:
+      'ANNOUNCEMENT',
+
+    title:
+      'No announcements yet',
+
+    desc:
+      'Your Local Church / Ministry has not published an announcement yet.',
+
+    author:
+      'KingdomPlus',
+
+    image_url:
+      null
+
+  };
 
   const template =
     getAnnouncementTemplate(announcement.badge);
@@ -16331,9 +18250,45 @@ const isAnnouncementViewed =
   return (
     <div
       className="announcement-card"
-      onClick={() =>
-        handleOpenModal(announcement)
+      onClick={() => {
+
+  if (!hasAnnouncements) {
+
+    setSelectedAnnouncement(
+      {
+        id:
+          null,
+
+        badge:
+          'SANCTUARY',
+
+        title:
+          'No announcements yet',
+
+        desc:
+          'Your Local Church / Ministry has not published an announcement yet.',
+
+        author:
+          'KingdomPlus',
+
+        image_url:
+          null
       }
+    );
+
+    setIsModalOpen(
+      true
+    );
+
+    return;
+  }
+
+
+  handleOpenModal(
+    announcement
+  );
+
+}}
       style={{
         height: '250px',
         borderRadius: '24px',
@@ -16345,9 +18300,11 @@ const isAnnouncementViewed =
         background: '#08111d',
 
         border:
-  isAnnouncementViewed
+  !hasAnnouncements
     ? '1px solid rgba(255,255,255,0.10)'
-    : '2px solid #f3ca58',
+    : isAnnouncementViewed
+      ? '1px solid rgba(255,255,255,0.10)'
+      : '2px solid #f3ca58',
 
         boxShadow:
           '0 20px 55px rgba(0,0,0,0.38)',
@@ -16437,7 +18394,8 @@ const isAnnouncementViewed =
         }}
       >
 
-{!isAnnouncementViewed && (
+{hasAnnouncements &&
+  !isAnnouncementViewed && (
   <div
     style={{
       position: 'absolute',
@@ -16693,14 +18651,26 @@ const isAnnouncementViewed =
       </div>
 
     </div>
-  );
+      );
 })()}
 
-                  <div className="carousel-dots">
-                    {announcements.map((_, index) => (
-                      <div key={index} className={`dot ${currentSlide === index ? 'active' : ''}`}></div>
-                    ))}
-                  </div>
+  {announcements.length > 1 && (
+  <div className="carousel-dots">
+    {announcements.map(
+      (_, index) => (
+        <div
+          key={index}
+          className={`dot ${
+            currentSlide === index
+              ? 'active'
+              : ''
+          }`}
+        />
+      )
+    )}
+  </div>
+)}
+
 {/* Announcement Modal Overlay */}
 {isModalOpen && selectedAnnouncement && (
   <div 
@@ -23513,7 +25483,8 @@ disabled={isUploadingBook}
 {/* =========================================
           STEP 18: PROFILE PAGE
           ========================================= */}
-      {step === 18 && (
+      {step === 18 &&
+ !isMinistryOwner && (
         <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
           <input type="file" hidden ref={wallpaperInputRef} accept="image/*" onChange={(e) => handleImageSelect(e, 'wallpaper_url')} />
           <input type="file" hidden ref={avatarInputRef} accept="image/*" onChange={(e) => handleImageSelect(e, 'avatar_url')} />
@@ -29783,7 +31754,1688 @@ const displayName =
     </div>
   )}
 
+{isMinistryKpcInfoOpen && (
+  <div
+    className="constrained-overlay"
+    style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 30000,
 
+      background:
+        'rgba(3,8,15,.94)',
+
+      backdropFilter:
+        'blur(12px)',
+
+      display:
+        'flex',
+
+      alignItems:
+        'flex-start',
+
+      justifyContent:
+        'center',
+
+      padding:
+        'calc(16px + env(safe-area-inset-top)) 12px calc(105px + env(safe-area-inset-bottom))',
+
+      boxSizing:
+        'border-box',
+
+      overflow:
+        'hidden'
+    }}
+  >
+
+    <div
+      style={{
+        width:
+          '100%',
+
+        maxWidth:
+          '760px',
+
+        height:
+          '100%',
+
+        maxHeight:
+          'calc(100vh - 135px)',
+
+        background:
+          '#101926',
+
+        border:
+          '1px solid rgba(255,255,255,.09)',
+
+        borderRadius:
+          '24px',
+
+        overflow:
+          'hidden',
+
+        display:
+          'flex',
+
+        flexDirection:
+          'column',
+
+        boxShadow:
+          '0 30px 100px rgba(0,0,0,.65)'
+      }}
+    >
+
+      {/* HEADER */}
+
+      <div
+        style={{
+          padding:
+            '18px',
+
+          borderBottom:
+            '1px solid rgba(255,255,255,.07)',
+
+          flexShrink:
+            0
+        }}
+      >
+
+        <div
+          style={{
+            display:
+              'flex',
+
+            alignItems:
+              'center',
+
+            justifyContent:
+              'space-between',
+
+            gap:
+              '12px'
+          }}
+        >
+
+          <div>
+
+            <div
+              style={{
+                color:
+                  '#29beaf',
+
+                fontSize:
+                  '9px',
+
+                fontWeight:
+                  '900',
+
+                letterSpacing:
+                  '1.2px',
+
+                textTransform:
+                  'uppercase'
+              }}
+            >
+              Ministry Economy
+            </div>
+
+            <h2
+              style={{
+                margin:
+                  '4px 0 0',
+
+                color:
+                  '#fff',
+
+                fontSize:
+                  '23px',
+
+                fontWeight:
+                  '900'
+              }}
+            >
+              KPC Rewards
+            </h2>
+
+            <div
+              style={{
+                marginTop:
+                  '5px',
+
+                color:
+                  '#718096',
+
+                fontSize:
+                  '9px',
+
+                lineHeight:
+                  '1.5'
+              }}
+            >
+              A future reward system for Ministries
+              that create meaningful Kingdom impact.
+            </div>
+
+          </div>
+
+
+          <button
+            type="button"
+            onClick={() =>
+              setIsMinistryKpcInfoOpen(
+                false
+              )
+            }
+            style={{
+              width:
+                '38px',
+
+              height:
+                '38px',
+
+              borderRadius:
+                '50%',
+
+              border:
+                '1px solid rgba(255,255,255,.10)',
+
+              background:
+                'rgba(255,255,255,.04)',
+
+              color:
+                '#fff',
+
+              display:
+                'flex',
+
+              alignItems:
+                'center',
+
+              justifyContent:
+                'center',
+
+              cursor:
+                'pointer'
+            }}
+          >
+            <XIcon />
+          </button>
+
+        </div>
+
+      </div>
+
+
+      {/* SCROLL CONTENT */}
+
+      <div
+        style={{
+          flex:
+            1,
+
+          minHeight:
+            0,
+
+          overflowY:
+            'auto',
+
+          padding:
+            '16px',
+
+          boxSizing:
+            'border-box'
+        }}
+      >
+
+        {/* BALANCE PREVIEW */}
+
+        <div
+          style={{
+            position:
+              'relative',
+
+            overflow:
+              'hidden',
+
+            background:
+              'linear-gradient(135deg,#183f4b,#132237 55%,#241f31)',
+
+            border:
+              '1px solid rgba(41,190,175,.20)',
+
+            borderRadius:
+              '20px',
+
+            padding:
+              '20px',
+
+            marginBottom:
+              '14px'
+          }}
+        >
+
+          <div
+            style={{
+              position:
+                'absolute',
+
+              width:
+                '150px',
+
+              height:
+                '150px',
+
+              borderRadius:
+                '50%',
+
+              background:
+                'rgba(243,202,88,.07)',
+
+              right:
+                '-55px',
+
+              top:
+                '-60px'
+            }}
+          />
+
+
+          <div
+            style={{
+              color:
+                '#8e9aab',
+
+              fontSize:
+                '8px',
+
+              fontWeight:
+                '900',
+
+              letterSpacing:
+                '1px',
+
+              textTransform:
+                'uppercase'
+            }}
+          >
+            Ministry KPC Balance
+          </div>
+
+
+          <div
+            style={{
+              display:
+                'flex',
+
+              alignItems:
+                'center',
+
+              gap:
+                '10px',
+
+              marginTop:
+                '8px'
+            }}
+          >
+
+            <CampaignCoinIcon />
+
+            <span
+              style={{
+                color:
+                  '#fff',
+
+                fontSize:
+                  '34px',
+
+                fontWeight:
+                  '900',
+
+                letterSpacing:
+                  '-1px'
+              }}
+            >
+              0
+            </span>
+
+            <span
+              style={{
+                color:
+                  '#f3ca58',
+
+                fontSize:
+                  '11px',
+
+                fontWeight:
+                  '900'
+              }}
+            >
+              KPC
+            </span>
+
+          </div>
+
+
+          <div
+            style={{
+              marginTop:
+                '8px',
+
+              color:
+                '#94a3b8',
+
+              fontSize:
+                '9px'
+            }}
+          >
+            Prototype preview — Ministry earning
+            is not connected yet.
+          </div>
+
+        </div>
+
+
+        {/* INTRO */}
+
+        <div
+          style={{
+            padding:
+              '4px 2px 14px'
+          }}
+        >
+
+          <div
+            style={{
+              color:
+                '#fff',
+
+              fontSize:
+                '13px',
+
+              fontWeight:
+                '900'
+            }}
+          >
+            How Ministry KPC is planned to work
+          </div>
+
+          <div
+            style={{
+              marginTop:
+                '5px',
+
+              color:
+                '#718096',
+
+              fontSize:
+                '9px',
+
+              lineHeight:
+                '1.6'
+            }}
+          >
+            Ministries will not earn KPC simply by
+            publishing more content. The future
+            system will reward measurable impact,
+            healthy community growth and meaningful
+            engagement.
+          </div>
+
+        </div>
+
+
+        {/* REWARD SOURCES */}
+
+        <div
+          style={{
+            display:
+              'grid',
+
+            gridTemplateColumns:
+              'repeat(2,minmax(0,1fr))',
+
+            gap:
+              '9px',
+
+            marginBottom:
+              '14px'
+          }}
+        >
+
+          {[
+            {
+              title:
+                'Community Growth',
+
+              text:
+                'Verified member growth and meaningful community development.',
+
+              icon:
+                <RosterUsersIcon />,
+
+              accent:
+                '#29beaf'
+            },
+
+            {
+              title:
+                'Content Impact',
+
+              text:
+                'People actually reading and engaging with Ministry content.',
+
+              icon:
+                <TrendingIcon />,
+
+              accent:
+                '#f3ca58'
+            },
+
+            {
+              title:
+                'Completion',
+
+              text:
+                'Devotions and Bible plans that people genuinely complete.',
+
+              icon:
+                <CheckIcon />,
+
+              accent:
+                '#2ecc71'
+            },
+
+            {
+              title:
+                'Engagement',
+
+              text:
+                'Healthy participation across the Ministry community.',
+
+              icon:
+                <TimelineFeedIcon />,
+
+              accent:
+                '#8fa8ff'
+            }
+
+          ].map(
+            item => (
+
+              <div
+                key={
+                  item.title
+                }
+                style={{
+                  padding:
+                    '14px',
+
+                  borderRadius:
+                    '15px',
+
+                  background:
+                    'rgba(255,255,255,.035)',
+
+                  border:
+                    '1px solid rgba(255,255,255,.07)'
+                }}
+              >
+
+                <div
+                  style={{
+                    width:
+                      '34px',
+
+                    height:
+                      '34px',
+
+                    borderRadius:
+                      '10px',
+
+                    background:
+                      `${item.accent}14`,
+
+                    color:
+                      item.accent,
+
+                    display:
+                      'flex',
+
+                    alignItems:
+                      'center',
+
+                    justifyContent:
+                      'center',
+
+                    marginBottom:
+                      '10px'
+                  }}
+                >
+                  {item.icon}
+                </div>
+
+
+                <div
+                  style={{
+                    color:
+                      '#fff',
+
+                    fontSize:
+                      '10px',
+
+                    fontWeight:
+                      '900'
+                  }}
+                >
+                  {item.title}
+                </div>
+
+
+                <div
+                  style={{
+                    color:
+                      '#718096',
+
+                    fontSize:
+                      '8px',
+
+                    lineHeight:
+                      '1.5',
+
+                    marginTop:
+                      '5px'
+                  }}
+                >
+                  {item.text}
+                </div>
+
+              </div>
+
+            )
+          )}
+
+        </div>
+
+
+        {/* MILESTONES */}
+
+        <div
+          style={{
+            padding:
+              '16px',
+
+            borderRadius:
+              '17px',
+
+            background:
+              'rgba(255,255,255,.035)',
+
+            border:
+              '1px solid rgba(255,255,255,.07)',
+
+            marginBottom:
+              '14px'
+          }}
+        >
+
+          <div
+            style={{
+              display:
+                'flex',
+
+              justifyContent:
+                'space-between',
+
+              alignItems:
+                'center'
+            }}
+          >
+
+            <div>
+
+              <div
+                style={{
+                  color:
+                    '#f3ca58',
+
+                  fontSize:
+                    '10px',
+
+                  fontWeight:
+                    '900',
+
+                  letterSpacing:
+                    '1px',
+
+                  textTransform:
+                    'uppercase'
+                }}
+              >
+                Growth Milestones
+              </div>
+
+              <div
+                style={{
+                  color:
+                    '#718096',
+
+                  fontSize:
+                    '8px',
+
+                  marginTop:
+                    '4px'
+                }}
+              >
+                Future Ministry reward milestones
+              </div>
+
+            </div>
+
+
+            <CrownIcon />
+
+          </div>
+
+
+          {[
+            [
+              '100 Verified Members',
+              'Community milestone'
+            ],
+
+            [
+              '250 Verified Members',
+              'Kingdom Builder'
+            ],
+
+            [
+              '500 Verified Members',
+              'Kingdom Network'
+            ],
+
+            [
+              '1,000 Verified Members',
+              'Kingdom Giant'
+            ]
+
+          ].map(
+            (
+              [
+                milestone,
+                description
+              ],
+              index
+            ) => (
+
+              <div
+                key={
+                  milestone
+                }
+                style={{
+                  display:
+                    'flex',
+
+                  alignItems:
+                    'center',
+
+                  gap:
+                    '10px',
+
+                  padding:
+                    '11px 0',
+
+                  borderBottom:
+                    index <
+                    3
+                      ? '1px solid rgba(255,255,255,.05)'
+                      : 'none'
+                }}
+              >
+
+                <div
+                  style={{
+                    width:
+                      '30px',
+
+                    height:
+                      '30px',
+
+                    borderRadius:
+                      '9px',
+
+                    background:
+                      'rgba(243,202,88,.08)',
+
+                    color:
+                      '#f3ca58',
+
+                    display:
+                      'flex',
+
+                    alignItems:
+                      'center',
+
+                    justifyContent:
+                      'center',
+
+                    flexShrink:
+                      0
+                  }}
+                >
+                  {index + 1}
+                </div>
+
+
+                <div
+                  style={{
+                    flex:
+                      1
+                  }}
+                >
+
+                  <div
+                    style={{
+                      color:
+                        '#fff',
+
+                      fontSize:
+                        '9px',
+
+                      fontWeight:
+                        '800'
+                    }}
+                  >
+                    {milestone}
+                  </div>
+
+                  <div
+                    style={{
+                      color:
+                        '#64748b',
+
+                      fontSize:
+                        '8px',
+
+                      marginTop:
+                        '3px'
+                    }}
+                  >
+                    {description}
+                  </div>
+
+                </div>
+
+
+                <span
+                  style={{
+                    color:
+                      '#64748b',
+
+                    fontSize:
+                      '8px',
+
+                    fontWeight:
+                      '800'
+                  }}
+                >
+                  Planned
+                </span>
+
+              </div>
+
+            )
+          )}
+
+        </div>
+
+
+        {/* IMPORTANT PRINCIPLE */}
+
+        <div
+          style={{
+            padding:
+              '17px',
+
+            borderRadius:
+              '17px',
+
+            background:
+              'linear-gradient(145deg,rgba(41,190,175,.07),rgba(243,202,88,.04))',
+
+            border:
+              '1px solid rgba(41,190,175,.12)'
+          }}
+        >
+
+          <div
+            style={{
+              display:
+                'flex',
+
+              alignItems:
+                'center',
+
+              gap:
+                '9px',
+
+              marginBottom:
+                '9px'
+            }}
+          >
+
+            <ShieldCheckIcon />
+
+            <div
+              style={{
+                color:
+                  '#fff',
+
+                fontSize:
+                  '11px',
+
+                fontWeight:
+                  '900'
+              }}
+            >
+              Built around Kingdom impact
+            </div>
+
+          </div>
+
+
+          <div
+            style={{
+              color:
+                '#8e9aab',
+
+              fontSize:
+                '9px',
+
+              lineHeight:
+                '1.6'
+            }}
+          >
+            The goal is to encourage Ministries
+            to serve people well, create valuable
+            content and build healthy communities —
+            not to reward spam or meaningless
+            activity.
+          </div>
+
+        </div>
+
+      </div>
+
+
+      {/* FOOTER */}
+
+      <div
+        style={{
+          padding:
+            '12px 16px',
+
+          borderTop:
+            '1px solid rgba(255,255,255,.06)',
+
+          flexShrink:
+            0
+        }}
+      >
+
+        <button
+          type="button"
+          onClick={() =>
+            setIsMinistryKpcInfoOpen(
+              false
+            )
+          }
+          style={{
+            width:
+              '100%',
+
+            padding:
+              '12px',
+
+            borderRadius:
+              '11px',
+
+            border:
+              '1px solid rgba(255,255,255,.08)',
+
+            background:
+              'rgba(255,255,255,.04)',
+
+            color:
+              '#fff',
+
+            fontSize:
+              '10px',
+
+            fontWeight:
+              '900',
+
+            cursor:
+              'pointer'
+          }}
+        >
+          Back to Overview
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
+
+{isMinistrySettingsOpen && (
+  <div
+    className="constrained-overlay"
+    style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 30000,
+      background:
+        'rgba(3,8,15,.94)',
+      backdropFilter:
+        'blur(12px)',
+      display: 'flex',
+      alignItems: 'flex-start',
+      justifyContent: 'center',
+      padding:
+        'calc(16px + env(safe-area-inset-top)) 12px calc(110px + env(safe-area-inset-bottom))',
+      boxSizing: 'border-box',
+      overflow: 'hidden'
+    }}
+  >
+
+    <div
+      style={{
+        width: '100%',
+        maxWidth: '720px',
+        height: '100%',
+        maxHeight:
+          'calc(100vh - 135px)',
+        background:
+          '#101926',
+        border:
+          '1px solid rgba(255,255,255,.09)',
+        borderRadius:
+          '24px',
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        boxShadow:
+          '0 30px 100px rgba(0,0,0,.65)'
+      }}
+    >
+
+      {/* HEADER */}
+
+      <div
+        style={{
+          padding: '18px',
+          borderBottom:
+            '1px solid rgba(255,255,255,.07)',
+          flexShrink: 0
+        }}
+      >
+
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent:
+              'space-between',
+            gap: '12px'
+          }}
+        >
+
+          <div>
+
+            <div
+              style={{
+                color: '#29beaf',
+                fontSize: '9px',
+                fontWeight: '900',
+                letterSpacing:
+                  '1.2px',
+                textTransform:
+                  'uppercase'
+              }}
+            >
+              Ministry Profile
+            </div>
+
+            <h2
+              style={{
+                margin:
+                  '4px 0 0',
+                color: '#fff',
+                fontSize: '22px',
+                fontWeight: '900'
+              }}
+            >
+              Settings
+            </h2>
+
+          </div>
+
+
+          <button
+            type="button"
+            onClick={() =>
+              setIsMinistrySettingsOpen(
+                false
+              )
+            }
+            style={{
+              width: '38px',
+              height: '38px',
+              borderRadius: '50%',
+              border:
+                '1px solid rgba(255,255,255,.10)',
+              background:
+                'rgba(255,255,255,.04)',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent:
+                'center',
+              cursor: 'pointer'
+            }}
+          >
+            <XIcon />
+          </button>
+
+        </div>
+
+      </div>
+
+
+      {/* SCROLL AREA */}
+
+      <div
+        style={{
+          flex: 1,
+          minHeight: 0,
+          overflowY: 'auto',
+          padding: '16px',
+          boxSizing: 'border-box'
+        }}
+      >
+
+        {/* PROFILE VISUALS */}
+
+        <div
+          style={{
+            position: 'relative',
+            overflow: 'hidden',
+            height: '190px',
+            borderRadius: '18px',
+            marginBottom: '58px',
+            background:
+              ministrySettingsForm.wallpaper_url
+                ? `url(${ministrySettingsForm.wallpaper_url}) center/cover`
+                : 'linear-gradient(135deg,#1f3752,#101926,#0d2b28)'
+          }}
+        >
+
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background:
+                'linear-gradient(to bottom,rgba(0,0,0,.10),rgba(0,0,0,.65))'
+            }}
+          />
+
+
+          <button
+            type="button"
+            onClick={() =>
+              ministryWallpaperInputRef
+                .current
+                ?.click()
+            }
+            style={{
+              position: 'absolute',
+              right: '12px',
+              top: '12px',
+              padding: '8px 10px',
+              borderRadius: '10px',
+              border:
+                '1px solid rgba(255,255,255,.15)',
+              background:
+                'rgba(0,0,0,.45)',
+              color: '#fff',
+              fontSize: '9px',
+              fontWeight: '900',
+              cursor: 'pointer'
+            }}
+          >
+            Change Wallpaper
+          </button>
+
+
+          <input
+            ref={
+              ministryWallpaperInputRef
+            }
+            hidden
+            type="file"
+            accept="image/*"
+            onChange={e =>
+              handleMinistryImageUpload(
+                e,
+                'wallpaper_url'
+              )
+            }
+          />
+
+
+          {/* AVATAR */}
+
+          <div
+            style={{
+              position: 'absolute',
+              left: '18px',
+              bottom: '-42px',
+              width: '88px',
+              height: '88px',
+              borderRadius: '22px',
+              overflow: 'hidden',
+              background: '#101926',
+              border:
+                '4px solid #101926',
+              boxShadow:
+                '0 8px 25px rgba(0,0,0,.45)'
+            }}
+          >
+
+            {ministrySettingsForm.image ? (
+
+              <img
+                src={
+                  ministrySettingsForm.image
+                }
+                alt=""
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  objectFit: 'cover'
+                }}
+              />
+
+            ) : (
+
+              <div
+                style={{
+                  width: '100%',
+                  height: '100%',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent:
+                    'center',
+                  color: '#29beaf',
+                  fontSize: '24px',
+                  fontWeight: '900'
+                }}
+              >
+                {(
+                  ministrySettingsForm
+                    .ministry_name ||
+                  'M'
+                )
+                  .substring(0, 1)
+                  .toUpperCase()}
+              </div>
+
+            )}
+
+          </div>
+
+
+          <button
+            type="button"
+            onClick={() =>
+              ministryProfileInputRef
+                .current
+                ?.click()
+            }
+            style={{
+              position: 'absolute',
+              left: '120px',
+              bottom: '12px',
+              padding:
+                '7px 10px',
+              borderRadius:
+                '9px',
+              border:
+                '1px solid rgba(255,255,255,.14)',
+              background:
+                'rgba(0,0,0,.45)',
+              color: '#fff',
+              fontSize: '8px',
+              fontWeight: '900',
+              cursor: 'pointer'
+            }}
+          >
+            Change Profile Picture
+          </button>
+
+
+          <input
+            ref={
+              ministryProfileInputRef
+            }
+            hidden
+            type="file"
+            accept="image/*"
+            onChange={e =>
+              handleMinistryImageUpload(
+                e,
+                'image'
+              )
+            }
+          />
+
+        </div>
+
+
+        {/* FORM */}
+
+        {[
+          [
+            'Ministry Name',
+            'ministry_name',
+            'text',
+            'Your Ministry name'
+          ],
+
+          [
+            'Username',
+            'username',
+            'text',
+            '@username'
+          ],
+
+          [
+            'Ministry Type',
+            'ministry_type',
+            'text',
+            'Church, Ministry, Fellowship...'
+          ],
+
+          [
+            'Country',
+            'country',
+            'text',
+            'Country'
+          ],
+
+          [
+            'City',
+            'city',
+            'text',
+            'City'
+          ],
+
+          [
+            'Street Address',
+            'street_address',
+            'text',
+            'Street address'
+          ],
+
+          [
+            'Main Service Day',
+            'main_service_day',
+            'text',
+            'Sunday'
+          ],
+
+          [
+            'Service Time',
+            'service_time',
+            'text',
+            '9:00 AM'
+          ]
+
+        ].map(
+          ([
+            label,
+            field,
+            type,
+            placeholder
+          ]) => (
+
+            <div
+              key={field}
+              style={{
+                marginBottom:
+                  '13px'
+              }}
+            >
+
+              <label
+                className="input-label"
+              >
+                {label}
+              </label>
+
+
+              <input
+                type={type}
+                value={
+                  ministrySettingsForm[
+                    field
+                  ] || ''
+                }
+                placeholder={
+                  placeholder
+                }
+                onChange={e =>
+                  setMinistrySettingsForm(
+                    prev => ({
+                      ...prev,
+                      [field]:
+                        e.target.value
+                    })
+                  )
+                }
+                className="app-input"
+                style={{
+                  width:
+                    '100%',
+                  boxSizing:
+                    'border-box',
+                  margin: 0
+                }}
+              />
+
+            </div>
+
+          )
+        )}
+
+{/* DENOMINATION */}
+
+<div
+  style={{
+    marginBottom: '13px'
+  }}
+>
+
+  <label className="input-label">
+    DENOMINATION
+  </label>
+
+  <select
+    value={
+      ministrySettingsForm.denomination ===
+      'Other'
+        ? 'Other'
+        : ministrySettingsForm.denomination ||
+          ''
+    }
+    onChange={e => {
+
+      const value =
+        e.target.value;
+
+      setMinistrySettingsForm(
+        prev => ({
+          ...prev,
+
+          denomination:
+            value,
+
+          custom_denomination:
+            value === 'Other'
+              ? (
+                  prev.custom_denomination ||
+                  ''
+                )
+              : ''
+        })
+      );
+
+    }}
+    className="app-select"
+    style={{
+      width: '100%',
+      boxSizing: 'border-box'
+    }}
+  >
+
+    <option value="">
+      Select a denomination
+    </option>
+
+    <option value="Anglican / Episcopal">
+      Anglican / Episcopal
+    </option>
+
+    <option value="Assemblies of God">
+      Assemblies of God
+    </option>
+
+    <option value="Baptist">
+      Baptist
+    </option>
+
+    <option value="Catholic">
+      Catholic
+    </option>
+
+    <option value="Evangelical">
+      Evangelical
+    </option>
+
+    <option value="Lutheran">
+      Lutheran
+    </option>
+
+    <option value="Methodist">
+      Methodist
+    </option>
+
+    <option value="Non-denominational">
+      Non-denominational
+    </option>
+
+    <option value="Orthodox">
+      Orthodox
+    </option>
+
+    <option value="Pentecostal">
+      Pentecostal
+    </option>
+
+    <option value="Presbyterian">
+      Presbyterian
+    </option>
+
+    <option value="Seventh-day Adventist">
+      Seventh-day Adventist
+    </option>
+
+    <option value="Other">
+      Other
+    </option>
+
+  </select>
+
+</div>
+
+
+{ministrySettingsForm.denomination ===
+  'Other' && (
+
+  <div
+    style={{
+      marginBottom: '13px'
+    }}
+  >
+
+    <label className="input-label">
+      ENTER YOUR DENOMINATION
+    </label>
+
+    <input
+      type="text"
+      value={
+        ministrySettingsForm
+          .custom_denomination ||
+        ''
+      }
+      placeholder="e.g. Apostolic"
+      className="app-input"
+      onChange={e =>
+        setMinistrySettingsForm(
+          prev => ({
+            ...prev,
+
+            custom_denomination:
+              e.target.value
+          })
+        )
+      }
+      style={{
+        width: '100%',
+        boxSizing: 'border-box',
+        margin: 0
+      }}
+    />
+
+  </div>
+
+)}
+
+        <div
+          style={{
+            marginBottom:
+              '18px'
+          }}
+        >
+
+          <label
+            className="input-label"
+          >
+            MISSION STATEMENT
+          </label>
+
+          <textarea
+            value={
+              ministrySettingsForm
+                .mission_statement ||
+              ''
+            }
+            placeholder="Describe the mission and vision of your Ministry..."
+            rows={6}
+            className="app-input"
+            onChange={e =>
+              setMinistrySettingsForm(
+                prev => ({
+                  ...prev,
+                  mission_statement:
+                    e.target.value
+                })
+              )
+            }
+            style={{
+              width: '100%',
+              boxSizing:
+                'border-box',
+              resize: 'vertical',
+              minHeight: '120px',
+              lineHeight: '1.6',
+              margin: 0
+            }}
+          />
+
+        </div>
+
+      </div>
+
+
+      {/* FOOTER */}
+
+      <div
+        style={{
+          padding:
+            '12px 16px',
+          borderTop:
+            '1px solid rgba(255,255,255,.06)',
+          display: 'flex',
+          gap: '9px',
+          flexShrink: 0
+        }}
+      >
+
+        <button
+          type="button"
+          onClick={() =>
+            setIsMinistrySettingsOpen(
+              false
+            )
+          }
+          style={{
+            flex: 1,
+            padding: '12px',
+            borderRadius: '11px',
+            border:
+              '1px solid rgba(255,255,255,.08)',
+            background:
+              'rgba(255,255,255,.04)',
+            color: '#fff',
+            fontSize: '10px',
+            fontWeight: '900',
+            cursor: 'pointer'
+          }}
+        >
+          Cancel
+        </button>
+
+
+        <button
+          type="button"
+          onClick={
+            saveMinistrySettings
+          }
+          disabled={
+            isSavingMinistrySettings
+          }
+          style={{
+            flex: 2,
+            padding: '12px',
+            border: 'none',
+            borderRadius: '11px',
+            background:
+              isSavingMinistrySettings
+                ? 'rgba(41,190,175,.40)'
+                : 'linear-gradient(90deg,#29beaf,#f3ca58)',
+            color: '#07131c',
+            fontSize: '10px',
+            fontWeight: '900',
+            cursor:
+              isSavingMinistrySettings
+                ? 'wait'
+                : 'pointer'
+          }}
+        >
+          {isSavingMinistrySettings
+            ? 'Saving...'
+            : 'Save Changes'}
+        </button>
+
+      </div>
+
+    </div>
+
+  </div>
+)}
 
 
       {/* OVERVIEW CARDS */}
@@ -30418,15 +34070,32 @@ community.
   }
 },
           {
-            title: 'KPC Rewards',
-            icon: '/ministry-icons/rewards.png',
-            desc: 'See Ministry rewards and growth milestones.'
-          },
-          {
-            title: 'Settings',
-            icon: '/ministry-icons/settings.png',
-            desc: 'Manage Ministry profile and configuration.'
-          }
+  title: 'KPC Rewards',
+
+  icon:
+    '/ministry-icons/rewards.png',
+
+  desc:
+    'See how your Ministry can earn KPC through meaningful growth and impact.',
+
+  action: () =>
+    setIsMinistryKpcInfoOpen(
+      true
+    )
+},
+         {
+  title:
+    'Settings',
+
+  icon:
+    '/ministry-icons/settings.png',
+
+  desc:
+    'Edit your Ministry profile, picture and wallpaper.',
+
+  action:
+    openMinistrySettings
+}
         ].map(module => (
           <div
   key={module.title}
