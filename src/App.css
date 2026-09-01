@@ -58,6 +58,44 @@ body {
   }
 }
 
+@keyframes faithIconPulse {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+
+  50% {
+    transform: scale(1.08);
+    filter: brightness(1.25);
+  }
+
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+
+@keyframes faithFlamePulse {
+  0% {
+    transform:
+      scale(1)
+      rotate(-2deg);
+  }
+
+  50% {
+    transform:
+      scale(1.12)
+      rotate(2deg);
+  }
+
+  100% {
+    transform:
+      scale(1)
+      rotate(-2deg);
+  }
+}
+
 .header-layout {
   display: flex;
   align-items: center;
@@ -6540,12 +6578,6 @@ to {
 .logout-icon {
   background: rgba(231, 76, 60, 0.1) !important;
 }
-
-/*
-=========================================
-   CUSTOM MEDIA PLAYER (STREAM TO EARN)
-   =========================================
-*/
 
 .media-player-overlay {
   position: fixed;

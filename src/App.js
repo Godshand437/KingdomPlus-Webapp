@@ -329,8 +329,8 @@ const VerifiedChurchIcon = () => (
   );
 
 const IconMapPin = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>;
-const IconChurch = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1h-18l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>;
-const IconFlame = () => <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="red" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>;
+const IconChurch = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1h-18l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>;
+const IconFlame = () => <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="grey" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>;
 const IconHeadphones = () => <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="grey" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>;
 const IconBook = () => <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="grey" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>;
 const IconMail = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>;
@@ -4617,6 +4617,18 @@ if (streakUpdateError) {
   );
 }
 
+setUserProfile(
+  prev => ({
+    ...prev,
+
+    login_streak:
+      newLoginStreak,
+
+    last_login_date:
+      todayDate
+  })
+);
+
 profileData.login_streak =
   newLoginStreak;
 
@@ -4661,7 +4673,20 @@ setUserTier(
       )
 );
 
-setCurrentUser(sessionRecord);
+setCurrentUser(
+  prev =>
+    prev
+      ? {
+          ...prev,
+
+          login_streak:
+            newLoginStreak,
+
+          last_login_date:
+            todayDate
+        }
+      : prev
+);
 
 localStorage.setItem(
   'kp_current_user',
@@ -4812,13 +4837,13 @@ if (!lastLoginDate) {
     new Date(`${todayDate}T00:00:00`);
 
   const differenceInDays =
-    Math.round(
-      (
-        currentDate -
-        previousDate
-      ) /
-      (1000 * 60 * 60 * 24)
-    );
+  Math.floor(
+    (
+      currentDate -
+      previousDate
+    ) /
+    (1000 * 60 * 60 * 24)
+  );
 
   if (differenceInDays === 1) {
 
@@ -4847,6 +4872,18 @@ if (streakUpdateError) {
     streakUpdateError
   );
 }
+
+setUserProfile(
+  prev => ({
+    ...prev,
+
+    login_streak:
+      newLoginStreak,
+
+    last_login_date:
+      todayDate
+  })
+);
 
 profileData.login_streak =
   newLoginStreak;
@@ -5255,6 +5292,180 @@ const [mediaType, setMediaType] = useState('');
 const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
 const [currentTime, setCurrentTime] = useState(0);
 const [duration, setDuration] = useState(0);
+const [
+  activeStreamSessionId,
+  setActiveStreamSessionId
+] = useState(null);
+const startStreamSession =
+  async (media) => {
+
+    const {
+      data: {
+        user
+      }
+    } =
+      await supabase.auth.getUser();
+
+
+    if (!user || !media?.id) {
+      return null;
+    }
+
+
+    const {
+      data,
+      error
+    } =
+      await supabase
+        .from(
+          'user_stream_sessions'
+        )
+        .insert({
+          user_id:
+            user.id,
+
+          media_id:
+            media.id,
+
+          started_at:
+            new Date().toISOString()
+        })
+        .select(
+          'id'
+        )
+        .single();
+
+
+    if (error) {
+
+      console.error(
+        'Failed to start stream session:',
+        error
+      );
+
+      return null;
+    }
+
+
+    setActiveStreamSessionId(
+      data.id
+    );
+
+
+    return data.id;
+
+  };
+
+useEffect(() => {
+
+  if (!activeMedia) {
+    return;
+  }
+
+
+  startStreamSession(
+    activeMedia
+  );
+
+}, [
+  activeMedia?.id
+]);
+
+const saveStreamSession =
+  async () => {
+
+    if (
+      !activeStreamSessionId
+    ) {
+      return;
+    }
+
+
+    const seconds =
+      Math.max(
+        0,
+        Math.round(
+          currentTime
+        )
+      );
+
+
+    try {
+
+      await supabase
+        .from(
+          'user_stream_sessions'
+        )
+        .update({
+
+          ended_at:
+            new Date().toISOString(),
+
+          duration_seconds:
+            seconds
+
+        })
+        .eq(
+          'id',
+          activeStreamSessionId
+        );
+
+
+      const hours =
+        seconds / 3600;
+
+
+      const nextHours =
+        Number(
+          userProfile
+            ?.stream_time_hours ||
+          0
+        ) + hours;
+
+
+      await supabase
+        .from(
+          'user_profiles'
+        )
+        .update({
+
+          stream_time_hours:
+            nextHours
+
+        })
+        .eq(
+          'id',
+          authUserId
+        );
+
+
+      setUserProfile(
+        prev => ({
+          ...prev,
+
+          stream_time_hours:
+            nextHours
+        })
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        'Failed to save stream activity:',
+        error
+      );
+
+    } finally {
+
+      setActiveStreamSessionId(
+        null
+      );
+
+    }
+
+  };
+
 const mediaRef = useRef(null);
 const [musicQueue, setMusicQueue] = useState([]);
 const [musicQueueIndex, setMusicQueueIndex] = useState(-1);
@@ -6845,9 +7056,6 @@ const logTransaction = async (
 };
 
 
-  // ==========================================
-// SAFE LOCAL STORAGE AUTO-SYNC
-// ==========================================
 
 useEffect(() => {
   if (!currentUser || !currentUser.email) return;
@@ -9046,9 +9254,6 @@ useEffect(() => {
   }
 }, [kingdomTab]);
 
- // =========================================================
-// KINGDOMPLUS STUDIO PUBLISHING
-// =========================================================
 
 const [studioCategory, setStudioCategory] =
   useState('Devotions');
@@ -10922,6 +11127,70 @@ const handleMemberCheckIn = async () => {
     setIsCheckingIn(false);
   }
 };
+
+useEffect(() => {
+
+  if (
+    step !== 18 ||
+    !authUserId
+  ) {
+    return;
+  }
+
+
+  const refreshFaithActivity =
+    async () => {
+
+      const {
+        data,
+        error
+      } =
+        await supabase
+          .from(
+            'user_profiles'
+          )
+          .select(`
+            login_streak,
+            last_login_date,
+            stream_time_hours,
+            devotions_read,
+            followers_count,
+            friends_count
+          `)
+          .eq(
+            'id',
+            authUserId
+          )
+          .single();
+
+
+      if (error) {
+
+        console.error(
+          'Failed to refresh Faith Activity:',
+          error
+        );
+
+        return;
+      }
+
+
+      setUserProfile(
+        prev => ({
+          ...prev,
+          ...data
+        })
+      );
+
+    };
+
+
+  refreshFaithActivity();
+
+}, [
+  step,
+  authUserId
+]);
 
 
 
@@ -13391,11 +13660,6 @@ const recordMinistryProfileVisit = async (ministryId) => {
   }
 };
 
-  const followedMinistries = [
-    { id: 1, name: "Grace Sanctuary", isMain: true, img: "⛪" },
-    { id: 2, name: "Elevation", isMain: false, img: "🔥" },
-    { id: 3, name: "Hillsong", isMain: false, img: "🕊️" }
-  ];
 
 const registerMinistryActivity = async ({
   ministryId,
@@ -14554,6 +14818,407 @@ const [
   isFullContentAnalyticsOpen,
   setIsFullContentAnalyticsOpen
 ] = useState(false);
+
+const loadFollowedMinistries =
+  async () => {
+
+    if (!authUserId) {
+      setFollowedMinistries([]);
+      return;
+    }
+
+
+    const {
+      data,
+      error
+    } =
+      await supabase
+        .from(
+          'ministry_follows'
+        )
+        .select(`
+          ministry_id,
+          followed_at,
+          church_profiles (
+            id,
+            ministry_name,
+            username,
+            image,
+            denomination
+          )
+        `)
+        .eq(
+          'user_id',
+          authUserId
+        )
+        .order(
+          'followed_at',
+          {
+            ascending:
+              false
+          }
+        );
+
+
+    if (error) {
+
+      console.error(
+        'Failed to load followed Ministries:',
+        error
+      );
+
+      return;
+    }
+
+
+    const followed =
+      (
+        data || []
+      ).map(
+        row => ({
+
+          id:
+            row.ministry_id,
+
+          name:
+            row.church_profiles
+              ?.ministry_name ||
+            row.church_profiles
+              ?.username ||
+            'Ministry',
+
+          username:
+            row.church_profiles
+              ?.username ||
+            '',
+
+          image:
+            row.church_profiles
+              ?.image ||
+            null,
+
+          denomination:
+            row.church_profiles
+              ?.denomination ||
+            '',
+
+          isMain:
+            false
+
+        })
+      );
+
+    const {
+      data:
+        profile
+    } =
+      await supabase
+        .from(
+          'user_profiles'
+        )
+        .select(
+          'local_church_id, local_church'
+        )
+        .eq(
+          'id',
+          authUserId
+        )
+        .single();
+
+
+    if (
+      profile?.local_church_id
+    ) {
+
+      const {
+        data:
+          localMinistry
+      } =
+        await supabase
+          .from(
+            'church_profiles'
+          )
+          .select(`
+            id,
+            ministry_name,
+            username,
+            image,
+            denomination
+          `)
+          .eq(
+            'id',
+            profile.local_church_id
+          )
+          .single();
+
+
+      if (
+        localMinistry
+      ) {
+
+        followed.unshift({
+
+          id:
+            localMinistry.id,
+
+          name:
+            localMinistry.ministry_name ||
+            localMinistry.username ||
+            profile.local_church ||
+            'Local Ministry',
+
+          username:
+            localMinistry.username ||
+            '',
+
+          image:
+            localMinistry.image ||
+            null,
+
+          denomination:
+            localMinistry.denomination ||
+            '',
+
+          isMain:
+            true
+
+        });
+
+      }
+
+    }
+
+
+    setFollowedMinistries(
+      followed
+    );
+
+  };
+
+useEffect(() => {
+
+  if (authUserId) {
+    loadFollowedMinistries();
+  }
+
+}, [
+  authUserId
+]);
+
+const followMinistry =
+  async (
+    ministryId
+  ) => {
+
+    if (!authUserId) {
+
+      alert(
+        'Please sign in first.'
+      );
+
+      return false;
+
+    }
+
+
+    if (!ministryId) {
+      return false;
+    }
+
+    const {
+      data: localProfile
+    } =
+      await supabase
+        .from(
+          'user_profiles'
+        )
+        .select(
+          'local_church_id'
+        )
+        .eq(
+          'id',
+          authUserId
+        )
+        .single();
+
+
+    if (
+      localProfile?.local_church_id ===
+      ministryId
+    ) {
+
+      alert(
+        'This is your Local Ministry. You are already a member.'
+      );
+
+      return false;
+
+    }
+
+
+    try {
+
+      const {
+        error
+      } =
+        await supabase
+          .from(
+            'ministry_follows'
+          )
+          .insert({
+            user_id:
+              authUserId,
+
+            ministry_id:
+              ministryId
+          });
+
+
+      if (error) {
+
+        if (
+          error.code ===
+          '23505'
+        ) {
+
+          return true;
+
+        }
+
+        throw error;
+
+      }
+
+
+      await loadFollowedMinistries();
+
+      return true;
+
+    } catch (error) {
+
+      console.error(
+        'Ministry follow failed:',
+        error
+      );
+
+      alert(
+        error?.message ||
+        'Could not follow this Ministry.'
+      );
+
+      return false;
+
+    }
+
+  };
+
+
+const unfollowMinistry =
+  async (
+    ministryId
+  ) => {
+
+    if (!authUserId) {
+      return false;
+    }
+
+
+    if (!ministryId) {
+      return false;
+    }
+
+
+    const {
+      data: localProfile
+    } =
+      await supabase
+        .from(
+          'user_profiles'
+        )
+        .select(
+          'local_church_id'
+        )
+        .eq(
+          'id',
+          authUserId
+        )
+        .single();
+
+
+    if (
+      localProfile?.local_church_id ===
+      ministryId
+    ) {
+
+      alert(
+        'Your Local Ministry is your automatic membership and cannot be unfollowed here.'
+      );
+
+      return false;
+
+    }
+
+
+    try {
+
+      const {
+        error
+      } =
+        await supabase
+          .from(
+            'ministry_follows'
+          )
+          .delete()
+          .eq(
+            'user_id',
+            authUserId
+          )
+          .eq(
+            'ministry_id',
+            ministryId
+          );
+
+
+      if (error) {
+        throw error;
+      }
+
+
+      await loadFollowedMinistries();
+
+      return true;
+
+    } catch (error) {
+
+      console.error(
+        'Ministry unfollow failed:',
+        error
+      );
+
+      alert(
+        error?.message ||
+        'Could not unfollow this Ministry.'
+      );
+
+      return false;
+
+    }
+
+  };
+
+const isFollowingMinistry =
+  (
+    ministryId
+  ) => {
+
+    return followedMinistries.some(
+      ministry =>
+        ministry.id ===
+        ministryId &&
+        !ministry.isMain
+    );
+
+  };
 
 
 // ==========================================
@@ -15772,7 +16437,17 @@ if (completionRecordError) {
       }]);
 
       setKpcBalance(prev => prev + rewardAmount);
-      setUserProfile(prev => ({ ...prev, devotions_read: (prev?.devotions_read || 0) + 1 }));
+      setUserProfile(
+  prev => ({
+    ...prev,
+
+    devotions_read:
+      Number(
+        prev?.devotions_read ||
+        0
+      ) + 1
+  })
+);
       setReadDevotionsList([...readDevotionsList, devotion.id]);
       setSelectedDevotion(null);
       alert(`Praise God! You earned +${rewardAmount} KPC for completing today's devotion.`);
@@ -15815,20 +16490,6 @@ if (completionRecordError) {
 
       const rewardAmount =
         5;
-
-
-      /*
-       * Unique chapter reward ID.
-       *
-       * We use a deterministic UUID-safe
-       * source when the Bible chapter
-       * is represented as a database UUID.
-       *
-       * Since the public Bible API chapter
-       * isn't a UUID source, use the
-       * transaction title for the current
-       * protection and keep the local state.
-       */
 
       const {
         data:
@@ -15897,10 +16558,269 @@ if (completionRecordError) {
 
   };
 
+const incrementUserFaithCounter =
+  async (
+    field,
+    amount = 1
+  ) => {
 
-// ==========================================
-  // BOOKSTORE STATES
-  // ==========================================
+    const {
+      data: {
+        user
+      }
+    } =
+      await supabase.auth.getUser();
+
+
+    if (!user) {
+      return;
+    }
+
+
+    const {
+      data: profile,
+      error
+    } =
+      await supabase
+        .from(
+          'user_profiles'
+        )
+        .select(
+          field
+        )
+        .eq(
+          'id',
+          user.id
+        )
+        .single();
+
+
+    if (error) {
+      throw error;
+    }
+
+
+    const nextValue =
+      Number(
+        profile?.[field] ||
+        0
+      ) + amount;
+
+
+    const {
+      error:
+        updateError
+    } =
+      await supabase
+        .from(
+          'user_profiles'
+        )
+        .update({
+          [field]:
+            nextValue
+        })
+        .eq(
+          'id',
+          user.id
+        );
+
+
+    if (updateError) {
+      throw updateError;
+    }
+
+
+    setUserProfile(
+      prev => ({
+        ...prev,
+        [field]:
+          nextValue
+      })
+    );
+
+  };
+
+const getFaithActivityLevel =
+  ({
+    type,
+    value
+  }) => {
+
+    const amount =
+      Number(
+        value || 0
+      );
+
+
+    if (
+      type ===
+      'streak'
+    ) {
+
+      if (
+        amount >= 7
+      ) {
+
+        return {
+          color: '#ff4757',
+          glow:
+            '0 0 18px rgba(255,71,87,.65)',
+          animation:
+            'faithFlamePulse 1.5s ease-in-out infinite'
+        };
+
+      }
+
+
+      if (
+        amount >= 5
+      ) {
+
+        return {
+          color: '#ff4757',
+          glow:
+            '0 0 12px rgba(255,71,87,.40)',
+          animation:
+            'faithIconPulse 2s ease-in-out infinite'
+        };
+
+      }
+
+
+      if (
+        amount >= 3
+      ) {
+
+        return {
+          color: '#f3ca58',
+          glow:
+            '0 0 10px rgba(243,202,88,.25)',
+          animation:
+            'none'
+        };
+
+      }
+
+    }
+
+
+    if (
+      type ===
+      'stream'
+    ) {
+
+      if (
+        amount >= 20
+      ) {
+
+        return {
+          color: '#4facfe',
+          glow:
+            '0 0 18px rgba(79,172,254,.55)',
+          animation:
+            'faithIconPulse 2s ease-in-out infinite'
+        };
+
+      }
+
+
+      if (
+        amount >= 10
+      ) {
+
+        return {
+          color: '#f3ca58',
+          glow:
+            '0 0 12px rgba(243,202,88,.32)',
+          animation:
+            'none'
+        };
+
+      }
+
+
+      if (
+        amount >= 5
+      ) {
+
+        return {
+          color: '#29beaf',
+          glow:
+            '0 0 10px rgba(41,190,175,.25)',
+          animation:
+            'none'
+        };
+
+      }
+
+    }
+
+
+    if (
+      type ===
+      'devotion'
+    ) {
+
+      if (
+        amount >= 14
+      ) {
+
+        return {
+          color: '#2ecc71',
+          glow:
+            '0 0 18px rgba(46,204,113,.55)',
+          animation:
+            'faithIconPulse 2s ease-in-out infinite'
+        };
+
+      }
+
+
+      if (
+        amount >= 7
+      ) {
+
+        return {
+          color: '#f3ca58',
+          glow:
+            '0 0 12px rgba(243,202,88,.30)',
+          animation:
+            'none'
+        };
+
+      }
+
+
+      if (
+        amount >= 3
+      ) {
+
+        return {
+          color: '#29beaf',
+          glow:
+            '0 0 10px rgba(41,190,175,.24)',
+          animation:
+            'none'
+        };
+
+      }
+
+    }
+
+
+    return {
+      color:
+        '#8e9aab',
+
+      glow:
+        'none',
+
+      animation:
+        'none'
+    };
+
+  };
+
   const [selectedStoreBook, setSelectedStoreBook] = useState(null);
   const [isReadingBook, setIsReadingBook] = useState(false);
   const [isOpeningBook, setIsOpeningBook] = useState(false);
@@ -17083,19 +18003,159 @@ const [globalUsers, setGlobalUsers] = useState([]);
 const [incomingRequests, setIncomingRequests] = useState([]);
 const [sentRequests, setSentRequests] = useState([]);
 const [friends, setFriends] = useState([]);
+const [
+  followedMinistries,
+  setFollowedMinistries
+] = useState([]);
 
-const fetchGlobalUsers = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return;
-  
-  const { data, error } = await supabase
-    .from('user_profiles')
-    .select('*')
-    .neq('id', user.id)
-    .limit(100);
-    
-  if (data) setGlobalUsers(data);
-};
+const fetchGlobalUsers =
+  async () => {
+
+    const {
+      data: {
+        user
+      }
+    } =
+      await supabase.auth.getUser();
+
+
+    if (!user) {
+      return;
+    }
+
+
+    try {
+
+      const {
+        data:
+          users,
+        error:
+          usersError
+      } =
+        await supabase
+          .from(
+            'user_profiles'
+          )
+          .select(`
+            id,
+            full_name,
+            username,
+            avatar_url,
+            denomination,
+            account_type
+          `)
+          .neq(
+            'id',
+            user.id
+          )
+          .limit(100);
+
+
+      if (usersError) {
+        throw usersError;
+      }
+
+
+      const {
+        data:
+          ministries,
+        error:
+          ministriesError
+      } =
+        await supabase
+          .from(
+            'church_profiles'
+          )
+          .select(`
+            id,
+            ministry_name,
+            username,
+            image,
+            denomination,
+            account_type
+          `)
+          .neq(
+            'id',
+            user.id
+          )
+          .limit(100);
+
+
+      if (ministriesError) {
+        throw ministriesError;
+      }
+
+
+      const normalizedUsers =
+        (
+          users || []
+        ).map(
+          person => ({
+
+            ...person,
+
+            entityType:
+              'USER',
+
+            displayName:
+              person.username ||
+              person.full_name ||
+              'Kingdom Citizen',
+
+            avatar:
+              person.avatar_url ||
+              null
+
+          })
+        );
+
+
+      const normalizedMinistries =
+        (
+          ministries || []
+        ).map(
+          ministry => ({
+
+            ...ministry,
+
+            entityType:
+              'MINISTRY',
+
+            displayName:
+              ministry.ministry_name ||
+              ministry.username ||
+              'Ministry',
+
+            avatar:
+              ministry.image ||
+              null,
+
+            full_name:
+              ministry.ministry_name ||
+              ministry.username,
+
+            username:
+              ministry.username ||
+              ''
+
+          })
+        );
+
+
+      setGlobalUsers([
+        ...normalizedMinistries,
+        ...normalizedUsers      ]);
+
+    } catch (error) {
+
+      console.error(
+        'Failed to load Global directory:',
+        error
+      );
+
+    }
+
+  };
 
 const fetchConnections = async () => {
   const { data: { user } } = await supabase.auth.getUser();
@@ -17160,7 +18220,6 @@ const handleRequestAction = async (requestId, action) => {
   fetchConnections();
 };
 
-// Stream tracking states
   const [streamSeconds, setStreamSeconds] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
 
@@ -25711,31 +26770,181 @@ disabled={isUploadingBook}
                   <div className="profile-tab-content">
                     
                     <h3 className="profile-section-heading">Faith Activity</h3>
-                    <div className="faith-activity-grid">
-                      <div className="faith-activity-card">
-                        <div className="activity-icon-container"><IconFlame /></div>
-                        <div className="activity-num">{userProfile.login_streak || 0}</div>
-                        <div className="activity-label">Day Streak</div>
-                      </div>
-                      <div className="faith-activity-card">
-                        <div className="activity-icon-container"><IconHeadphones /></div>
-                        <div className="activity-num">{userProfile.stream_time_hours || 0}h</div>
-                        <div className="activity-label">Streamed</div>
-                      </div>
-                      <div className="faith-activity-card">
-                        <div className="activity-icon-container"><IconBook /></div>
-                        <div className="activity-num">{userProfile.devotions_read || 0}</div>
-                        <div className="activity-label">Devotions</div>
-                      </div>
-                    </div>
+                
+                    {(() => {
+
+  const streakStyle =
+    getFaithActivityLevel({
+      type:
+        'streak',
+
+      value:
+        userProfile.login_streak
+    });
+
+
+  const streamStyle =
+    getFaithActivityLevel({
+      type:
+        'stream',
+
+      value:
+        userProfile.stream_time_hours
+    });
+
+
+  const devotionStyle =
+    getFaithActivityLevel({
+      type:
+        'devotion',
+
+      value:
+        userProfile.devotions_read
+    });
+
+
+  return (
+
+    <div className="faith-activity-grid">
+      <div className="faith-activity-card">
+
+        <div
+          className="activity-icon-container"
+          style={{
+            color:
+              streakStyle.color,
+
+            boxShadow:
+              streakStyle.glow,
+
+            animation:
+              streakStyle.animation
+          }}
+        >
+
+          <IconFlame />
+
+        </div>
+
+        <div className="activity-num">
+          {userProfile.login_streak || 0}
+        </div>
+
+        <div className="activity-label">
+          Day Streak
+        </div>
+
+      </div>
+
+      <div className="faith-activity-card">
+
+        <div
+          className="activity-icon-container"
+          style={{
+            color:
+              streamStyle.color,
+
+            boxShadow:
+              streamStyle.glow,
+
+            animation:
+              streamStyle.animation
+          }}
+        >
+
+          <IconHeadphones />
+
+        </div>
+
+        <div className="activity-num">
+          {Number(
+            userProfile.stream_time_hours ||
+            0
+          ).toFixed(1)}h
+        </div>
+
+        <div className="activity-label">
+          Streamed
+        </div>
+
+      </div>
+
+      <div className="faith-activity-card">
+
+        <div
+          className="activity-icon-container"
+          style={{
+            color:
+              devotionStyle.color,
+
+            boxShadow:
+              devotionStyle.glow,
+
+            animation:
+              devotionStyle.animation
+          }}
+        >
+
+          <IconBook />
+
+        </div>
+
+        <div className="activity-num">
+          {userProfile.devotions_read || 0}
+        </div>
+
+        <div className="activity-label">
+          Devotions
+        </div>
+
+      </div>
+
+    </div>
+
+  );
+
+})()}
 
                     <h3 className="profile-section-heading" style={{ marginTop: '25px' }}>Ministries Followed</h3>
                     <div className="ministries-row">
                       {followedMinistries.map(ministry => (
                          <div key={ministry.id} className="ministry-avatar-wrapper">
-                          <div className={`ministry-avatar ${ministry.isMain ? 'main-church' : ''}`}>
-                            <IconChurch />
-                          </div>
+                          <div
+  className={`ministry-avatar ${
+    ministry.isMain
+      ? 'main-church'
+      : ''
+  }`}
+  style={{
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center'
+  }}
+>
+  {ministry.image ? (
+
+    <img
+      src={
+        ministry.image
+      }
+      alt={
+        ministry.name ||
+        'Ministry'
+      }
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover'
+      }}
+    />
+
+  ) : (
+
+    <IconChurch />
+
+  )}
+</div>
                           <span className="ministry-name">{ministry.name}</span>
                           {ministry.isMain && <span className="ministry-main-badge">Home</span>}
                         </div>
@@ -26711,7 +27920,27 @@ const displayName =
                     return (
                       <div key={user.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '16px', borderRadius: '24px', border: '1px solid rgba(255,255,255,0.05)', width: '100%', boxSizing: 'border-box' }}>
                         <div 
-                          onClick={() => handleViewProfile(user.id)} 
+                          onClick={() => {
+
+  if (
+    user.entityType ===
+    'MINISTRY'
+  ) {
+
+    openPublicMinistryProfile(
+      user.id
+    );
+
+    return;
+
+  }
+
+
+  handleViewProfile(
+    user.id
+  );
+
+}} 
                           style={{ display: 'flex', alignItems: 'center', gap: '14px', cursor: 'pointer' }}
                           title="View Public Profile"
                         >
@@ -26731,9 +27960,11 @@ const displayName =
     flexShrink: 0
   }}
 >
-  {user.avatar_url ? (
+  {user.avatar ? (
     <img
-      src={user.avatar_url}
+      src={
+  user.avatar
+}
       alt={user.full_name || user.username || 'User'}
       style={{
         width: '100%',
@@ -26750,26 +27981,234 @@ const displayName =
 </div>
                           <div>
                             <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>{user.username || 'Anonymous Believer'}</div>
-                            <div style={{ color: '#8e9aab', fontSize: '11px' }}>{user.denomination || 'Kingdom Citizen'}</div>
+                            <div
+  style={{
+    color:
+      '#8e9aab',
+    fontSize:
+      '11px'
+  }}
+>
+  {user.entityType === 'MINISTRY'
+    ? (
+        user.denomination ||
+        'Ministry'
+      )
+    : (
+        user.denomination ||
+        'Kingdom Citizen'
+      )}
+</div>
                           </div>
                         </div>
                         
-                        {isFriend ? (
-                          <div style={{ background: 'rgba(46, 204, 113, 0.1)', border: '1px solid #2ecc71', color: '#2ecc71', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
-                            FRIENDS
-                          </div>
-                        ) : isPending ? (
-                          <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.2)', color: '#8e9aab', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800' }}>
-                            PENDING
-                          </div>
-                        ) : (
-                          <button 
-                            onClick={() => sendFriendRequest(user.id)} 
-                            style={{ background: 'transparent', border: '1px solid #f3ca58', color: '#f3ca58', padding: '6px 12px', borderRadius: '12px', fontSize: '10px', fontWeight: '800', cursor: 'pointer' }}
-                          >
-                            CONNECT
-                          </button>
-                        )}
+                        {user.entityType === 'MINISTRY' ? (
+
+  (() => {
+
+    const localMinistry =
+      userProfile?.local_church_id ===
+      user.id;
+
+
+    const following =
+      isFollowingMinistry(
+        user.id
+      );
+
+
+    if (
+      localMinistry
+    ) {
+
+      return (
+        <div
+          style={{
+            background:
+              'rgba(243,202,88,.08)',
+            border:
+              '1px solid rgba(243,202,88,.35)',
+            color:
+              '#f3ca58',
+            padding:
+              '6px 12px',
+            borderRadius:
+              '12px',
+            fontSize:
+              '10px',
+            fontWeight:
+              '900'
+          }}
+        >
+          HOME
+        </div>
+      );
+
+    }
+
+
+    if (
+      following
+    ) {
+
+      return (
+        <button
+          onClick={async e => {
+
+            e.stopPropagation();
+
+            await unfollowMinistry(
+              user.id
+            );
+
+          }}
+          style={{
+            background:
+              'rgba(41,190,175,.08)',
+            border:
+              '1px solid #29beaf',
+            color:
+              '#29beaf',
+            padding:
+              '6px 12px',
+            borderRadius:
+              '12px',
+            fontSize:
+              '10px',
+            fontWeight:
+              '800',
+            cursor:
+              'pointer'
+          }}
+        >
+          FOLLOWING
+        </button>
+      );
+
+    }
+
+
+    return (
+      <button
+        onClick={async e => {
+
+          e.stopPropagation();
+
+          await followMinistry(
+            user.id
+          );
+
+        }}
+        style={{
+          background:
+            'transparent',
+          border:
+            '1px solid #f3ca58',
+          color:
+            '#f3ca58',
+          padding:
+            '6px 12px',
+          borderRadius:
+            '12px',
+          fontSize:
+            '10px',
+          fontWeight:
+            '800',
+          cursor:
+            'pointer'
+        }}
+      >
+        FOLLOW
+      </button>
+    );
+
+  })()
+
+) : (
+
+  isFriend ? (
+
+    <div
+      style={{
+        background:
+          'rgba(46,204,113,.1)',
+        border:
+          '1px solid #2ecc71',
+        color:
+          '#2ecc71',
+        padding:
+          '6px 12px',
+        borderRadius:
+          '12px',
+        fontSize:
+          '10px',
+        fontWeight:
+          '800'
+      }}
+    >
+      FRIENDS
+    </div>
+
+  ) : isPending ? (
+
+    <div
+      style={{
+        background:
+          'rgba(255,255,255,.05)',
+        border:
+          '1px solid rgba(255,255,255,.20)',
+        color:
+          '#8e9aab',
+        padding:
+          '6px 12px',
+        borderRadius:
+          '12px',
+        fontSize:
+          '10px',
+        fontWeight:
+          '800'
+      }}
+    >
+      PENDING
+    </div>
+
+  ) : (
+
+    <button
+      onClick={e => {
+
+        e.stopPropagation();
+
+        sendFriendRequest(
+          user.id
+        );
+
+      }}
+      style={{
+        background:
+          'transparent',
+        border:
+          '1px solid #f3ca58',
+        color:
+          '#f3ca58',
+        padding:
+          '6px 12px',
+        borderRadius:
+          '12px',
+        fontSize:
+          '10px',
+        fontWeight:
+          '800',
+        cursor:
+          'pointer'
+      }}
+    >
+      CONNECT
+    </button>
+
+  )
+
+)}
                       </div>
                     );
                   })
