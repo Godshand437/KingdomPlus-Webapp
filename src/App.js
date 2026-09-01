@@ -717,8 +717,6 @@ const handleMarkAllRead = () => {
   });
 };
 
-// Notification State
-  // Notification State
 const [isNotifOpen, setIsNotifOpen] = useState(false);
 const [notifications, setNotifications] = useState([]);
 useEffect(() => {
@@ -3024,8 +3022,6 @@ const handleStep1Validation = (e) => {
   };
 
 
-
-  // Hire Services State
   const [hireTab, setHireTab] = useState('All');
   const [processingId, setProcessingId] = useState(null);
 
@@ -3038,7 +3034,6 @@ const handleStep1Validation = (e) => {
     { id: 6, name: 'Light Studios', handle: '@lightstudios', service: 'Event Photography', rating: '4.9', jobs: '35', price: 700, cat: 'Design' }
   ];
 
-  // --- AUTO-ADVANCE SANCTUARY SLIDER ---
   useEffect(() => {
     if (step !== 6) return;
     const interval = setInterval(() => {
@@ -5363,9 +5358,11 @@ useEffect(() => {
   }
 
 
-  startStreamSession(
-    activeMedia
-  );
+  return () => {
+
+    saveStreamSession();
+
+  };
 
 }, [
   activeMedia?.id
@@ -8320,6 +8317,484 @@ const renderMinistryPublicProfile = () => {
   );
 
 };
+
+const renderViewedMinistryProfile =
+  () => {
+
+    if (!viewedMinistry) {
+      return null;
+    }
+
+
+    const isHome =
+      userProfile?.local_church_id ===
+      viewedMinistry.id;
+
+
+    return (
+
+      <div
+        className="constrained-overlay"
+        style={{
+          position: 'fixed',
+          inset: 0,
+          zIndex: 55000,
+          background:
+            'rgba(3,8,15,.94)',
+          backdropFilter:
+            'blur(12px)',
+          display:
+            'flex',
+          alignItems:
+            'flex-start',
+          justifyContent:
+            'center',
+          padding:
+            'calc(16px + env(safe-area-inset-top)) 12px calc(110px + env(safe-area-inset-bottom))',
+          boxSizing:
+            'border-box'
+        }}
+      >
+
+        <div
+          style={{
+            width:
+              '100%',
+            maxWidth:
+              '720px',
+            height:
+              '100%',
+            maxHeight:
+              'calc(100vh - 135px)',
+            background:
+              '#101926',
+            border:
+              '1px solid rgba(255,255,255,.08)',
+            borderRadius:
+              '24px',
+            overflow:
+              'hidden',
+            display:
+              'flex',
+            flexDirection:
+              'column'
+          }}
+        >
+
+          <div
+            style={{
+              position:
+                'relative',
+              height:
+                '190px',
+              flexShrink:
+                0,
+              background:
+                viewedMinistry.wallpaper_url
+                  ? `url(${viewedMinistry.wallpaper_url}) center/cover`
+                  : 'linear-gradient(135deg,#18384a,#101926,#14332f)'
+            }}
+          >
+
+            <div
+              style={{
+                position:
+                  'absolute',
+                inset: 0,
+                background:
+                  'linear-gradient(to bottom,rgba(0,0,0,.10),rgba(3,8,15,.80))'
+              }}
+            />
+
+
+            <button
+              type="button"
+              onClick={() =>
+                setIsViewingMinistryProfile(
+                  false
+                )
+              }
+              style={{
+                position:
+                  'absolute',
+                left:
+                  '12px',
+                top:
+                  '12px',
+                width:
+                  '38px',
+                height:
+                  '38px',
+                borderRadius:
+                  '50%',
+                border:
+                  '1px solid rgba(255,255,255,.14)',
+                background:
+                  'rgba(0,0,0,.45)',
+                color:
+                  '#fff',
+                display:
+                  'flex',
+                alignItems:
+                  'center',
+                justifyContent:
+                  'center',
+                cursor:
+                  'pointer'
+              }}
+            >
+              <BackArrowIcon />
+            </button>
+
+          </div>
+
+
+          <div
+            style={{
+              overflowY:
+                'auto',
+              flex:
+                1,
+              padding:
+                '0 20px 30px'
+            }}
+          >
+
+            <div
+              style={{
+                marginTop:
+                  '-48px',
+                position:
+                  'relative',
+                zIndex:
+                  2
+              }}
+            >
+
+              <div
+                style={{
+                  width:
+                    '92px',
+                  height:
+                    '92px',
+                  borderRadius:
+                    '23px',
+                  padding:
+                    '3px',
+                  background:
+                    'linear-gradient(135deg,#f3ca58,#29beaf)'
+                }}
+              >
+
+                <div
+                  style={{
+                    width:
+                      '100%',
+                    height:
+                      '100%',
+                    borderRadius:
+                      '20px',
+                    overflow:
+                      'hidden',
+                    background:
+                      '#101926',
+                    display:
+                      'flex',
+                    alignItems:
+                      'center',
+                    justifyContent:
+                      'center'
+                  }}
+                >
+
+                  {viewedMinistry.image ? (
+
+                    <img
+                      src={
+                        viewedMinistry.image
+                      }
+                      alt={
+                        viewedMinistry.ministry_name ||
+                        'Ministry'
+                      }
+                      style={{
+                        width:
+                          '100%',
+                        height:
+                          '100%',
+                        objectFit:
+                          'cover'
+                      }}
+                    />
+
+                  ) : (
+
+                    <ChurchIcon />
+
+                  )}
+
+                </div>
+
+              </div>
+
+
+              <div
+                style={{
+                  display:
+                    'flex',
+                  alignItems:
+                    'center',
+                  justifyContent:
+                    'space-between',
+                  gap:
+                    '10px',
+                  marginTop:
+                    '12px'
+                }}
+              >
+
+                <div>
+
+                  <h2
+                    style={{
+                      margin:
+                        0,
+                      color:
+                        '#fff',
+                      fontSize:
+                        '21px',
+                      fontWeight:
+                        '900'
+                    }}
+                  >
+                    {viewedMinistry.ministry_name ||
+                      'Ministry'}
+
+                    <VerifiedIcon />
+
+                  </h2>
+
+                  <div
+                    style={{
+                      color:
+                        '#29beaf',
+                      fontSize:
+                        '9px',
+                      fontWeight:
+                        '800',
+                      marginTop:
+                        '5px'
+                    }}
+                  >
+                    @{viewedMinistry.username ||
+                      'ministry'}
+                  </div>
+
+                </div>
+
+
+                <button
+                  type="button"
+                  onClick={
+                    toggleViewedMinistryFollow
+                  }
+                  style={{
+                    padding:
+                      '9px 13px',
+                    borderRadius:
+                      '11px',
+                    border:
+                      isHome
+                        ? '1px solid rgba(243,202,88,.35)'
+                        : isViewedMinistryFollowing
+                          ? '1px solid #29beaf'
+                          : '1px solid #f3ca58',
+                    background:
+                      isHome
+                        ? 'rgba(243,202,88,.08)'
+                        : isViewedMinistryFollowing
+                          ? 'rgba(41,190,175,.08)'
+                          : 'rgba(243,202,88,.06)',
+                    color:
+                      isHome
+                        ? '#f3ca58'
+                        : isViewedMinistryFollowing
+                          ? '#29beaf'
+                          : '#f3ca58',
+                    fontSize:
+                      '8px',
+                    fontWeight:
+                      '900',
+                    cursor:
+                      isHome
+                        ? 'default'
+                        : 'pointer'
+                  }}
+                >
+                  {isHome
+                    ? 'HOME'
+                    : isViewedMinistryFollowing
+                      ? 'FOLLOWING'
+                      : 'FOLLOW'}
+                </button>
+
+              </div>
+
+
+              <div
+                style={{
+                  display:
+                    'inline-flex',
+                  marginTop:
+                    '9px',
+                  padding:
+                    '5px 8px',
+                  borderRadius:
+                    '999px',
+                  background:
+                    'rgba(243,202,88,.07)',
+                  color:
+                    '#f3ca58',
+                  fontSize:
+                    '8px',
+                  fontWeight:
+                    '900'
+                }}
+              >
+                {viewedMinistry.ministry_type ||
+                  'MINISTRY'}
+              </div>
+
+
+              <p
+                style={{
+                  color:
+                    '#cbd5e1',
+                  fontSize:
+                    '11px',
+                  lineHeight:
+                    '1.7',
+                  margin:
+                    '14px 0'
+                }}
+              >
+                {viewedMinistry.mission_statement ||
+                  'This Ministry has not added a mission statement yet.'}
+              </p>
+
+
+              <div
+                style={{
+                  display:
+                    'flex',
+                  flexDirection:
+                    'column',
+                  gap:
+                    '9px',
+                  borderTop:
+                    '1px solid rgba(255,255,255,.06)',
+                  borderBottom:
+                    '1px solid rgba(255,255,255,.06)',
+                  padding:
+                    '14px 0'
+                }}
+              >
+
+                {(viewedMinistry.city ||
+                  viewedMinistry.country) && (
+
+                  <div
+                    style={{
+                      display:
+                        'flex',
+                      alignItems:
+                        'center',
+                      gap:
+                        '8px',
+                      color:
+                        '#8e9aab',
+                      fontSize:
+                        '9px'
+                    }}
+                  >
+                    <IconMapPin />
+
+                    {[
+                      viewedMinistry.city,
+                      viewedMinistry.country
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
+
+                  </div>
+
+                )}
+
+
+                {viewedMinistry.denomination && (
+
+                  <div
+                    style={{
+                      display:
+                        'flex',
+                      alignItems:
+                        'center',
+                      gap:
+                        '8px',
+                      color:
+                        '#8e9aab',
+                      fontSize:
+                        '9px'
+                    }}
+                  >
+                    <IconChurch />
+
+                    {viewedMinistry.denomination}
+
+                  </div>
+
+                )}
+
+              </div>
+
+
+              <div
+                style={{
+                  marginTop:
+                    '18px',
+                  padding:
+                    '14px',
+                  borderRadius:
+                    '14px',
+                  background:
+                    'rgba(255,255,255,.03)',
+                  border:
+                    '1px solid rgba(255,255,255,.06)',
+                  color:
+                    '#718096',
+                  fontSize:
+                    '9px',
+                  lineHeight:
+                    '1.6'
+                }}
+              >
+                Follow this Ministry to keep up
+                with its teachings, devotionals,
+                Bible plans, announcements and
+                Kingdom activity.
+              </div>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    );
+
+  };
 
   const renderChurchDashboard = () => {
     const givingInflow = txHistory.filter(tx => tx.amount > 0);
@@ -15801,9 +16276,175 @@ useEffect(() => {
   loadKpcBalanceFromSupabase();
 }, [authReady]);
 
-// =========================================================
-// LOAD FULL TREASURY PORTFOLIO
-// =========================================================
+const [
+  viewedMinistry,
+  setViewedMinistry
+] = useState(null);
+
+const [
+  isViewingMinistryProfile,
+  setIsViewingMinistryProfile
+] = useState(false);
+
+const [
+  isViewedMinistryFollowing,
+  setIsViewedMinistryFollowing
+] = useState(false);
+
+const openPublicMinistryProfile =
+  async (
+    ministryId
+  ) => {
+
+    if (!ministryId) {
+      return;
+    }
+
+
+    try {
+
+      const {
+        data:
+          ministry,
+        error
+      } =
+        await supabase
+          .from(
+            'church_profiles'
+          )
+          .select(`
+            id,
+            ministry_name,
+            username,
+            denomination,
+            ministry_type,
+            image,
+            wallpaper_url,
+            country,
+            city,
+            street_address,
+            main_service_day,
+            service_time,
+            mission_statement
+          `)
+          .eq(
+            'id',
+            ministryId
+          )
+          .single();
+
+
+      if (error) {
+        throw error;
+      }
+
+
+      setViewedMinistry(
+        ministry
+      );
+
+
+      const following =
+        isFollowingMinistry(
+          ministry.id
+        );
+
+
+      setIsViewedMinistryFollowing(
+        following
+      );
+
+
+      setIsViewingMinistryProfile(
+        true
+      );
+
+
+      await recordMinistryProfileVisit(
+        ministry.id
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Failed to open Ministry profile:',
+        error
+      );
+
+      alert(
+        'Unable to open this Ministry profile.'
+      );
+
+    }
+
+  };
+
+const toggleViewedMinistryFollow =
+  async () => {
+
+    if (!viewedMinistry) {
+      return;
+    }
+
+
+    const localMinistryId =
+      userProfile?.local_church_id;
+
+
+    if (
+      localMinistryId ===
+      viewedMinistry.id
+    ) {
+
+      alert(
+        'This is your Local Ministry. Your membership is automatic.'
+      );
+
+      return;
+
+    }
+
+
+    if (
+      isViewedMinistryFollowing
+    ) {
+
+      const success =
+        await unfollowMinistry(
+          viewedMinistry.id
+        );
+
+
+      if (success) {
+
+        setIsViewedMinistryFollowing(
+          false
+        );
+
+      }
+
+      return;
+
+    }
+
+
+    const success =
+      await followMinistry(
+        viewedMinistry.id
+      );
+
+
+    if (success) {
+
+      setIsViewedMinistryFollowing(
+        true
+      );
+
+    }
+
+  };
+
+
 
 const fetchTreasuryAssets = async () => {
 
@@ -16423,10 +17064,10 @@ if (completionRecordError) {
 
       const rewardAmount = devotion.reward || 5;
 
-      await supabase.from('user_profiles').update({
-        wallet_balance: (kpcBalance || 0) + rewardAmount,
-        devotions_read: (userProfile?.devotions_read || 0) + 1
-      }).eq('id', user.id);
+      await incrementUserFaithCounter(
+  'devotions_read',
+  1
+);
 
       await supabase.from('transactions').insert([{
         sender_id: user.id,
@@ -39850,6 +40491,9 @@ community.
 
   </div>
 )}
+
+{isViewingMinistryProfile &&
+  renderViewedMinistryProfile()}
 
 {step === 26 && activeMinistryWorkspace && (
   <MinistryBottomNav />
