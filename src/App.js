@@ -12472,7 +12472,10 @@ const [
 ] = useState(false);
 
 const loadMinistryContentPerformance =
-  async () => {
+  async (
+    rangeDays =
+      analyticsDateRange
+  ) => {
 
     const ministryId =
       activeMinistryWorkspace?.ministry?.id ||
@@ -12494,6 +12497,16 @@ const loadMinistryContentPerformance =
       true
     );
 
+const rangeStart =
+  new Date();
+
+rangeStart.setDate(
+  rangeStart.getDate() -
+    Number(rangeDays)
+);
+
+const rangeStartIso =
+  rangeStart.toISOString();
 
     try {
 
@@ -12551,18 +12564,23 @@ const loadMinistryContentPerformance =
             ),
 
           supabase
-            .from(
-              'ministry_content_reads'
-            )
-            .select(`
-              content_id,
-              content_type,
-              user_id
-            `)
-            .eq(
-              'ministry_id',
-              ministryId
-            )
+  .from(
+    'ministry_content_reads'
+  )
+  .select(`
+    content_id,
+    content_type,
+    user_id,
+    last_read_at
+  `)
+  .eq(
+    'ministry_id',
+    ministryId
+  )
+  .gte(
+    'last_read_at',
+    rangeStartIso
+  )
 
         ]);
 
@@ -12646,50 +12664,74 @@ const loadMinistryContentPerformance =
             item.id
         );
 
+let kingdomCompletionRows = [];
 
-      /*
-       * LOAD COMPLETIONS
-       */
-
-      let completionRows = [];
+let devotionCompletionRows = [];
 
 
-      if (
-        contentIds.length > 0
-      ) {
+if (
+  contentIds.length > 0
+) {
 
-        const {
-          data,
-          error
-        } =
-          await supabase
-            .from(
-              'kingdom_content_completions'
-            )
-            .select(`
-              content_id,
-              user_id
-            `)
-            .in(
-              'content_id',
-              contentIds
-            );
+  const [
+    kingdomCompletionResult,
+    devotionCompletionResult
+  ] =
+    await Promise.all([
+
+      supabase
+        .from(
+          'kingdom_content_completions'
+        )
+        .select(`
+          content_id,
+          user_id
+        `)
+        .in(
+          'content_id',
+          contentIds
+        ),
+
+      supabase
+        .from(
+          'devotion_completions'
+        )
+        .select(`
+          devotion_id,
+          user_id
+        `)
+        .in(
+          'devotion_id',
+          contentIds
+        )
+
+    ]);
 
 
-        if (error) {
-          throw error;
-        }
+  if (
+    kingdomCompletionResult.error
+  ) {
+    throw kingdomCompletionResult.error;
+  }
 
 
-        completionRows =
-          data || [];
+  if (
+    devotionCompletionResult.error
+  ) {
+    throw devotionCompletionResult.error;
+  }
 
-      }
+
+  kingdomCompletionRows =
+    kingdomCompletionResult.data ||
+    [];
 
 
-      /*
-       * BUILD METRICS
-       */
+  devotionCompletionRows =
+    devotionCompletionResult.data ||
+    [];
+
+}
 
       const results =
         allContent
@@ -12713,23 +12755,44 @@ const loadMinistryContentPerformance =
               ).size;
 
 
-            const completed =
-              new Set(
-                completionRows
-                  .filter(
-                    row =>
-                      String(
-                        row.content_id
-                      ) ===
-                      String(
-                        content.id
-                      )
-                  )
-                  .map(
-                    row =>
-                      row.user_id
-                  )
-              ).size;
+            const completedUsers =
+  new Set([
+
+    ...kingdomCompletionRows
+      .filter(
+        row =>
+          String(
+            row.content_id
+          ) ===
+          String(
+            content.id
+          )
+      )
+      .map(
+        row =>
+          row.user_id
+      ),
+
+    ...devotionCompletionRows
+      .filter(
+        row =>
+          String(
+            row.devotion_id
+          ) ===
+          String(
+            content.id
+          )
+      )
+      .map(
+        row =>
+          row.user_id
+      )
+
+  ]);
+
+
+const completed =
+  completedUsers.size;
 
 
             const completionRate =
@@ -12758,13 +12821,31 @@ const loadMinistryContentPerformance =
 
           })
           .sort(
-            (
-              a,
-              b
-            ) =>
-              b.readers -
-              a.readers
-          );
+  (
+    a,
+    b
+  ) => {
+
+    if (
+      b.readers !==
+      a.readers
+    ) {
+
+      return (
+        b.readers -
+        a.readers
+      );
+
+    }
+
+
+    return (
+      b.completionRate -
+      a.completionRate
+    );
+
+  }
+);
 
 
       setMinistryContentPerformance(
@@ -12790,6 +12871,16 @@ const loadMinistryContentPerformance =
     }
 
   };
+
+const [
+  analyticsDateRange,
+  setAnalyticsDateRange
+] = useState(30);
+
+const [
+  isFullContentAnalyticsOpen,
+  setIsFullContentAnalyticsOpen
+] = useState(false);
 
 
 // ==========================================
@@ -13956,6 +14047,34 @@ useEffect(() => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      const {
+  error: completionRecordError
+} = await supabase
+  .from(
+    'devotion_completions'
+  )
+  .upsert(
+    {
+      devotion_id:
+        devotion.id,
+
+      user_id:
+        user.id,
+
+      completed_at:
+        new Date().toISOString()
+    },
+    {
+      onConflict:
+        'devotion_id,user_id'
+    }
+  );
+
+
+if (completionRecordError) {
+  throw completionRecordError;
+}
 
       const rewardAmount = devotion.reward || 5;
 
@@ -28308,40 +28427,27 @@ const displayName =
 {isMinistryPublisherOpen &&
   ministryPublishType === 'announcement' && (
     <div
+      className="constrained-overlay"
       style={{
-        position: 'fixed',
-        inset: 0,
         zIndex: 60000,
-        background:
-          'rgba(3,8,15,0.93)',
-        backdropFilter:
-          'blur(12px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
         padding: '16px',
-        paddingBottom: '95px',
+        paddingBottom: '100px',
         boxSizing: 'border-box'
       }}
     >
 
       <div
+        className="create-modal-content"
         style={{
           width: '100%',
           maxWidth: '560px',
-          maxHeight: '90vh',
+          maxHeight: 'calc(100vh - 120px)',
           overflowY: 'auto',
-          background: '#101926',
-          borderRadius: '24px',
-          border:
-            '1px solid rgba(243,202,88,.22)',
-          boxShadow:
-            '0 30px 90px rgba(0,0,0,.60)',
+          boxSizing: 'border-box',
           padding: '22px',
-          boxSizing: 'border-box'
+          borderRadius: '24px'
         }}
       >
-
         {/* HEADER */}
 
         <div
@@ -30299,7 +30405,9 @@ community.
 
   loadMinistryAnalyticsContent(),
 
-  loadMinistryContentPerformance()
+  loadMinistryContentPerformance(
+  analyticsDateRange
+)
 
 ]);
     }
@@ -30445,40 +30553,46 @@ community.
       position: 'fixed',
       inset: 0,
       zIndex: 30000,
-      background: 'rgba(3,8,15,0.90)',
-      backdropFilter: 'blur(12px)',
+      background:
+        'rgba(3,8,15,0.92)',
+      backdropFilter:
+        'blur(10px)',
       display: 'flex',
-      alignItems: 'center',
+      alignItems: 'flex-start',
       justifyContent: 'center',
-      padding: '16px',
-      paddingBottom: '95px',
+      padding:
+        'calc(16px + env(safe-area-inset-top)) 12px calc(70px + env(safe-area-inset-bottom))',
       boxSizing: 'border-box',
-  paddingTop: '20px'
+      overflow: 'hidden'
     }}
   >
+
     <div
       style={{
         width: '100%',
         maxWidth: '760px',
-        height: 'min(88vh, 860px)',
-        minHeight: '520px',
+        height: '100%',
+        maxHeight: 'calc(100vh - 142px)',
         background: '#101926',
-        border: '1px solid rgba(255,255,255,0.10)',
-        borderRadius: '24px',
-        boxShadow: '0 25px 80px rgba(0,0,0,0.55)',
+        border:
+          '1px solid rgba(255,255,255,0.09)',
+        borderRadius: '22px',
+        boxShadow:
+          '0 28px 90px rgba(0,0,0,0.65)',
+        overflow: 'hidden',
         display: 'flex',
         flexDirection: 'column',
-        overflow: 'hidden'
+        boxSizing: 'border-box'
       }}
     >
 
       <div
         style={{
           flex: 1,
+          minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
-          padding: '18px 18px 24px',
-          boxSizing: 'border-box'
+          padding: '18px'
         }}
       >
 
@@ -30572,6 +30686,83 @@ community.
           </p>
 
         </div>
+<div
+  style={{
+    display: 'flex',
+    gap: '7px',
+    marginTop: '15px',
+    flexWrap: 'wrap'
+  }}
+>
+  {[
+    {
+      label: '7 Days',
+      value: 7
+    },
+    {
+      label: '30 Days',
+      value: 30
+    },
+    {
+      label: '90 Days',
+      value: 90
+    }
+  ].map(option => (
+
+    <button
+      key={option.value}
+      type="button"
+      onClick={async () => {
+
+        setAnalyticsDateRange(
+          option.value
+        );
+
+        await loadMinistryContentPerformance(
+          option.value
+        );
+
+      }}
+      style={{
+        padding:
+          '7px 11px',
+
+        borderRadius:
+          '999px',
+
+        border:
+          analyticsDateRange ===
+          option.value
+            ? '1px solid #29beaf'
+            : '1px solid rgba(255,255,255,.08)',
+
+        background:
+          analyticsDateRange ===
+          option.value
+            ? 'rgba(41,190,175,.12)'
+            : 'rgba(255,255,255,.03)',
+
+        color:
+          analyticsDateRange ===
+          option.value
+            ? '#29beaf'
+            : '#718096',
+
+        fontSize:
+          '9px',
+
+        fontWeight:
+          '900',
+
+        cursor:
+          'pointer'
+      }}
+    >
+      {option.label}
+    </button>
+
+  ))}
+</div>
 
 
         <button
@@ -30605,7 +30796,9 @@ community.
 
   loadMinistryAnalyticsContent(),
 
-  loadMinistryContentPerformance()
+  loadMinistryContentPerformance(
+  analyticsDateRange
+)
 
 ]);
 
@@ -31255,6 +31448,897 @@ community.
       </div>
 
     </div>
+
+{/* TOP PERFORMING CONTENT */}
+
+<div
+  style={{
+    background:
+      'linear-gradient(145deg, rgba(41,190,175,.07), rgba(243,202,88,.04))',
+
+    border:
+      '1px solid rgba(41,190,175,.14)',
+
+    borderRadius:
+      '18px',
+
+    padding:
+      '18px',
+
+    marginBottom:
+      '14px'
+  }}
+>
+
+  <div
+    style={{
+      display:
+        'flex',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+
+      marginBottom:
+        '13px'
+    }}
+  >
+
+    <div>
+
+      <div
+        style={{
+          color:
+            '#f3ca58',
+
+          fontSize:
+            '10px',
+
+          fontWeight:
+            '900',
+
+          letterSpacing:
+            '1px',
+
+          textTransform:
+            'uppercase'
+        }}
+      >
+        Top Performing
+      </div>
+
+      <div
+        style={{
+          color:
+            '#718096',
+
+          fontSize:
+            '9px',
+
+          marginTop:
+            '4px'
+        }}
+      >
+        Most-read Ministry content
+      </div>
+
+    </div>
+
+
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="#f3ca58"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M3 17l6-6 4 4 8-8" />
+      <path d="M14 7h7v7" />
+    </svg>
+
+  </div>
+
+
+  {ministryContentPerformance
+    .slice(0, 3)
+    .map(
+      (
+        content,
+        index
+      ) => (
+
+        <div
+          key={
+            `${content.type}-top-${content.id}`
+          }
+          style={{
+            display:
+              'flex',
+
+            alignItems:
+              'center',
+
+            gap:
+              '10px',
+
+            padding:
+              '10px 0',
+
+            borderBottom:
+              index < 2
+                ? '1px solid rgba(255,255,255,.05)'
+                : 'none'
+          }}
+        >
+
+          <div
+            style={{
+              width:
+                '28px',
+
+              height:
+                '28px',
+
+              borderRadius:
+                '9px',
+
+              background:
+                index === 0
+                  ? 'linear-gradient(135deg,#f3ca58,#29beaf)'
+                  : 'rgba(255,255,255,.06)',
+
+              color:
+                index === 0
+                  ? '#08111d'
+                  : '#94a3b8',
+
+              display:
+                'flex',
+
+              alignItems:
+                'center',
+
+              justifyContent:
+                'center',
+
+              fontSize:
+                '10px',
+
+              fontWeight:
+                '900',
+
+              flexShrink:
+                0
+            }}
+          >
+            {index + 1}
+          </div>
+
+
+          <div
+            style={{
+              flex:
+                1,
+
+              minWidth:
+                0
+            }}
+          >
+
+            <div
+              style={{
+                color:
+                  '#fff',
+
+                fontSize:
+                  '10px',
+
+                fontWeight:
+                  '800',
+
+                whiteSpace:
+                  'nowrap',
+
+                overflow:
+                  'hidden',
+
+                textOverflow:
+                  'ellipsis'
+              }}
+            >
+              {content.title}
+            </div>
+
+            <div
+              style={{
+                color:
+                  '#64748b',
+
+                fontSize:
+                  '8px',
+
+                marginTop:
+                  '3px'
+              }}
+            >
+              {content.type}
+            </div>
+
+          </div>
+
+
+          <div
+            style={{
+              textAlign:
+                'right',
+
+              flexShrink:
+                0
+            }}
+          >
+
+            <div
+              style={{
+                color:
+                  '#29beaf',
+
+                fontSize:
+                  '11px',
+
+                fontWeight:
+                  '900'
+              }}
+            >
+              {content.readers || 0}
+            </div>
+
+            <div
+              style={{
+                color:
+                  '#64748b',
+
+                fontSize:
+                  '7px',
+
+                marginTop:
+                  '2px'
+              }}
+            >
+              readers
+            </div>
+
+          </div>
+
+        </div>
+
+      )
+    )}
+
+</div>
+
+{/* CONTENT PERFORMANCE */}
+
+<div
+  style={{
+    background:
+      'rgba(255,255,255,0.035)',
+
+    border:
+      '1px solid rgba(255,255,255,0.07)',
+
+    borderRadius:
+      '18px',
+
+    padding:
+      '18px',
+
+    marginBottom:
+      '14px',
+
+    boxSizing:
+      'border-box'
+  }}
+>
+
+  <div
+    style={{
+      display:
+        'flex',
+
+      alignItems:
+        'center',
+
+      justifyContent:
+        'space-between',
+
+      gap:
+        '10px',
+
+      marginBottom:
+        '5px'
+    }}
+  >
+
+    <div>
+
+      <div
+        style={{
+          color:
+            '#f3ca58',
+
+          fontSize:
+            '10px',
+
+          fontWeight:
+            '900',
+
+          letterSpacing:
+            '1px',
+
+          textTransform:
+            'uppercase'
+        }}
+      >
+        Content Performance
+      </div>
+
+      <div
+        style={{
+          color:
+            '#718096',
+
+          fontSize:
+            '9px',
+
+          marginTop:
+            '4px'
+        }}
+      >
+        See what people actually read
+        and complete.
+<div
+  style={{
+    color:
+      '#64748b',
+    fontSize:
+      '8px'
+  }}
+>
+  Last {analyticsDateRange} days
+</div>
+      </div>
+
+    </div>
+
+  </div>
+
+
+  {isLoadingContentPerformance ? (
+
+    <div
+      style={{
+        padding:
+          '30px 10px',
+
+        textAlign:
+          'center',
+
+        color:
+          '#64748b',
+
+        fontSize:
+          '10px'
+      }}
+    >
+      Loading content performance...
+    </div>
+
+  ) : ministryContentPerformance.length === 0 ? (
+
+    <div
+      style={{
+        padding:
+          '28px 10px',
+
+        textAlign:
+          'center',
+
+        color:
+          '#64748b',
+
+        fontSize:
+          '10px',
+
+        lineHeight:
+          '1.5'
+      }}
+    >
+      No published content has
+      performance data yet.
+    </div>
+
+  ) : (
+
+    <div
+      style={{
+        display:
+          'flex',
+
+        flexDirection:
+          'column',
+
+        gap:
+          '10px',
+
+        marginTop:
+          '14px'
+      }}
+    >
+
+      {ministryContentPerformance
+        .slice(0, 9)
+        .map(content => {
+
+          const isAnnouncement =
+            content.type ===
+            'ANNOUNCEMENT';
+
+
+          const isDevotion =
+            content.type ===
+            'DEVOTION';
+
+
+          const isBiblePlan =
+            content.type ===
+            'BIBLE_PLAN';
+
+
+          const showCompletion =
+            isDevotion ||
+            isBiblePlan;
+
+
+          return (
+
+            <div
+              key={
+                `${content.type}-${content.id}`
+              }
+              style={{
+                padding:
+                  '14px',
+
+                borderRadius:
+                  '14px',
+
+                background:
+                  'rgba(255,255,255,0.025)',
+
+                border:
+                  '1px solid rgba(255,255,255,0.06)'
+              }}
+            >
+
+              {/* TOP */}
+
+              <div
+                style={{
+                  display:
+                    'flex',
+
+                  justifyContent:
+                    'space-between',
+
+                  alignItems:
+                    'flex-start',
+
+                  gap:
+                    '10px'
+                }}
+              >
+
+                <div
+                  style={{
+                    minWidth:
+                      0,
+
+                    flex:
+                      1
+                  }}
+                >
+
+                  <div
+                    style={{
+                      color:
+                        content.type ===
+                        'DEVOTION'
+                          ? '#29beaf'
+                          : content.type ===
+                            'BIBLE_PLAN'
+                            ? '#f3ca58'
+                            : '#8fa8ff',
+
+                      fontSize:
+                        '8px',
+
+                      fontWeight:
+                        '900',
+
+                      letterSpacing:
+                        '.8px',
+
+                      textTransform:
+                        'uppercase',
+
+                      marginBottom:
+                        '4px'
+                    }}
+                  >
+                    {isAnnouncement
+                      ? 'ANNOUNCEMENT'
+                      : isBiblePlan
+                        ? 'BIBLE PLAN'
+                        : isDevotion
+                          ? 'DEVOTION'
+                          : 'MESSAGE'}
+                  </div>
+
+
+                  <div
+                    style={{
+                      color:
+                        '#fff',
+
+                      fontSize:
+                        '12px',
+
+                      fontWeight:
+                        '900',
+
+                      whiteSpace:
+                        'nowrap',
+
+                      overflow:
+                        'hidden',
+
+                      textOverflow:
+                        'ellipsis'
+                    }}
+                  >
+                    {content.title}
+                  </div>
+
+                </div>
+
+
+                <div
+                  style={{
+                    color:
+                      '#64748b',
+
+                    fontSize:
+                      '8px',
+
+                    flexShrink:
+                      0
+                  }}
+                >
+                  {content.createdAt
+                    ? new Date(
+                        content.createdAt
+                      ).toLocaleDateString()
+                    : ''}
+                </div>
+
+              </div>
+
+
+              {/* METRICS */}
+
+              <div
+                style={{
+                  display:
+                    'grid',
+
+                  gridTemplateColumns:
+                    showCompletion
+                      ? 'repeat(3,minmax(0,1fr))'
+                      : 'minmax(0,1fr)',
+
+                  gap:
+                    '7px',
+
+                  marginTop:
+                    '12px'
+                }}
+              >
+
+                {/* READERS */}
+
+                <div
+                  style={{
+                    background:
+                      'rgba(41,190,175,.06)',
+
+                    border:
+                      '1px solid rgba(41,190,175,.10)',
+
+                    borderRadius:
+                      '10px',
+
+                    padding:
+                      '10px'
+                  }}
+                >
+
+                  <div
+                    style={{
+                      color:
+                        '#64748b',
+
+                      fontSize:
+                        '8px'
+                    }}
+                  >
+                    READERS
+                  </div>
+
+                  <div
+                    style={{
+                      color:
+                        '#fff',
+
+                      fontSize:
+                        '18px',
+
+                      fontWeight:
+                        '900',
+
+                      marginTop:
+                        '4px'
+                    }}
+                  >
+                    {content.readers || 0}
+                  </div>
+
+                </div>
+
+
+                {/* COMPLETED */}
+
+                {showCompletion && (
+
+                  <div
+                    style={{
+                      background:
+                        'rgba(243,202,88,.06)',
+
+                      border:
+                        '1px solid rgba(243,202,88,.10)',
+
+                      borderRadius:
+                        '10px',
+
+                      padding:
+                        '10px'
+                    }}
+                  >
+
+                    <div
+                      style={{
+                        color:
+                          '#64748b',
+
+                        fontSize:
+                          '8px'
+                      }}
+                    >
+                      COMPLETED
+                    </div>
+
+                    <div
+                      style={{
+                        color:
+                          '#fff',
+
+                        fontSize:
+                          '18px',
+
+                        fontWeight:
+                          '900',
+
+                        marginTop:
+                          '4px'
+                      }}
+                    >
+                      {content.completed ||
+                        0}
+                    </div>
+
+                  </div>
+
+                )}
+
+
+                {/* RATE */}
+
+                {showCompletion && (
+
+                  <div
+                    style={{
+                      background:
+                        'rgba(41,190,175,.04)',
+
+                      border:
+                        '1px solid rgba(255,255,255,.06)',
+
+                      borderRadius:
+                        '10px',
+
+                      padding:
+                        '10px'
+                    }}
+                  >
+
+                    <div
+                      style={{
+                        color:
+                          '#64748b',
+
+                        fontSize:
+                          '8px'
+                      }}
+                    >
+                      COMPLETION
+                    </div>
+
+                    <div
+                      style={{
+                        color:
+                          content.completionRate >= 70
+                            ? '#2ecc71'
+                            : content.completionRate >= 40
+                              ? '#f3ca58'
+                              : '#ff8a8a',
+
+                        fontSize:
+                          '18px',
+
+                        fontWeight:
+                          '900',
+
+                        marginTop:
+                          '4px'
+                      }}
+                    >
+                      {content.completionRate ||
+                        0}%
+                    </div>
+
+                  </div>
+
+                )}
+
+              </div>
+
+
+              {/* COMPLETION BAR */}
+
+              {showCompletion && (
+
+                <div
+                  style={{
+                    marginTop:
+                      '10px'
+                  }}
+                >
+
+                  <div
+                    style={{
+                      height:
+                        '5px',
+
+                      borderRadius:
+                        '999px',
+
+                      background:
+                        'rgba(255,255,255,.06)',
+
+                      overflow:
+                        'hidden'
+                    }}
+                  >
+
+                    <div
+                      style={{
+                        width:
+                          `${Math.min(
+                            100,
+                            content.completionRate ||
+                              0
+                          )}%`,
+
+                        height:
+                          '100%',
+
+                        borderRadius:
+                          '999px',
+
+                        background:
+                          'linear-gradient(90deg,#29beaf,#f3ca58)',
+
+                        transition:
+                          'width .35s ease'
+                      }}
+                    />
+
+                  </div>
+
+                </div>
+
+              )}
+
+            </div>
+
+          );
+
+        })}
+
+    </div>
+
+  )}
+
+{ministryContentPerformance.length > 7 && (
+  <button
+    type="button"
+    onClick={() =>
+      setIsFullContentAnalyticsOpen(
+        true
+      )
+    }
+    style={{
+      width:
+        '100%',
+
+      marginTop:
+        '12px',
+
+      padding:
+        '12px',
+
+      borderRadius:
+        '11px',
+
+      border:
+        '1px solid rgba(41,190,175,.20)',
+
+      background:
+        'rgba(41,190,175,.06)',
+
+      color:
+        '#29beaf',
+
+      fontSize:
+        '10px',
+
+      fontWeight:
+        '900',
+
+      cursor:
+        'pointer'
+    }}
+  >
+    See More · {ministryContentPerformance.length - 7} more
+  </button>
+)}
+
+</div>
 
 
     {/* ENGAGEMENT */}
@@ -32862,6 +33946,798 @@ community.
           </div>
         )}
       </div>
+    </div>
+
+  </div>
+)}
+
+{isFullContentAnalyticsOpen && (
+  <div
+    className="constrained-overlay"
+    style={{
+      position:
+        'fixed',
+
+      inset:
+        0,
+
+      zIndex:
+        31000,
+
+      background:
+        'rgba(3,8,15,.96)',
+
+      backdropFilter:
+        'blur(10px)',
+
+      display:
+        'flex',
+
+      alignItems:
+        'flex-start',
+
+      justifyContent:
+        'center',
+
+      padding:
+        'calc(12px + env(safe-area-inset-top)) 12px calc(110px + env(safe-area-inset-bottom))',
+
+      boxSizing:
+        'border-box',
+
+      overflow:
+        'hidden'
+    }}
+  >
+
+    <div
+      style={{
+        width:
+          '100%',
+
+        maxWidth:
+          '860px',
+
+        height:
+          '100%',
+
+        maxHeight:
+          'calc(100vh - 122px)',
+
+        background:
+          '#0d1725',
+
+        border:
+          '1px solid rgba(255,255,255,.09)',
+
+        borderRadius:
+          '22px',
+
+        overflow:
+          'hidden',
+
+        display:
+          'flex',
+
+        flexDirection:
+          'column',
+
+        boxShadow:
+          '0 30px 100px rgba(0,0,0,.7)'
+      }}
+    >
+
+      {/* FULL PAGE HEADER */}
+
+      <div
+        style={{
+          padding:
+            '18px',
+
+          borderBottom:
+            '1px solid rgba(255,255,255,.07)',
+
+          flexShrink:
+            0,
+
+          background:
+            'rgba(16,25,38,.98)'
+        }}
+      >
+
+        <div
+          style={{
+            display:
+              'flex',
+
+            alignItems:
+              'center',
+
+            justifyContent:
+              'space-between',
+
+            gap:
+              '10px'
+          }}
+        >
+
+          <div>
+
+            <div
+              style={{
+                color:
+                  '#29beaf',
+
+                fontSize:
+                  '9px',
+
+                fontWeight:
+                  '900',
+
+                letterSpacing:
+                  '1px'
+              }}
+            >
+              MINISTRY INSIGHTS
+            </div>
+
+            <h2
+              style={{
+                color:
+                  '#fff',
+
+                fontSize:
+                  '20px',
+
+                margin:
+                  '4px 0 0',
+
+                fontWeight:
+                  '900'
+              }}
+            >
+              Content Analytics
+            </h2>
+
+          </div>
+
+
+          <button
+            type="button"
+            onClick={() =>
+              setIsFullContentAnalyticsOpen(
+                false
+              )
+            }
+            style={{
+              width:
+                '36px',
+
+              height:
+                '36px',
+
+              borderRadius:
+                '10px',
+
+              border:
+                '1px solid rgba(255,255,255,.08)',
+
+              background:
+                'rgba(255,255,255,.04)',
+
+              color:
+                '#fff',
+
+              display:
+                'flex',
+
+              alignItems:
+                'center',
+
+              justifyContent:
+                'center',
+
+              cursor:
+                'pointer'
+            }}
+          >
+            <XIcon />
+          </button>
+
+        </div>
+
+
+        {/* DATE FILTER */}
+
+        <div
+          style={{
+            display:
+              'flex',
+
+            gap:
+              '7px',
+
+            marginTop:
+              '14px'
+          }}
+        >
+
+          {[
+            [
+              '7 Days',
+              7
+            ],
+
+            [
+              '30 Days',
+              30
+            ],
+
+            [
+              '90 Days',
+              90
+            ]
+
+          ].map(
+            ([label, value]) => (
+
+              <button
+                key={
+                  value
+                }
+                type="button"
+                onClick={async () => {
+
+                  setAnalyticsDateRange(
+                    value
+                  );
+
+                  await loadMinistryContentPerformance(
+                    value
+                  );
+
+                }}
+                style={{
+                  padding:
+                    '7px 11px',
+
+                  borderRadius:
+                    '999px',
+
+                  border:
+                    analyticsDateRange ===
+                    value
+                      ? '1px solid #29beaf'
+                      : '1px solid rgba(255,255,255,.08)',
+
+                  background:
+                    analyticsDateRange ===
+                    value
+                      ? 'rgba(41,190,175,.12)'
+                      : 'rgba(255,255,255,.03)',
+
+                  color:
+                    analyticsDateRange ===
+                    value
+                      ? '#29beaf'
+                      : '#718096',
+
+                  fontSize:
+                    '8px',
+
+                  fontWeight:
+                    '900',
+
+                  cursor:
+                    'pointer'
+                }}
+              >
+                {label}
+              </button>
+
+            )
+          )}
+
+        </div>
+
+      </div>
+
+
+      {/* FULL LIST */}
+
+      <div
+        style={{
+          flex:
+            1,
+
+          minHeight:
+            0,
+
+          overflowY:
+            'auto',
+
+          padding:
+            '14px',
+
+          boxSizing:
+            'border-box'
+        }}
+      >
+
+        {isLoadingContentPerformance ? (
+
+          <div
+            style={{
+              textAlign:
+                'center',
+
+              padding:
+                '45px 10px',
+
+              color:
+                '#64748b',
+
+              fontSize:
+                '10px'
+            }}
+          >
+            Loading content analytics...
+          </div>
+
+        ) : ministryContentPerformance.length === 0 ? (
+
+          <div
+            style={{
+              textAlign:
+                'center',
+
+              padding:
+                '45px 10px',
+
+              color:
+                '#64748b',
+
+              fontSize:
+                '10px'
+            }}
+          >
+            No content performance data
+            is available yet.
+          </div>
+
+        ) : (
+
+          <div
+            style={{
+              display:
+                'flex',
+
+              flexDirection:
+                'column',
+
+              gap:
+                '9px'
+            }}
+          >
+
+            {ministryContentPerformance.map(
+              content => {
+
+                const showCompletion =
+                  content.type ===
+                    'DEVOTION' ||
+                  content.type ===
+                    'BIBLE_PLAN';
+
+
+                return (
+
+                  <div
+                    key={
+                      `full-${content.type}-${content.id}`
+                    }
+                    style={{
+                      padding:
+                        '14px',
+
+                      borderRadius:
+                        '14px',
+
+                      background:
+                        'rgba(255,255,255,.03)',
+
+                      border:
+                        '1px solid rgba(255,255,255,.06)'
+                    }}
+                  >
+
+                    <div
+                      style={{
+                        display:
+                          'flex',
+
+                        alignItems:
+                          'flex-start',
+
+                        justifyContent:
+                          'space-between',
+
+                        gap:
+                          '10px'
+                      }}
+                    >
+
+                      <div
+                        style={{
+                          minWidth:
+                            0,
+
+                          flex:
+                            1
+                        }}
+                      >
+
+                        <div
+                          style={{
+                            color:
+                              content.type ===
+                              'DEVOTION'
+                                ? '#29beaf'
+                                : content.type ===
+                                  'BIBLE_PLAN'
+                                  ? '#f3ca58'
+                                  : '#8fa8ff',
+
+                            fontSize:
+                              '8px',
+
+                            fontWeight:
+                              '900',
+
+                            letterSpacing:
+                              '.8px'
+                          }}
+                        >
+                          {content.type}
+                        </div>
+
+
+                        <div
+                          style={{
+                            color:
+                              '#fff',
+
+                            fontSize:
+                              '12px',
+
+                            fontWeight:
+                              '900',
+
+                            marginTop:
+                              '4px',
+
+                            whiteSpace:
+                              'nowrap',
+
+                            overflow:
+                              'hidden',
+
+                            textOverflow:
+                              'ellipsis'
+                          }}
+                        >
+                          {content.title}
+                        </div>
+
+                      </div>
+
+
+                      <div
+                        style={{
+                          color:
+                            '#64748b',
+
+                          fontSize:
+                            '8px'
+                        }}
+                      >
+                        {content.createdAt
+                          ? new Date(
+                              content.createdAt
+                            ).toLocaleDateString()
+                          : ''}
+                      </div>
+
+                    </div>
+
+
+                    <div
+                      style={{
+                        display:
+                          'grid',
+
+                        gridTemplateColumns:
+                          showCompletion
+                            ? 'repeat(3,minmax(0,1fr))'
+                            : '1fr',
+
+                        gap:
+                          '7px',
+
+                        marginTop:
+                          '12px'
+                      }}
+                    >
+
+                      <div
+                        style={{
+                          padding:
+                            '10px',
+
+                          borderRadius:
+                            '9px',
+
+                          background:
+                            'rgba(41,190,175,.06)'
+                        }}
+                      >
+
+                        <div
+                          style={{
+                            color:
+                              '#64748b',
+
+                            fontSize:
+                              '8px'
+                          }}
+                        >
+                          READERS
+                        </div>
+
+                        <div
+                          style={{
+                            color:
+                              '#fff',
+
+                            fontSize:
+                              '18px',
+
+                            fontWeight:
+                              '900',
+
+                            marginTop:
+                              '4px'
+                          }}
+                        >
+                          {content.readers || 0}
+                        </div>
+
+                      </div>
+
+
+                      {showCompletion && (
+
+                        <div
+                          style={{
+                            padding:
+                              '10px',
+
+                            borderRadius:
+                              '9px',
+
+                            background:
+                              'rgba(243,202,88,.06)'
+                          }}
+                        >
+
+                          <div
+                            style={{
+                              color:
+                                '#64748b',
+
+                              fontSize:
+                                '8px'
+                            }}
+                          >
+                            COMPLETED
+                          </div>
+
+                          <div
+                            style={{
+                              color:
+                                '#fff',
+
+                              fontSize:
+                                '18px',
+
+                              fontWeight:
+                                '900',
+
+                              marginTop:
+                                '4px'
+                            }}
+                          >
+                            {content.completed || 0}
+                          </div>
+
+                        </div>
+
+                      )}
+
+
+                      {showCompletion && (
+
+                        <div
+                          style={{
+                            padding:
+                              '10px',
+
+                            borderRadius:
+                              '9px',
+
+                            background:
+                              'rgba(41,190,175,.04)'
+                          }}
+                        >
+
+                          <div
+                            style={{
+                              color:
+                                '#64748b',
+
+                              fontSize:
+                                '8px'
+                            }}
+                          >
+                            COMPLETION
+                          </div>
+
+                          <div
+                            style={{
+                              color:
+                                content.completionRate >= 70
+                                  ? '#2ecc71'
+                                  : content.completionRate >= 40
+                                    ? '#f3ca58'
+                                    : '#ff8a8a',
+
+                              fontSize:
+                                '18px',
+
+                              fontWeight:
+                                '900',
+
+                              marginTop:
+                                '4px'
+                            }}
+                          >
+                            {content.completionRate || 0}%
+                          </div>
+
+                        </div>
+
+                      )}
+
+                    </div>
+
+
+                    {showCompletion && (
+
+                      <div
+                        style={{
+                          marginTop:
+                            '9px',
+
+                          height:
+                            '5px',
+
+                          borderRadius:
+                            '999px',
+
+                          background:
+                            'rgba(255,255,255,.06)',
+
+                          overflow:
+                            'hidden'
+                        }}
+                      >
+
+                        <div
+                          style={{
+                            width:
+                              `${Math.min(
+                                100,
+                                content.completionRate || 0
+                              )}%`,
+
+                            height:
+                              '100%',
+
+                            borderRadius:
+                              '999px',
+
+                            background:
+                              'linear-gradient(90deg,#29beaf,#f3ca58)'
+                          }}
+                        />
+
+                      </div>
+
+                    )}
+
+                  </div>
+
+                );
+
+              }
+            )}
+
+          </div>
+
+        )}
+
+      </div>
+
+
+      {/* CLOSE */}
+
+      <div
+        style={{
+          padding:
+            '12px 14px',
+
+          borderTop:
+            '1px solid rgba(255,255,255,.06)',
+
+          background:
+            'rgba(16,25,38,.98)',
+
+          flexShrink:
+            0
+        }}
+      >
+
+        <button
+          type="button"
+          onClick={() =>
+            setIsFullContentAnalyticsOpen(
+              false
+            )
+          }
+          style={{
+            width:
+              '100%',
+
+            padding:
+              '12px',
+
+            borderRadius:
+              '11px',
+
+            border:
+              '1px solid rgba(255,255,255,.08)',
+
+            background:
+              'rgba(255,255,255,.04)',
+
+            color:
+              '#fff',
+
+            fontSize:
+              '10px',
+
+            fontWeight:
+              '900',
+
+            cursor:
+              'pointer'
+          }}
+        >
+          Back to Analytics
+        </button>
+
+      </div>
+
     </div>
 
   </div>
