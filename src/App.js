@@ -396,12 +396,6 @@ export default function App() {
     return saved ? JSON.parse(saved) : null;
   });
 
-// ==========================================
-// GLOBAL SESSION / PROFILE STATE
-// Keep these near the top because many
-// functions below depend on them.
-// ==========================================
-
 const [
   userProfile,
   setUserProfile
@@ -1869,7 +1863,7 @@ useEffect(() => {
           .from('user_profiles')
           .select(`
             created_at,
-            welcome_status_seen_at
+welcome_status_expires_at
           `)
           .eq(
             'id',
@@ -1893,37 +1887,17 @@ useEffect(() => {
         profile?.created_at
       ) {
 
-        const createdAt =
-          new Date(
-            profile.created_at
-          );
+        const expiry = profile.welcome_status_expires_at
+  ? new Date(profile.welcome_status_expires_at)
+  : new Date(
+      new Date(profile.created_at).getTime() +
+      24 * 60 * 60 * 1000
+    );
 
-        const expiry =
-          new Date(
-            createdAt.getTime() +
-            (
-              24 *
-              60 *
-              60 *
-              1000
-            )
-          );
+const stillNew =
+  Date.now() < expiry.getTime();
 
-
-        const stillNew =
-          Date.now() <
-          expiry.getTime();
-
-
-        const alreadySeen =
-          !!profile
-            .welcome_status_seen_at;
-
-
-        if (
-          stillNew &&
-          !alreadySeen
-        ) {
+if (stillNew) {
 
           finalStatuses = [
             {
@@ -1970,8 +1944,8 @@ const uploadNewTestimony = async (e) => {
   setIsUploadingStatus(true); 
   
   try {
-    const fileExt =
-  postMediaFile.name
+const fileExt =
+  file.name
     .split('.')
     .pop()
     .toLowerCase();
@@ -1993,6 +1967,10 @@ const fileName =
 
     const username =
   getCurrentUsername();
+
+const expiresAt = new Date(
+  Date.now() + 24 * 60 * 60 * 1000
+).toISOString();
 
 const newStatus = {
   id:
@@ -2031,25 +2009,29 @@ const newStatus = {
     0,
 
   comments:
-    0
+    0,
+
+expires_at: expiresAt
+
 };
 
     const {
+  data: insertedStatus,
   error: insertError
 } = await supabase
   .from('testimonies')
-  .insert([newStatus]);
+  .insert([newStatus])
+  .select()
+  .single();
 
-    if (insertError) {
+if (insertError) {
   throw insertError;
 }
 
-setTestimonies(
-  prev => [
-    newStatus,
-    ...prev
-  ]
-);
+setTestimonies(prev => [
+  insertedStatus,
+  ...prev
+]);
 
 alert(
   'Kingdom Moment shared successfully!'
@@ -4329,18 +4311,22 @@ localStorage.setItem(
 
   const truncateAddress = (addr) => !addr ? '' : `${addr.slice(0, 6)}...${addr.slice(-6)}`;
 
-  // --- AIRDROP & PERMANENT ACCOUNT REGISTRATION ---
-  const requestKPCAirdrop = async () => {
-    if (!generatedAddress) return;
-    setIsAirdropping(true);
 
-    let finalBalance = kpcBalance + 50;
-    let airdropSignature = null;
+  const requestKPCAirdrop = async (walletAddress = generatedAddress) => {
+  const targetAddress = walletAddress;
+
+  if (!targetAddress) return;
+
+  setIsAirdropping(true);
+
+  const finalBalance = 50;
+
+  let airdropSignature = null;
 
     try {
       const KPC_MINT_ADDRESS = new PublicKey(GLOBAL_KPC_MINT);
       const faucetKeypair = Keypair.fromSecretKey(GLOBAL_TREASURY_KEY);
-      const recipientPubKey = new PublicKey(generatedAddress);
+      const recipientPubKey = new PublicKey(targetAddress);
       const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
 
       const senderTokenAccount = await getOrCreateAssociatedTokenAccount(connection, faucetKeypair, KPC_MINT_ADDRESS, faucetKeypair.publicKey);
@@ -4448,7 +4434,7 @@ local_church_id:
       : (formData.country || null),
 
   wallet_address:
-    generatedAddress,
+  targetAddress,
 
   wallet_balance:
     finalBalance,
@@ -4510,7 +4496,7 @@ if (isMinistry) {
       formData.phone || null,
 
     wallet_address:
-      generatedAddress,
+  targetAddress,
 
     wallet_balance:
       finalBalance,
@@ -4668,28 +4654,30 @@ setUserTier(
       )
 );
 
-setCurrentUser(
-  prev =>
-    prev
-      ? {
-          ...prev,
+setUserProfile(profileData);
+setAuthUserId(userId);
 
-          login_streak:
-            newLoginStreak,
+const newSessionRecord = {
+  ...sessionRecord,
+  id: userId,
+  account_type: profileData.account_type,
+  accountType: profileData.account_type,
+  local_church_id: profileData.local_church_id || null,
+  local_church: profileData.local_church || null,
+  wallet_address: profileData.wallet_address || '',
+  wallet_balance: Number(profileData.wallet_balance || 0),
+  kpcBalance: Number(profileData.wallet_balance || 0),
+  login_streak: newLoginStreak,
+  last_login_date: todayDate
+};
 
-          last_login_date:
-            todayDate
-        }
-      : prev
-);
+setCurrentUser(newSessionRecord);
 
 localStorage.setItem(
   'kp_current_user',
-  JSON.stringify(sessionRecord)
+  JSON.stringify(newSessionRecord)
 );
       }
-
-
 
       
       setStep(5);
@@ -4701,7 +4689,7 @@ localStorage.setItem(
     }
   };
 
-// --- NEW SUPABASE LOGIN HANDLER ---
+
   const handleLogin = async (e) => {
     e.preventDefault();
     setIsAuthLoading(true);
@@ -5032,7 +5020,7 @@ if (
     }
   };
 
-  // --- NEW SUPABASE LOGOUT HANDLER ---
+ 
   const handleLogoutUser = async () => {
     if (window.confirm("Are you sure you want to log out of your Kingdom Vault?")) {
       await supabase.auth.signOut();
@@ -5346,6 +5334,8 @@ const startStreamSession =
       data.id
     );
 
+streamSessionIdRef.current =
+  data.id;
 
     return data.id;
 
@@ -5371,20 +5361,20 @@ useEffect(() => {
 const saveStreamSession =
   async () => {
 
-    if (
-      !activeStreamSessionId
-    ) {
-      return;
-    }
+    const sessionId =
+  streamSessionIdRef.current;
 
+if (!sessionId) {
+  return;
+}
 
-    const seconds =
-      Math.max(
-        0,
-        Math.round(
-          currentTime
-        )
-      );
+const seconds =
+  Math.max(
+    0,
+    Math.round(
+      streamCurrentTimeRef.current
+    )
+  );
 
 
     try {
@@ -5403,9 +5393,9 @@ const saveStreamSession =
 
         })
         .eq(
-          'id',
-          activeStreamSessionId
-        );
+  'id',
+  sessionId
+);
 
 
       const hours =
@@ -5454,6 +5444,9 @@ const saveStreamSession =
       );
 
     } finally {
+     
+      streamSessionIdRef.current =
+  null;
 
       setActiveStreamSessionId(
         null
@@ -6908,7 +6901,6 @@ const MinistryBottomNav = () => (
     );
   };
 
-  // --- TRANSACTION HISTORY STATE ---
   const [txHistory, setTxHistory] = useState(() => {
     const savedUser = localStorage.getItem('kp_current_user');
     if (savedUser) {
@@ -6920,9 +6912,6 @@ const MinistryBottomNav = () => (
 
   const [txFilter, setTxFilter] = useState('ALL');
 
-  // =========================================================
-// TREASURY TRANSACTION LOGGER
-// =========================================================
 
 const logTransaction = async (
   title,
@@ -7089,7 +7078,6 @@ useEffect(() => {
 ]);
 
 
-// --- TREASURY MODALS & WEB3 ECONOMY ENGINE ---
   const [activeModal, setActiveModal] = useState(null);
   const [transferUsername, setTransferUsername] = useState('');
   const [transferAmount, setTransferAmount] = useState('');
@@ -7099,7 +7087,6 @@ useEffect(() => {
   const DREAM_ADMIN_PROFILE_ID =
   '8da85fd9-c923-4bd2-8d1e-1d317e0d9fde';
 
-  // 1. GIVE / SEND BY USERNAME OR WALLET ADDRESS
   const handleSendByUsername = async (e) => {
     e.preventDefault();
     const amount = parseFloat(transferAmount);
@@ -7184,7 +7171,6 @@ useEffect(() => {
           console.error("Failed to update recipient balance in Supabase:", updateError);
         }
       }
-      // ------------------------------------------
 
       alert(`🎉 Successfully transferred ${amount} KPC to ${isWalletAddress ? 'Wallet Address' : '@' + cleanUsername}!`);
       setActiveModal(null);
@@ -15687,18 +15673,14 @@ const isFollowingMinistry =
   ) => {
 
     return followedMinistries.some(
-      ministry =>
-        ministry.id ===
-        ministryId &&
-        !ministry.isMain
-    );
+  ministry =>
+    String(ministry.id) === String(ministryId) &&
+    !ministry.isMain
+);
 
   };
 
 
-// ==========================================
-  // PROFILE EDIT & UPLOAD STATES
-  // ==========================================
   const wallpaperInputRef = useRef(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [editForm, setEditForm] = useState({});
@@ -15955,14 +15937,13 @@ const handlePurchaseService = async (service) => {
     // =================================================
 
     if (
-      postMediaFile
-    ) {
-
-      const fileExt =
-        postMediaFile.name
-          .split('.')
-          .pop()
-          .toLowerCase();
+  postMediaFile
+) {
+  const fileExt =
+    postMediaFile.name
+      .split('.')
+      .pop()
+      .toLowerCase();
 
 
       const fileName =
@@ -16705,9 +16686,6 @@ const isPositive =
     link.click();
   };
 
-// ==========================================
-  // KINGDOM HUB & BIBLE API STATES
-  // ==========================================
   const [selectedDevotion, setSelectedDevotion] = useState(null);
   const [readDevotionsList, setReadDevotionsList] = useState([]);
   const [activeKingdomPublishModal, setActiveKingdomPublishModal] =
@@ -16736,10 +16714,6 @@ const isPositive =
   resetKingdomStudioForm();
   setActiveKingdomPublishModal(null);
 };
-
-// =========================================================
-// LOAD USER KINGDOM COMPLETIONS
-// =========================================================
 
 const fetchKingdomCompletions = async () => {
 
@@ -17461,6 +17435,12 @@ const getFaithActivityLevel =
     };
 
   };
+
+const streamSessionIdRef =
+  useRef(null);
+
+const streamCurrentTimeRef =
+  useRef(0);
 
   const [selectedStoreBook, setSelectedStoreBook] = useState(null);
   const [isReadingBook, setIsReadingBook] = useState(false);
@@ -19635,23 +19615,12 @@ const membersToNextMilestone =
           <div className="footer-lock" style={{ marginTop: '40px' }}><button onClick={async () => {
 
   const isMinistryRegistration =
-    formData?.accountType ===
-      'Ministry' ||
-    currentUser?.account_type ===
-      'Ministry' ||
-    currentUser?.accountType ===
-      'Ministry';
+  currentUser?.account_type === 'Ministry';
 
-
-  if (
-    !isMinistryRegistration
-  ) {
-
-    setStep(6);
-
-    return;
-
-  }
+if (!isMinistryRegistration) {
+  setStep(6);
+  return;
+}
 
 
   const ministryId =
@@ -19869,13 +19838,8 @@ const membersToNextMilestone =
   </div>
 )}
 
-            {(
-  userProfile?.account_type === 'Ministry' ||
-  currentUser?.account_type === 'Ministry' ||
-  currentUser?.accountType === 'Ministry' ||
-  formData?.accountType === 'Ministry'
-) ? (
-  renderMinistryPublicProfile()
+            {isViewingMinistryProfile ? (
+  renderViewedMinistryProfile()
 ) : (
               <>
                 <div className="search-bar">
@@ -21449,6 +21413,10 @@ maxHeight:
 
             const username =
               getCurrentUsername();
+
+            const expiresAt = new Date(
+  Date.now() + 24 * 60 * 60 * 1000
+).toISOString();
 
             const avatar =
               getCurrentUserAvatar();
@@ -28648,8 +28616,8 @@ const displayName =
   (() => {
 
     const localMinistry =
-      userProfile?.local_church_id ===
-      user.id;
+  String(userProfile?.local_church_id || '') ===
+  String(user.id || '');
 
 
     const following =
