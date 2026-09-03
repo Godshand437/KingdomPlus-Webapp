@@ -601,6 +601,10 @@ useEffect(() => {
   const [statusProgress, setStatusProgress] = useState(0);
   const [isUploadingStatus, setIsUploadingStatus] = useState(false);
   
+const [statusCaption, setStatusCaption] = useState('');
+const [selectedStatusFile, setSelectedStatusFile] = useState(null);
+const [showMediaStatusComposer, setShowMediaStatusComposer] = useState(false);
+  
   const [isStatusPaused, setIsStatusPaused] = useState(false);
   const statusVideoRef = useRef(null);
 
@@ -1376,6 +1380,18 @@ const getStatusRingBackground = (
   ).map(
     group => {
 
+const previewStatus =
+  [...group.statuses]
+    .sort(
+      (a, b) =>
+        new Date(
+          b.created_at || 0
+        ) -
+        new Date(
+          a.created_at || 0
+        )
+    )[0];
+
       const allViewed =
         group.statuses.every(
           status =>
@@ -1937,9 +1953,27 @@ if (stillNew) {
   const [kingdomTab, setKingdomTab] = useState('Devotions');
   const [kingdomSubTab, setKingdomSubTab] = useState('Global');
 
-const uploadNewTestimony = async (e) => {
-  const file = e.target.files[0];
-  if (!file || !currentUser) return;
+const handleStatusFileSelect = e => {
+  const file = e.target.files?.[0];
+
+  if (!file || !currentUser) {
+    return;
+  }
+
+  setSelectedStatusFile(file);
+  setStatusCaption('');
+  setShowMediaStatusComposer(true);
+
+  e.target.value = '';
+};
+
+const uploadNewTestimony = async (
+  file,
+  caption = ''
+) => {
+  if (!file || !currentUser) {
+    return;
+  }
   
   setIsUploadingStatus(true); 
   
@@ -1973,46 +2007,27 @@ const expiresAt = new Date(
 ).toISOString();
 
 const newStatus = {
-  id:
-    crypto.randomUUID(),
+  id: crypto.randomUUID(),
 
-  user_id:
-    currentUser.id,
+  user_id: currentUser.id,
 
-  author_name:
-    `@${username}`,
+  author_name: `@${username}`,
 
-  avatar_url:
-    normalizeAvatarUrl(
-      getCurrentUserAvatar(),
-      username
-    ),
+  avatar_url: normalizeAvatarUrl(
+    getCurrentUserAvatar(),
+    username
+  ),
 
-  media_url:
-    publicUrlData.publicUrl,
+  media_url: publicUrlData.publicUrl,
 
-  media_type:
-    isVideo
-      ? 'video'
-      : 'image',
+  media_type: isVideo
+    ? 'video'
+    : 'image',
 
   text_content:
-    '',
+  caption.trim() || null,
 
-  views:
-    0,
-
-  likes:
-    0,
-
-  taps:
-    0,
-
-  comments:
-    0,
-
-expires_at: expiresAt
-
+  expires_at: expiresAt
 };
 
     const {
@@ -3750,17 +3765,25 @@ const openStatusAtIndex = async (
   }
 
   if (
-    status.isSystemWelcome
-  ) {
+  status.isSystemWelcome
+) {
+  await fetchWelcomeStatusComments();
 
-    await fetchWelcomeStatusComments();
+  await supabase.rpc(
+    'mark_welcome_status_seen'
+  );
 
-    await supabase.rpc(
-      'mark_welcome_status_seen'
-    );
+  setViewedStatusIds(prev =>
+    prev.includes('welcome-001')
+      ? prev
+      : [
+          ...prev,
+          'welcome-001'
+        ]
+  );
 
-    return;
-  }
+  return;
+}
 
   await fetchStatusComments(
     status.id
@@ -9668,22 +9691,14 @@ const renderViewedMinistryProfile =
   };
 
 // --- DYNAMIC KINGDOM HUB STATE ARRAYS ---
-  const [devotionsList, setDevotionsList] = useState([
-    { id: 'd1', title: 'Morning Glory', scripture: 'Philippians 4:13', time: '5 min read', reward: 5, img: 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&w=200&q=80', isFeatured: true, author: 'Grace Sanctuary' },
-    { id: 'd2', title: 'Walking in Faith', scripture: 'Hebrews 11:1', time: '4 min read', reward: 5, img: 'https://images.unsplash.com/photo-1493836512294-502baa1986e2?auto=format&fit=crop&w=200&q=80', isFeatured: false, author: 'Pastor Josh' },
-    { id: 'd3', title: 'Overcoming Anxiety', scripture: '1 Peter 5:7', time: '6 min read', reward: 5, img: 'https://images.unsplash.com/photo-1502444330042-d1a1ddf9bb5b?auto=format&fit=crop&w=200&q=80', isFeatured: false, author: 'Kingdom Devotionals' }
-  ]);
+  const [devotionsList, setDevotionsList] = useState([]);
 
   const [
   biblePlansList,
   setBiblePlansList
 ] = useState([]);
 
-  const [messagesList, setMessagesList] = useState([
-    { id: 'm1', title: 'The Power of Grace', author: 'Pastor Josh • Sun, Oct 12', duration: '45:20', reward: 15, img: 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?auto=format&fit=crop&w=300&q=80', isSeries: false },
-    { id: 'm2', title: 'Living by Faith', author: 'Pastor Josh • Sun, Oct 5', duration: '38:15', reward: 15, img: 'https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?auto=format&fit=crop&w=300&q=80', isSeries: false },
-    { id: 'm3', title: 'Book of Romans', author: '12 Parts • Bible Study', duration: 'Series', reward: 2, img: 'https://images.unsplash.com/photo-1518002171953-a080ee817e1f?auto=format&fit=crop&w=300&q=80', isSeries: true }
-  ]);
+  const [messagesList, setMessagesList] = useState([]);
 
   const [storeBooksList, setStoreBooksList] = useState([]);
   const [isLoadingBooks, setIsLoadingBooks] = useState(false);
@@ -11650,7 +11665,7 @@ useEffect(() => {
             login_streak,
             last_login_date,
             stream_time_hours,
-            devotions_read,
+            devotions_read
           `)
           .eq(
             'id',
@@ -14210,7 +14225,6 @@ const loadMinistryActivities = async (
 const loadMinistryAnalytics = async (
   ministryIdOverride = null
 ) => {
-
   const ministryId =
     ministryIdOverride ||
     activeMinistryWorkspace?.ministry?.id ||
@@ -14235,95 +14249,64 @@ const loadMinistryAnalytics = async (
   }
 
   try {
-
-    const [
-      readResult,
-      memberResult,
-      kingdomResult,
-      devotionResult
-    ] = await Promise.all([
-
-      supabase
-        .from('ministry_content_reads')
-        .select(`
-          content_id,
-          content_type,
-          user_id,
-          last_read_at
-        `)
-        .eq(
-          'ministry_id',
-          ministryId
-        ),
-
-      supabase
-        .from('user_profiles')
-        .select('id')
-        .eq(
-          'local_church_id',
-          ministryId
-        )
-        .eq(
-          'account_type',
-          'User'
-        ),
-
-      supabase
-        .from('kingdom_content')
-        .select(`
-          id,
-          content_type
-        `)
-        .eq(
-          'author_id',
-          ministryId
-        ),
-
-      supabase
-        .from('devotions')
-        .select('id')
-        .eq(
-          'author_id',
-          ministryId
-        )
-
-    ]);
-
-    if (readResult.error) {
-      throw readResult.error;
-    }
-
-    if (memberResult.error) {
-      throw memberResult.error;
-    }
-
-    if (kingdomResult.error) {
-      throw kingdomResult.error;
-    }
-
-    if (devotionResult.error) {
-      throw devotionResult.error;
-    }
-
-    const reads =
-      readResult.data || [];
-
-    const memberIds =
-      new Set(
-        (memberResult.data || [])
-          .map(row => String(row.id))
+    const {
+      data: reads,
+      error: readsError
+    } = await supabase
+      .from('ministry_content_reads')
+      .select(`
+        content_id,
+        content_type,
+        user_id,
+        last_read_at
+      `)
+      .eq(
+        'ministry_id',
+        ministryId
       );
 
-    const uniqueViewerIds =
-      new Set(
-        reads
-          .map(row => row.user_id)
-          .filter(Boolean)
-          .map(id => String(id))
+    if (readsError) {
+      throw readsError;
+    }
+
+    const {
+      data: members,
+      error: membersError
+    } = await supabase
+      .from('user_profiles')
+      .select('id')
+      .eq(
+        'local_church_id',
+        ministryId
+      )
+      .eq(
+        'account_type',
+        'User'
       );
+
+    if (membersError) {
+      console.error(
+        'Analytics member lookup failed:',
+        membersError
+      );
+    }
+
+    const memberIds = new Set(
+      (members || []).map(
+        member =>
+          String(member.id)
+      )
+    );
+
+    const uniqueViewerIds = new Set(
+      (reads || [])
+        .map(row => row.user_id)
+        .filter(Boolean)
+        .map(id => String(id))
+    );
 
     const memberViews =
-      reads.filter(
+      (reads || []).filter(
         row =>
           memberIds.has(
             String(row.user_id)
@@ -14333,74 +14316,13 @@ const loadMinistryAnalytics = async (
     const publicViews =
       Math.max(
         0,
-        reads.length -
+        (reads || []).length -
         memberViews
       );
 
-    const completionContentIds = [
-      ...(kingdomResult.data || [])
-        .map(row => row.id),
-
-      ...(devotionResult.data || [])
-        .map(row => row.id)
-    ];
-
-    let completions = 0;
-
-    if (
-      completionContentIds.length
-    ) {
-
-      const [
-        kingdomCompletions,
-        devotionCompletions
-      ] = await Promise.all([
-
-        supabase
-          .from(
-            'kingdom_content_completions'
-          )
-          .select('content_id')
-          .in(
-            'content_id',
-            completionContentIds
-          ),
-
-        supabase
-          .from(
-            'devotion_completions'
-          )
-          .select('devotion_id')
-          .in(
-            'devotion_id',
-            completionContentIds
-          )
-
-      ]);
-
-      if (kingdomCompletions.error) {
-        throw kingdomCompletions.error;
-      }
-
-      if (devotionCompletions.error) {
-        throw devotionCompletions.error;
-      }
-
-      completions =
-        (
-          kingdomCompletions.data ||
-          []
-        ).length +
-        (
-          devotionCompletions.data ||
-          []
-        ).length;
-    }
-
     setMinistryAnalytics({
-
       totalViews:
-        reads.length,
+        (reads || []).length,
 
       uniqueViewers:
         uniqueViewerIds.size,
@@ -14409,18 +14331,14 @@ const loadMinistryAnalytics = async (
 
       publicViews,
 
-      participations:
-        0,
+      participations: 0,
 
-      completions,
+      completions: 0,
 
-      reactions:
-        0
-
+      reactions: 0
     });
 
   } catch (error) {
-
     console.error(
       'Failed to load Ministry analytics:',
       error
@@ -19294,12 +19212,12 @@ const membersToNextMilestone =
 
       {/* Hidden file input for uploading reels/status */}
       <input
-        type="file"
-        hidden
-        ref={fileInputRef}
-        onChange={uploadNewTestimony}
-        accept="image/*,video/*"
-      />
+  type="file"
+  hidden
+  ref={fileInputRef}
+  onChange={handleStatusFileSelect}
+  accept="image/*,video/*"
+/>
 
       {/* STEP 0 */}
       {step === 0 && (
@@ -20513,7 +20431,7 @@ const isAnnouncementViewed =
       accept="image/*,video/*" 
       ref={fileInputRef} 
       style={{ display: 'none' }} 
-      onChange={uploadNewTestimony} 
+      onChange={handleStatusFileSelect} 
     />
   </div>
 
@@ -20546,25 +20464,105 @@ const isAnnouncementViewed =
       'border-box'
   }}
 >
-        <div style={{ border: '3px solid #101926', borderRadius: '50%', overflow: 'hidden', width: '100%', height: '100%' }}>
-          <img
-  src={normalizeAvatarUrl(
-    group.avatar,
-    group.authorName || 'User'
-  )}
-  alt={
-    group.authorName || 'User'
-  }
-  onError={(e) => {
-    e.currentTarget.onerror = null;
-    e.currentTarget.src =
-      getAvatarFallback(
-        group.authorName || 'User'
-      );
+        <div
+  style={{
+    border: '3px solid #101926',
+    borderRadius: '50%',
+    overflow: 'hidden',
+    width: '100%',
+    height: '100%',
+    position: 'relative',
+    background:
+      group.previewStatus?.media_type === 'text'
+        ? (
+            group.previewStatus.bg_color ||
+            '#4facfe'
+          )
+        : '#101010'
   }}
-  style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover', border: '2px solid #101926', display: 'block' }} 
-/>
-        </div>
+>
+  {group.previewStatus?.isSystemWelcome ? (
+    <img
+      src="/assets/logo.png"
+      alt="KingdomPlus"
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block'
+      }}
+    />
+  ) : group.previewStatus?.media_type === 'image' ? (
+    <img
+      src={
+        group.previewStatus.media_url
+      }
+      alt="Status preview"
+      onError={e => {
+        e.currentTarget.onerror = null;
+        e.currentTarget.src =
+          normalizeAvatarUrl(
+            group.avatar,
+            group.authorName ||
+              'User'
+          );
+      }}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block'
+      }}
+    />
+  ) : group.previewStatus?.media_type === 'video' ? (
+    <video
+      src={
+        group.previewStatus.media_url
+      }
+      muted
+      playsInline
+      preload="metadata"
+      onLoadedData={e => {
+        try {
+          e.currentTarget.currentTime =
+            0.1;
+        } catch (error) {
+          console.error(
+            'Could not seek Status preview:',
+            error
+          );
+        }
+      }}
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block'
+      }}
+    />
+  ) : (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '8px',
+        boxSizing: 'border-box',
+        color: '#fff',
+        fontSize: '9px',
+        lineHeight: 1.2,
+        fontWeight: '800',
+        textAlign: 'center',
+        overflow: 'hidden'
+      }}
+    >
+      {group.previewStatus?.text_content ||
+        'Kingdom Moment'}
+    </div>
+  )}
+</div>
       </div>
       <span className="testimony-name" style={{ whiteSpace: 'nowrap' }}>
         {group.userId === 'kingdomplus-system'
@@ -20591,6 +20589,153 @@ const isAnnouncementViewed =
 </h3>
       <button onClick={() => { setShowTestimonyChoice(false); setShowTextStatusModal(true); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'linear-gradient(90deg, #f3ca58, #29beaf)', color: '#101926', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Write a Moment</button>
       <button onClick={() => { setShowTestimonyChoice(false); fileInputRef.current.click(); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Share Photo/Video</button>
+{showMediaStatusComposer && selectedStatusFile && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 1000000,
+      background: '#000',
+      display: 'flex',
+      flexDirection: 'column'
+    }}
+  >
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: '18px'
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => {
+          setShowMediaStatusComposer(false);
+          setSelectedStatusFile(null);
+          setStatusCaption('');
+        }}
+        style={{
+          background: 'transparent',
+          border: 'none',
+          color: '#fff',
+          cursor: 'pointer'
+        }}
+      >
+        <XIcon />
+      </button>
+
+      <span
+        style={{
+          color: '#fff',
+          fontWeight: '800'
+        }}
+      >
+        Add to Kingdom Moment
+      </span>
+
+      <button
+        type="button"
+        disabled={isUploadingStatus}
+        onClick={async () => {
+  const fileToUpload =
+    selectedStatusFile;
+
+  const captionToUpload =
+    statusCaption;
+
+  setShowMediaStatusComposer(false);
+  setSelectedStatusFile(null);
+  setStatusCaption('');
+
+  await uploadNewTestimony(
+    fileToUpload,
+    captionToUpload
+  );
+}}
+        style={{
+          border: 'none',
+          borderRadius: '999px',
+          padding: '9px 16px',
+          background:
+            'linear-gradient(90deg,#f3ca58,#29beaf)',
+          color: '#101926',
+          fontWeight: '900',
+          cursor: isUploadingStatus
+            ? 'default'
+            : 'pointer',
+          opacity: isUploadingStatus ? 0.6 : 1
+        }}
+      >
+        Share
+      </button>
+    </div>
+
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '15px'
+      }}
+    >
+      {selectedStatusFile.type.startsWith('video/') ? (
+        <video
+          src={URL.createObjectURL(selectedStatusFile)}
+          controls
+          playsInline
+          style={{
+            maxWidth: '100%',
+            maxHeight: '65vh',
+            objectFit: 'contain'
+          }}
+        />
+      ) : (
+        <img
+          src={URL.createObjectURL(selectedStatusFile)}
+          alt="Status preview"
+          style={{
+            maxWidth: '100%',
+            maxHeight: '65vh',
+            objectFit: 'contain'
+          }}
+        />
+      )}
+    </div>
+
+    <div
+      style={{
+        padding: '14px 16px 28px',
+        background:
+          'linear-gradient(to top,rgba(0,0,0,.95),rgba(0,0,0,.65))'
+      }}
+    >
+      <input
+        type="text"
+        value={statusCaption}
+        onChange={e =>
+          setStatusCaption(
+            e.target.value
+          )
+        }
+        placeholder="Add a caption..."
+        maxLength={500}
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          border: '1px solid rgba(255,255,255,.2)',
+          background: 'rgba(255,255,255,.1)',
+          color: '#fff',
+          borderRadius: '24px',
+          padding: '12px 16px',
+          outline: 'none',
+          fontSize: '14px'
+        }}
+      />
+    </div>
+  </div>
+)}
       <button onClick={() => setShowTestimonyChoice(false)} style={{ display: 'block', width: '100%', padding: '12px', background: 'transparent', color: '#8e9aab', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
     </div>
   </div>
