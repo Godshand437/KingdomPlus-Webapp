@@ -21554,6 +21554,35 @@ maxHeight:
       }}
     />
   )}
+
+{activeViewStatus?.media_type !== 'text' &&
+  activeViewStatus?.text_content && (
+    <div
+      style={{
+        position: 'absolute',
+        left: '20px',
+        right: '20px',
+        bottom: '92px',
+        zIndex: 30,
+        color: '#fff',
+        textAlign: 'center',
+        fontSize: '15px',
+        lineHeight: 1.45,
+        fontWeight: '700',
+        textShadow:
+          '0 2px 8px rgba(0,0,0,.9)',
+        background:
+          'rgba(0,0,0,.28)',
+        backdropFilter: 'blur(6px)',
+        borderRadius: '14px',
+        padding: '9px 12px',
+        pointerEvents: 'none'
+      }}
+    >
+      {activeViewStatus.text_content}
+    </div>
+  )}
+
 </div>
     </div>
   );
