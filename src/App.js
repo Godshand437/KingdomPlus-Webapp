@@ -4439,8 +4439,13 @@ local_church_id:
   wallet_balance:
     finalBalance,
 
-  created_at:
-    registrationDate
+  welcome_status_expires_at:
+  new Date(
+    Date.now() + 24 * 60 * 60 * 1000
+  ).toISOString(),
+
+created_at:
+  registrationDate
 };
 
 const {
@@ -5507,7 +5512,7 @@ const shuffleArray = (items) => {
   return array;
 };
 
-  const openPlayer = (
+  const openPlayer = async (
   item,
   type,
   playlistCategory = null
@@ -5520,6 +5525,10 @@ const shuffleArray = (items) => {
     setCurrentTime(0);
     setDuration(0);
     setIsPlayerExpanded(true);
+
+    streamCurrentTimeRef.current = 0;
+
+    await startStreamSession(item);
 
     return;
   }
@@ -12855,42 +12864,9 @@ const loadMinistryMembers = async () => {
   setIsLoadingMinistryMembers(true);
 
   try {
-
-    const {
-      data: memberRows,
-      error: memberError
-    } = await supabase
-      .from('ministry_members')
-      .select(`
-        id,
-        user_id,
-        status,
-        joined_at,
-        updated_at
-      `)
-      .eq('ministry_id', userProfile.id)
-      .eq('status', 'active')
-      .order('joined_at', {
-        ascending: false
-      });
-
-    if (memberError) {
-      throw memberError;
-    }
-
-    if (!memberRows || memberRows.length === 0) {
-      setMinistryMembers([]);
-      setMinistryMemberCount(0);
-      return;
-    }
-
-    const userIds = memberRows
-      .map(member => member.user_id)
-      .filter(Boolean);
-
     const {
       data: memberUsers,
-      error: userError
+      error: memberError
     } = await supabase
       .from('user_profiles')
       .select(`
@@ -12898,56 +12874,57 @@ const loadMinistryMembers = async () => {
         full_name,
         username,
         avatar_url,
-        membership_tier
+        membership_tier,
+        local_church_id,
+        created_at
       `)
-      .in('id', userIds);
+      .eq(
+        'local_church_id',
+        userProfile.id
+      )
+      .eq(
+        'account_type',
+        'User'
+      )
+      .order(
+        'created_at',
+        {
+          ascending: false
+        }
+      );
 
-    if (userError) {
-      throw userError;
+    if (memberError) {
+      throw memberError;
     }
 
-    const userMap = new Map(
-      (memberUsers || []).map(user => [
-        user.id,
-        user
-      ])
-    );
+    const formattedMembers =
+      (memberUsers || []).map(user => ({
+        id: user.id,
+        userId: user.id,
 
-    const formattedMembers = memberRows.map(
-      member => {
-        const user =
-          userMap.get(member.user_id);
+        name:
+          user.full_name ||
+          user.username ||
+          'Kingdom Member',
 
-        return {
-          id: member.id,
-          userId: member.user_id,
+        username:
+          user.username || null,
 
-          name:
-            user?.full_name ||
-            user?.username ||
-            'Kingdom Member',
+        avatarUrl:
+          user.avatar_url || null,
 
-          username:
-            user?.username || null,
+        membershipTier:
+          user.membership_tier ||
+          'Standard',
 
-          avatarUrl:
-            user?.avatar_url || null,
+        status: 'active',
 
-          membershipTier:
-            user?.membership_tier ||
-            'Standard',
+        joinedAt:
+          user.created_at,
 
-          status:
-            member.status,
-
-          joinedAt:
-            member.joined_at,
-
-          updatedAt:
-            member.updated_at
-        };
-      }
-    );
+        updatedAt:
+          user.created_at
+      }));
 
     setMinistryMembers(
       formattedMembers
@@ -13012,23 +12989,34 @@ const loadMinistryMemberDirectory = async (
       1;
 
     const {
-      data: memberRows,
-      error: memberError
-    } = await supabase
-      .from('ministry_members')
-      .select(`
-        id,
-        user_id,
-        status,
-        joined_at,
-        updated_at
-      `)
-      .eq('ministry_id', ministryId)
-      .eq('status', 'active')
-      .order('joined_at', {
-        ascending: false
-      })
-      .range(from, to);
+  data: memberRows,
+  error: memberError
+} = await supabase
+  .from('user_profiles')
+  .select(`
+    id,
+    full_name,
+    username,
+    avatar_url,
+    membership_tier,
+    local_church_id,
+    created_at
+  `)
+  .eq(
+    'local_church_id',
+    ministryId
+  )
+  .eq(
+    'account_type',
+    'User'
+  )
+  .order(
+    'created_at',
+    {
+      ascending: false
+    }
+  )
+  .range(from, to);
 
     if (memberError) {
       throw memberError;
@@ -13077,48 +13065,45 @@ const loadMinistryMemberDirectory = async (
       );
 
     const formattedMembers =
-      memberRows.map(member => {
-        const user =
-          userMap.get(
-            member.user_id
-          );
+  (memberRows || []).map(user => ({
+    id: user.id,
 
-        return {
-          id: member.id,
-          userId: member.user_id,
+    userId:
+      user.id,
 
-          name:
-            user?.full_name ||
-            user?.username ||
-            'Kingdom Member',
+    name:
+      user.full_name ||
+      user.username ||
+      'Kingdom Member',
 
-          username:
-            user?.username || null,
+    username:
+      user.username || null,
 
-          avatarUrl:
-            user?.avatar_url || null,
+    avatarUrl:
+      user.avatar_url || null,
 
-          membershipTier:
-            user?.membership_tier ||
-            'Standard',
+    membershipTier:
+      user.membership_tier ||
+      'Standard',
 
-          status:
-            member.status,
+    status:
+      'active',
 
-          joinedAt:
-            member.joined_at
-        };
-      });
+    joinedAt:
+      user.created_at,
 
-    setMinistryDirectoryMembers(
-      previous =>
-        append
-          ? [
-              ...previous,
-              ...formattedMembers
-            ]
-          : formattedMembers
-    );
+    updatedAt:
+      user.created_at
+  }));
+
+    setMinistryDirectoryMembers(previous =>
+  append
+    ? [
+        ...previous,
+        ...formattedMembers
+      ]
+    : formattedMembers
+);
 
     setHasMoreMinistryMembers(
       memberRows.length ===
@@ -14247,15 +14232,12 @@ const loadMinistryAnalytics = async (
     ministryIdOverride ||
     activeMinistryWorkspace?.ministry?.id ||
     (
-      userProfile?.account_type ===
-      'Ministry'
+      userProfile?.account_type === 'Ministry'
         ? userProfile.id
         : null
     );
 
-
   if (!ministryId) {
-
     setMinistryAnalytics({
       totalViews: 0,
       uniqueViewers: 0,
@@ -14269,113 +14251,190 @@ const loadMinistryAnalytics = async (
     return;
   }
 
-
   try {
 
-    const {
-      data:
-        events,
-      error
-    } =
-      await supabase
-        .from(
-          'ministry_activity_events'
-        )
+    const [
+      readResult,
+      memberResult,
+      kingdomResult,
+      devotionResult
+    ] = await Promise.all([
+
+      supabase
+        .from('ministry_content_reads')
         .select(`
-          id,
-          activity_id,
+          content_id,
+          content_type,
           user_id,
-          event_type,
-          created_at
+          last_read_at
         `)
         .eq(
           'ministry_id',
           ministryId
+        ),
+
+      supabase
+        .from('user_profiles')
+        .select('id')
+        .eq(
+          'local_church_id',
+          ministryId
         )
-        .order(
-          'created_at',
-          {
-            ascending: false
-          }
-        );
+        .eq(
+          'account_type',
+          'User'
+        ),
 
+      supabase
+        .from('kingdom_content')
+        .select(`
+          id,
+          content_type
+        `)
+        .eq(
+          'author_id',
+          ministryId
+        ),
 
-    if (error) {
-      throw error;
+      supabase
+        .from('devotions')
+        .select('id')
+        .eq(
+          'author_id',
+          ministryId
+        )
+
+    ]);
+
+    if (readResult.error) {
+      throw readResult.error;
     }
 
+    if (memberResult.error) {
+      throw memberResult.error;
+    }
 
-    const allEvents =
-      events || [];
+    if (kingdomResult.error) {
+      throw kingdomResult.error;
+    }
 
+    if (devotionResult.error) {
+      throw devotionResult.error;
+    }
 
-    const viewEvents =
-      allEvents.filter(
-        event =>
-          event.event_type ===
-          'view'
+    const reads =
+      readResult.data || [];
+
+    const memberIds =
+      new Set(
+        (memberResult.data || [])
+          .map(row => String(row.id))
       );
-
-
-    const participationEvents =
-      allEvents.filter(
-        event =>
-          event.event_type ===
-          'participation'
-      );
-
-
-    const completionEvents =
-      allEvents.filter(
-        event =>
-          event.event_type ===
-          'completion'
-      );
-
-
-    const reactionEvents =
-      allEvents.filter(
-        event =>
-          event.event_type ===
-          'reaction'
-      );
-
 
     const uniqueViewerIds =
       new Set(
-        viewEvents
-          .map(
-            event =>
-              event.user_id
-          )
+        reads
+          .map(row => row.user_id)
           .filter(Boolean)
+          .map(id => String(id))
       );
+
+    const memberViews =
+      reads.filter(
+        row =>
+          memberIds.has(
+            String(row.user_id)
+          )
+      ).length;
+
+    const publicViews =
+      Math.max(
+        0,
+        reads.length -
+        memberViews
+      );
+
+    const completionContentIds = [
+      ...(kingdomResult.data || [])
+        .map(row => row.id),
+
+      ...(devotionResult.data || [])
+        .map(row => row.id)
+    ];
+
+    let completions = 0;
+
+    if (
+      completionContentIds.length
+    ) {
+
+      const [
+        kingdomCompletions,
+        devotionCompletions
+      ] = await Promise.all([
+
+        supabase
+          .from(
+            'kingdom_content_completions'
+          )
+          .select('content_id')
+          .in(
+            'content_id',
+            completionContentIds
+          ),
+
+        supabase
+          .from(
+            'devotion_completions'
+          )
+          .select('devotion_id')
+          .in(
+            'devotion_id',
+            completionContentIds
+          )
+
+      ]);
+
+      if (kingdomCompletions.error) {
+        throw kingdomCompletions.error;
+      }
+
+      if (devotionCompletions.error) {
+        throw devotionCompletions.error;
+      }
+
+      completions =
+        (
+          kingdomCompletions.data ||
+          []
+        ).length +
+        (
+          devotionCompletions.data ||
+          []
+        ).length;
+    }
 
     setMinistryAnalytics({
 
       totalViews:
-        viewEvents.length,
+        reads.length,
 
       uniqueViewers:
         uniqueViewerIds.size,
 
-      memberViews:
-        0,
+      memberViews,
 
-      publicViews:
-        viewEvents.length,
+      publicViews,
 
       participations:
-        participationEvents.length,
+        0,
 
-      completions:
-        completionEvents.length,
+      completions,
 
       reactions:
-        reactionEvents.length
+        0
 
     });
-
 
   } catch (error) {
 
@@ -14393,9 +14452,7 @@ const loadMinistryAnalytics = async (
       completions: 0,
       reactions: 0
     });
-
   }
-
 };
 
 const loadMinistryAnalyticsContent =
@@ -16917,6 +16974,26 @@ const handleCompleteKingdomContent =
           ])
         ]
       );
+
+if (
+  label === 'devotion'
+) {
+  await incrementUserFaithCounter(
+    'devotions_read',
+    1
+  );
+
+  setUserProfile(
+    prev => ({
+      ...prev,
+
+      devotions_read:
+        Number(
+          prev?.devotions_read || 0
+        ) + 1
+    })
+  );
+}
 
 
       setReadDevotionsList(
@@ -21422,57 +21499,50 @@ maxHeight:
               getCurrentUserAvatar();
 
             const newStatus = {
-  id:
-    crypto.randomUUID(),
+  id: crypto.randomUUID(),
 
-  user_id:
-    currentUser.id,
+  user_id: currentUser.id,
 
-  author_name:
-    `@${username}`,
+  author_name: `@${username}`,
 
-  avatar_url:
-    normalizeAvatarUrl(
-      avatar,
-      username
-    ),
+  avatar_url: normalizeAvatarUrl(
+    avatar,
+    username
+  ),
 
-  media_type:
-    'text',
+  media_type: 'text',
 
-  media_url:
-    null,
+  media_url: null,
 
-  text_content:
-    text,
+  text_content: text,
 
-  bg_color:
-    textStatusBg,
+  bg_color: textStatusBg,
 
-  views:
-    0,
+  views: 0,
 
-  likes:
-    0,
+  likes: 0,
 
-  taps:
-    0,
+  taps: 0,
 
-  comments:
-    0
+  comments: 0,
+
+  expires_at: new Date(
+    Date.now() + 24 * 60 * 60 * 1000
+  ).toISOString()
 };
-            const {
-  error
+
+const {
+  data: insertedStatus,
+  error: insertError
 } = await supabase
   .from('testimonies')
-  .insert([
-    newStatus
-  ]);
+  .insert([newStatus])
+  .select()
+  .single();
 
-            if (error) {
-              throw error;
-            }
-
+if (insertError) {
+  throw insertError;
+}
             setTestimonies(prev => [
   newStatus,
   ...prev
