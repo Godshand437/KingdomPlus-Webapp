@@ -4200,13 +4200,40 @@ const handleStatusFinished = async () => {
   await goToNextStatus();
 };
 
-const incrementStatusView = async (statusId, currentViews) => {
-  const { data, error } = await supabase
-    .from('testimonies')
-    .update({ views: currentViews + 1 })
-    .eq('id', statusId);
-    
-  if (error) console.error("Error updating views:", error);
+const incrementStatusView = async statusId => {
+  if (!statusId || !currentUser?.id) {
+    return;
+  }
+
+  try {
+    const {
+      error
+    } = await supabase
+      .from('testimony_views')
+      .upsert(
+        {
+          testimony_id: statusId,
+          user_id: currentUser.id,
+          viewed_at: new Date().toISOString()
+        },
+        {
+          onConflict:
+            'testimony_id,user_id'
+        }
+      );
+
+    if (error) {
+      console.error(
+        'Error recording status view:',
+        error
+      );
+    }
+  } catch (error) {
+    console.error(
+      'Status view tracking failed:',
+      error
+    );
+  }
 };
 
 const [realComments, setRealComments] = useState([]);
@@ -11624,8 +11651,6 @@ useEffect(() => {
             last_login_date,
             stream_time_hours,
             devotions_read,
-            followers_count,
-            friends_count
           `)
           .eq(
             'id',
@@ -13034,66 +13059,24 @@ const loadMinistryMemberDirectory = async (
       return;
     }
 
-    const userIds = memberRows
-      .map(member => member.user_id)
-      .filter(Boolean);
-
-    const {
-      data: memberUsers,
-      error: userError
-    } = await supabase
-      .from('user_profiles')
-      .select(`
-        id,
-        full_name,
-        username,
-        avatar_url,
-        membership_tier
-      `)
-      .in('id', userIds);
-
-    if (userError) {
-      throw userError;
-    }
-
-    const userMap =
-      new Map(
-        (memberUsers || []).map(user => [
-          user.id,
-          user
-        ])
-      );
-
     const formattedMembers =
   (memberRows || []).map(user => ({
     id: user.id,
-
-    userId:
-      user.id,
-
+    userId: user.id,
     name:
       user.full_name ||
       user.username ||
       'Kingdom Member',
-
     username:
       user.username || null,
-
     avatarUrl:
       user.avatar_url || null,
-
     membershipTier:
       user.membership_tier ||
       'Standard',
-
-    status:
-      'active',
-
-    joinedAt:
-      user.created_at,
-
-    updatedAt:
-      user.created_at
+    status: 'active',
+    joinedAt: user.created_at,
+    updatedAt: user.created_at
   }));
 
     setMinistryDirectoryMembers(previous =>
@@ -14835,86 +14818,95 @@ useEffect(() => {
   userProfile?.account_type
 ]);
 
-const trackMinistryContentRead =
-  async ({
-    ministryId,
-    contentId,
-    contentType
-  }) => {
+const trackMinistryContentRead = async ({
+  ministryId,
+  contentId,
+  contentType
+}) => {
+  try {
+    const {
+      data: {
+        user
+      },
+      error: authError
+    } = await supabase.auth.getUser();
 
-    if (
-      !ministryId ||
-      !contentId
-    ) {
-      return;
+    if (authError) {
+      throw authError;
     }
 
-
-    try {
-
-      const {
-        data: {
-          user
-        }
-      } =
-        await supabase.auth.getUser();
-
-
-      if (!user) {
-        return;
-      }
-
-
-      const {
-        error
-      } =
-        await supabase
-          .from(
-            'ministry_content_reads'
-          )
-          .upsert(
-            {
-              ministry_id:
-                ministryId,
-
-              content_id:
-                contentId,
-
-              content_type:
-                contentType,
-
-              user_id:
-                user.id,
-
-              last_read_at:
-                new Date().toISOString()
-            },
-            {
-              onConflict:
-                'content_id,user_id'
-            }
-          );
-
-
-      if (error) {
-
-        console.error(
-          'Failed to track content read:',
-          error
-        );
-
-      }
-
-    } catch (error) {
-
+    if (!user) {
       console.error(
-        'Content read tracking error:',
+        'Content read tracking skipped: no authenticated user.'
+      );
+      return false;
+    }
+
+    if (!ministryId || !contentId) {
+      console.error(
+        'Content read tracking skipped: missing IDs.',
+        {
+          ministryId,
+          contentId,
+          contentType
+        }
+      );
+      return false;
+    }
+
+    console.log(
+      'Tracking Ministry content read:',
+      {
+        ministryId,
+        contentId,
+        contentType,
+        userId: user.id
+      }
+    );
+
+    const {
+      error
+    } = await supabase
+      .from('ministry_content_reads')
+      .upsert(
+        {
+          ministry_id: ministryId,
+          content_id: contentId,
+          content_type: contentType,
+          user_id: user.id,
+          last_read_at:
+            new Date().toISOString()
+        },
+        {
+          onConflict:
+            'content_id,user_id'
+        }
+      );
+
+    if (error) {
+      console.error(
+        'FAILED TO WRITE ministry_content_reads:',
         error
       );
 
+      return false;
     }
 
-  };
+    console.log(
+      'Ministry content read recorded successfully.'
+    );
+
+    return true;
+
+  } catch (error) {
+    console.error(
+      'Content read tracking exception:',
+      error
+    );
+
+    return false;
+  }
+};
 
 const [
   ministryContentPerformance,
@@ -21518,14 +21510,6 @@ maxHeight:
 
   bg_color: textStatusBg,
 
-  views: 0,
-
-  likes: 0,
-
-  taps: 0,
-
-  comments: 0,
-
   expires_at: new Date(
     Date.now() + 24 * 60 * 60 * 1000
   ).toISOString()
@@ -21544,7 +21528,7 @@ if (insertError) {
   throw insertError;
 }
             setTestimonies(prev => [
-  newStatus,
+  insertedStatus,
   ...prev
 ]);
 
