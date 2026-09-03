@@ -597,6 +597,7 @@ useEffect(() => {
 
 // Status/Testimony Viewer State
   const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
   const [activeViewStatus, setActiveViewStatus] = useState(null);
   const [statusProgress, setStatusProgress] = useState(0);
   const [isUploadingStatus, setIsUploadingStatus] = useState(false);
@@ -1408,10 +1409,10 @@ const previewStatus =
 
 
       return {
-        ...group,
-
-        allViewed
-      };
+  ...group,
+  previewStatus,
+  allViewed
+};
     }
   );
 
@@ -5434,23 +5435,27 @@ const seconds =
 
     try {
 
-      await supabase
-        .from(
-          'user_stream_sessions'
-        )
-        .update({
+      const {
+  error: sessionUpdateError
+} =
+  await supabase
+    .from(
+      'user_stream_sessions'
+    )
+    .update({
+      ended_at:
+        new Date().toISOString(),
+      duration_seconds:
+        seconds
+    })
+    .eq(
+      'id',
+      sessionId
+    );
 
-          ended_at:
-            new Date().toISOString(),
-
-          duration_seconds:
-            seconds
-
-        })
-        .eq(
-  'id',
-  sessionId
-);
+if (sessionUpdateError) {
+  throw sessionUpdateError;
+}
 
 
       const hours =
@@ -5465,20 +5470,25 @@ const seconds =
         ) + hours;
 
 
-      await supabase
-        .from(
-          'user_profiles'
-        )
-        .update({
+      const {
+  error: profileUpdateError
+} =
+  await supabase
+    .from(
+      'user_profiles'
+    )
+    .update({
+      stream_time_hours:
+        nextHours
+    })
+    .eq(
+      'id',
+      authUserId
+    );
 
-          stream_time_hours:
-            nextHours
-
-        })
-        .eq(
-          'id',
-          authUserId
-        );
+if (profileUpdateError) {
+  throw profileUpdateError;
+}
 
 
       setUserProfile(
@@ -5808,36 +5818,117 @@ const playPreviousMusicTrack = () => {
   };
 
   const handleTimeUpdate = async () => {
-    if (!mediaRef.current) return;
-    const current = mediaRef.current.currentTime;
-    setCurrentTime(current);
+  if (!mediaRef.current || !activeMedia?.id) {
+    return;
+  }
 
-    if (current >= REWARD_THRESHOLD_SECONDS && !claimedVideos[activeMedia.id] && !isClaiming) {
-      setIsClaiming(true);
+  const current =
+    Number(mediaRef.current.currentTime) || 0;
 
-      const rewardAmount = Number(activeMedia.reward) || 5; 
+  setCurrentTime(current);
 
-      try {
-        const connection = new Connection(clusterApiUrl('devnet'), 'confirmed');
-        const feePayer = Keypair.fromSecretKey(GLOBAL_TREASURY_KEY);
-        const userPub = new PublicKey(generatedAddress);
-        const KPC_MINT = new PublicKey(GLOBAL_KPC_MINT);
+  streamCurrentTimeRef.current =
+    current;
 
-        const src = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, feePayer.publicKey);
-        const dest = await getOrCreateAssociatedTokenAccount(connection, feePayer, KPC_MINT, userPub);
+  if (
+    current >= REWARD_THRESHOLD_SECONDS &&
+    !claimedVideos[activeMedia.id] &&
+    !isClaiming
+  ) {
+    setIsClaiming(true);
 
-        await transfer(connection, feePayer, src.address, dest.address, feePayer.publicKey, rewardAmount * Math.pow(10, 8));
+    const rewardAmount =
+      Number(activeMedia.reward) || 5;
 
-        setKpcBalance(prev => (Number(prev) || 0) + rewardAmount);
-        logTransaction(`Stream Reward: ${activeMedia.title}`, +rewardAmount, 'EARN');
-        setClaimedVideos(prev => ({ ...prev, [activeMedia.id]: true }));
-      } catch (error) {
-        setKpcBalance(prev => (Number(prev) || 0) + rewardAmount);
-        setClaimedVideos(prev => ({ ...prev, [activeMedia.id]: true }));
-      }
-      setIsClaiming(false);
+    try {
+      const connection =
+        new Connection(
+          clusterApiUrl('devnet'),
+          'confirmed'
+        );
+
+      const feePayer =
+        Keypair.fromSecretKey(
+          GLOBAL_TREASURY_KEY
+        );
+
+      const userPub =
+        new PublicKey(generatedAddress);
+
+      const KPC_MINT =
+        new PublicKey(
+          GLOBAL_KPC_MINT
+        );
+
+      const src =
+        await getOrCreateAssociatedTokenAccount(
+          connection,
+          feePayer,
+          KPC_MINT,
+          feePayer.publicKey
+        );
+
+      const dest =
+        await getOrCreateAssociatedTokenAccount(
+          connection,
+          feePayer,
+          KPC_MINT,
+          userPub
+        );
+
+      await transfer(
+        connection,
+        feePayer,
+        src.address,
+        dest.address,
+        feePayer.publicKey,
+        rewardAmount *
+          Math.pow(10, 8)
+      );
+
+      setKpcBalance(
+        prev =>
+          (Number(prev) || 0) +
+          rewardAmount
+      );
+
+      logTransaction(
+        `Stream Reward: ${activeMedia.title}`,
+        +rewardAmount,
+        'EARN'
+      );
+
+      setClaimedVideos(
+        prev => ({
+          ...prev,
+          [activeMedia.id]: true
+        })
+      );
+
+    } catch (error) {
+
+      console.error(
+        'Stream reward failed:',
+        error
+      );
+
+      setKpcBalance(
+        prev =>
+          (Number(prev) || 0) +
+          rewardAmount
+      );
+
+      setClaimedVideos(
+        prev => ({
+          ...prev,
+          [activeMedia.id]: true
+        })
+      );
     }
-  };
+
+    setIsClaiming(false);
+  }
+};
 
   const formatTime = (timeInSeconds) => {
     if (isNaN(timeInSeconds)) return "0:00";
@@ -11651,16 +11742,14 @@ useEffect(() => {
 
 
   const refreshFaithActivity =
-    async () => {
-
+  async () => {
+    try {
       const {
-        data,
-        error
+        data: profileData,
+        error: profileError
       } =
         await supabase
-          .from(
-            'user_profiles'
-          )
+          .from('user_profiles')
           .select(`
             login_streak,
             last_login_date,
@@ -11673,26 +11762,98 @@ useEffect(() => {
           )
           .single();
 
-
-      if (error) {
-
-        console.error(
-          'Failed to refresh Faith Activity:',
-          error
-        );
-
-        return;
+      if (profileError) {
+        throw profileError;
       }
 
+      const {
+        count: completedDevotionCount,
+        error: devotionCountError
+      } =
+        await supabase
+          .from(
+            'devotion_completions'
+          )
+          .select(
+            'devotion_id',
+            {
+              count: 'exact',
+              head: true
+            }
+          )
+          .eq(
+            'user_id',
+            authUserId
+          );
+
+      if (devotionCountError) {
+        console.error(
+          'Failed to count completed Devotions:',
+          devotionCountError
+        );
+      }
+
+      const syncedDevotionsRead =
+        Math.max(
+          Number(
+            profileData?.devotions_read ||
+            0
+          ),
+          Number(
+            completedDevotionCount ||
+            0
+          )
+        );
 
       setUserProfile(
         prev => ({
           ...prev,
-          ...data
+          ...profileData,
+          devotions_read:
+            syncedDevotionsRead
         })
       );
 
-    };
+      if (
+        syncedDevotionsRead !==
+        Number(
+          profileData?.devotions_read ||
+          0
+        )
+      ) {
+        const {
+          error: syncError
+        } =
+          await supabase
+            .from(
+              'user_profiles'
+            )
+            .update({
+              devotions_read:
+                syncedDevotionsRead
+            })
+            .eq(
+              'id',
+              authUserId
+            );
+
+        if (syncError) {
+          console.error(
+            'Failed to synchronize devotions_read:',
+            syncError
+          );
+        }
+      }
+
+    } catch (error) {
+
+      console.error(
+        'Failed to refresh Faith Activity:',
+        error
+      );
+
+    }
+  };
 
 
   refreshFaithActivity();
@@ -19218,6 +19379,14 @@ const membersToNextMilestone =
   onChange={handleStatusFileSelect}
   accept="image/*,video/*"
 />
+<input
+  type="file"
+  hidden
+  ref={cameraInputRef}
+  onChange={handleStatusFileSelect}
+  accept="image/*,video/*"
+  capture="environment"
+/>
 
       {/* STEP 0 */}
       {step === 0 && (
@@ -20589,6 +20758,11 @@ const isAnnouncementViewed =
 </h3>
       <button onClick={() => { setShowTestimonyChoice(false); setShowTextStatusModal(true); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'linear-gradient(90deg, #f3ca58, #29beaf)', color: '#101926', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Write a Moment</button>
       <button onClick={() => { setShowTestimonyChoice(false); fileInputRef.current.click(); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Share Photo/Video</button>
+<button
+  onClick={() => {
+    setShowTestimonyChoice(false);
+    cameraInputRef.current?.click();
+  }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Camera</button>
 {showMediaStatusComposer && selectedStatusFile && (
   <div
     style={{
@@ -23654,7 +23828,8 @@ if (insertError) {
               : '#101926',
           fontWeight: '900',
           marginTop: '25px',
-          cursor: 'pointer'
+          cursor: 'pointer',
+          marginBottom: '75px'
         }}
       >
         {completedKingdomContentIds.includes(
@@ -23874,49 +24049,57 @@ if (insertError) {
 
 
       <button
-        onClick={() => {
+  onClick={async () => {
+    const completed =
+      await handleCompleteKingdomContent(
+        selectedPlan,
+        'bible plan'
+      );
 
-          alert(
-            'Plan day completed! Rewards issued.'
-          );
-
-          setSelectedPlan(
-            null
-          );
-
-        }}
-        style={{
-          width: '100%',
-
-          padding: '16px',
-
+    if (completed) {
+      setSelectedPlan(null);
+    }
+  }}
+  disabled={
+    completedKingdomContentIds.includes(
+      String(selectedPlan.id)
+    )
+  }
+  style={{
+    width: '100%',
+    padding: '16px',
     textAlign: 'center',
-
-          background:
-            '#29beaf',
-
-          border: 'none',
-
-          borderRadius:
-            '14px',
-
-          color:
-            '#101926',
-
-          fontWeight:
-            '900',
-
-          cursor:
-            'pointer',
-
-          marginTop:
-            '20px',
-
-          marginBottom: '75px'
-        }}
-      >
-        Complete Today's Reading
-      </button>
+    background:
+      completedKingdomContentIds.includes(
+        String(selectedPlan.id)
+      )
+        ? '#1a2533'
+        : 'linear-gradient(135deg,#f3ca58,#29beaf)',
+    border: 'none',
+    borderRadius: '14px',
+    color:
+      completedKingdomContentIds.includes(
+        String(selectedPlan.id)
+      )
+        ? '#8e9aab'
+        : '#101926',
+    fontWeight: '900',
+    cursor:
+      completedKingdomContentIds.includes(
+        String(selectedPlan.id)
+      )
+        ? 'default'
+        : 'pointer',
+    marginTop: '20px',
+    marginBottom: '75px'
+  }}
+>
+  {completedKingdomContentIds.includes(
+    String(selectedPlan.id)
+  )
+    ? 'Completed'
+    : `Complete Today's Reading & Claim +${selectedPlan.reward || KINGDOM_REWARD_KPC} KPC`}
+</button>
 
     </div>
   </div>
