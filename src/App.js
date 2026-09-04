@@ -359,16 +359,7 @@ export default function App() {
       JSON.parse(saved);
 
 
-    const isMinistry =
-      parsed?.account_type ===
-        'Ministry' ||
-      parsed?.accountType ===
-        'Ministry';
-
-
-    return isMinistry
-      ? 26
-      : 6;
+   return 6;
 
   } catch (error) {
 
@@ -434,6 +425,29 @@ const isInsideMinistryDashboard =
   Boolean(
     activeMinistryWorkspace
   );
+
+const isMinistryContext =
+  userProfile?.account_type === 'Ministry' ||
+  Boolean(
+    activeMinistryWorkspace?.ministry?.id
+  );
+
+const handleContextHome = () => {
+  if (isMinistryContext) {
+    setActiveTab('sanctuary');
+    setMinistryWorkspaceSection('overview');
+    setStep(26);
+    return;
+  }
+
+  setActiveMinistryWorkspace(null);
+  setActiveTab('sanctuary');
+  setStep(6);
+};
+
+const handleContextBack = () => {
+  handleContextHome();
+};
 
 const [isBottomNavDimmed, setIsBottomNavDimmed] = useState(false);
 
@@ -5078,16 +5092,47 @@ if (
 
  
   const handleLogoutUser = async () => {
-    if (window.confirm("Are you sure you want to log out of your Kingdom Vault?")) {
-      await supabase.auth.signOut();
-      setCurrentUser(null);
-      localStorage.removeItem('kp_current_user');
-      setFormData({ fullName: '', username: '', email: '', password: '', dob: '', country: '', phone: '', denomination: '', churchName: '' });
-      setKpcBalance(0);
-      setGeneratedAddress('');
-      setStep(0);
-    }
-  };
+  if (!window.confirm("Are you sure you want to log out of your Kingdom Vault?")) {
+    return;
+  }
+
+  setIsAuthLoading(true);
+
+  setIsViewingMinistryProfile(false);
+  setViewedMinistry(null);
+  setActiveMinistryWorkspace(null);
+  setCurrentUser(null);
+  setUserProfile(null);
+
+  localStorage.removeItem('kp_current_user');
+
+  setFormData({
+    fullName: '',
+    username: '',
+    email: '',
+    password: '',
+    dob: '',
+    country: '',
+    phone: '',
+    denomination: '',
+    churchName: ''
+  });
+
+  setKpcBalance(0);
+  setGeneratedAddress('');
+  setActiveTab('sanctuary');
+  setStep(0);
+
+  const { error } = await supabase.auth.signOut({
+    scope: 'local'
+  });
+
+  if (error) {
+    console.error('Logout failed:', error);
+  }
+
+  setIsAuthLoading(false);
+};
 
   const [userTier, setUserTier] = useState('Standard');
   const [selectedUpgrade, setSelectedUpgrade] = useState('Disciple');
@@ -5393,6 +5438,9 @@ const startStreamSession =
 streamSessionIdRef.current =
   data.id;
 
+streamPersistedSecondsRef.current = 0;
+streamPersistingRef.current = false;
+
     return data.id;
 
   };
@@ -5432,6 +5480,11 @@ const seconds =
     )
   );
 
+const remainingSeconds = Math.max(
+  0,
+  seconds -
+    streamPersistedSecondsRef.current
+);
 
     try {
 
@@ -5459,7 +5512,7 @@ if (sessionUpdateError) {
 
 
       const hours =
-        seconds / 3600;
+        remainingSeconds / 3600;
 
 
       const nextHours =
@@ -5499,6 +5552,9 @@ if (profileUpdateError) {
             nextHours
         })
       );
+
+streamPersistedSecondsRef.current =
+  seconds;
 
 
     } catch (error) {
@@ -5829,6 +5885,68 @@ const playPreviousMusicTrack = () => {
 
   streamCurrentTimeRef.current =
     current;
+
+if (
+  current -
+    streamPersistedSecondsRef.current >= 15 &&
+  !streamPersistingRef.current &&
+  authUserId
+) {
+  streamPersistingRef.current = true;
+
+  const persistedSeconds =
+    streamPersistedSecondsRef.current;
+
+  const deltaSeconds = Math.max(
+    0,
+    Math.round(current) - persistedSeconds
+  );
+
+  if (deltaSeconds > 0) {
+    const deltaHours =
+      deltaSeconds / 3600;
+
+    const nextHours =
+      Number(
+        userProfile?.stream_time_hours || 0
+      ) + deltaHours;
+
+    try {
+      await supabase
+        .from('user_profiles')
+        .update({
+          stream_time_hours: nextHours
+        })
+        .eq('id', authUserId);
+
+      await supabase
+        .from('user_stream_sessions')
+        .update({
+          duration_seconds:
+            Math.round(current)
+        })
+        .eq(
+          'id',
+          streamSessionIdRef.current
+        );
+
+      streamPersistedSecondsRef.current =
+        Math.round(current);
+
+      setUserProfile(prev => ({
+        ...prev,
+        stream_time_hours: nextHours
+      }));
+    } catch (error) {
+      console.error(
+        'Failed to sync stream progress:',
+        error
+      );
+    }
+  }
+
+  streamPersistingRef.current = false;
+}
 
   if (
     current >= REWARD_THRESHOLD_SECONDS &&
@@ -6418,7 +6536,10 @@ activeTab === 'treasury' ? 'active' : ''}`} onClick={() => { setActiveTab('treas
       </div>
       <div className={`nav-item ${isMinistryOwner &&
 !isInsideMinistryDashboard &&
-activeTab === 'profile' ? 'active' : ''}`} onClick={() => { setActiveTab('profile'); setStep(18); }}>
+activeTab === 'profile' ? 'active' : ''}`} onClick={() => {
+  setActiveTab('profile');
+  setStep(18);
+}} >
         <div className="nav-icon-wrapper"><ProfileIcon /></div>
         <span className="nav-label">Profile</span>
       </div>
@@ -6594,10 +6715,10 @@ const MinistryBottomNav = () => (
     : ''
 }`}
       onClick={() => {
-        setActiveTab('profile');
-        setStep(18);
-      }}
-    >
+  setActiveTab('profile');
+  openOwnMinistryProfile();
+}} >
+
       <div className="nav-icon-wrapper">
         <ProfileIcon />
       </div>
@@ -8384,65 +8505,531 @@ const renderMinistryPublicProfile = () => {
           </div>
 
 
-          {/* PROFILE SECTIONS */}
+          {/* PROFILE TABS */}
+<div
+  style={{
+    marginTop: '20px',
+    borderTop: '1px solid rgba(255,255,255,.06)'
+  }}
+>
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      borderBottom: '1px solid rgba(255,255,255,.06)'
+    }}
+  >
+    {['ABOUT', 'CONTENT', 'ACTIVITY'].map(tab => (
+      <button
+        key={tab}
+        type="button"
+        onClick={() => setViewedMinistryTab(tab)}
+        style={{
+          padding: '12px 6px',
+          background: 'transparent',
+          border: 'none',
+          borderBottom:
+            viewedMinistryTab === tab
+              ? '2px solid #f3ca58'
+              : '2px solid transparent',
+          color:
+            viewedMinistryTab === tab
+              ? '#f3ca58'
+              : '#718096',
+          fontSize: '8px',
+          fontWeight: '900',
+          cursor: 'pointer'
+        }}
+      >
+        {tab}
+      </button>
+    ))}
+  </div>
+
+  {/* ABOUT */}
+  {viewedMinistryTab === 'ABOUT' && (
+    <div style={{ paddingTop: '16px' }}>
+
+      <div
+        style={{
+          color: '#fff',
+          fontSize: '12px',
+          fontWeight: '900',
+          marginBottom: '12px'
+        }}
+      >
+        About this Ministry
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px'
+        }}
+      >
+        {(viewedMinistry.main_service_day ||
+          viewedMinistry.service_time) && (
+          <div
+            style={{
+              padding: '12px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,.03)',
+              border: '1px solid rgba(255,255,255,.06)'
+            }}
+          >
+            <div
+              style={{
+                color: '#718096',
+                fontSize: '8px',
+                fontWeight: '800',
+                marginBottom: '4px'
+              }}
+            >
+              MAIN GATHERING
+            </div>
+
+            <div
+              style={{
+                color: '#fff',
+                fontSize: '10px',
+                fontWeight: '700'
+              }}
+            >
+              {viewedMinistry.main_service_day || 'Service day not provided'}
+              {viewedMinistry.service_time
+                ? ` • ${viewedMinistry.service_time}`
+                : ''}
+            </div>
+          </div>
+        )}
+
+        {(viewedMinistry.city ||
+          viewedMinistry.country ||
+          viewedMinistry.street_address) && (
+          <div
+            style={{
+              padding: '12px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,.03)',
+              border: '1px solid rgba(255,255,255,.06)'
+            }}
+          >
+            <div
+              style={{
+                color: '#718096',
+                fontSize: '8px',
+                fontWeight: '800',
+                marginBottom: '4px'
+              }}
+            >
+              LOCATION
+            </div>
+
+            <div
+              style={{
+                color: '#fff',
+                fontSize: '10px',
+                lineHeight: '1.5'
+              }}
+            >
+              {[
+                viewedMinistry.street_address,
+                viewedMinistry.city,
+                viewedMinistry.country
+              ]
+                .filter(Boolean)
+                .join(', ') || 'Location not provided'}
+            </div>
+          </div>
+        )}
+
+        {viewedMinistry.denomination && (
+          <div
+            style={{
+              padding: '12px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,.03)',
+              border: '1px solid rgba(255,255,255,.06)'
+            }}
+          >
+            <div
+              style={{
+                color: '#718096',
+                fontSize: '8px',
+                fontWeight: '800',
+                marginBottom: '4px'
+              }}
+            >
+              DENOMINATION
+            </div>
+
+            <div
+              style={{
+                color: '#fff',
+                fontSize: '10px',
+                fontWeight: '700'
+              }}
+            >
+              {viewedMinistry.denomination}
+            </div>
+          </div>
+        )}
+      </div>
+
+    </div>
+  )}
+
+{(viewedMinistry.email || viewedMinistry.phone_number) && (
+  <div
+    style={{
+      padding: '12px',
+      borderRadius: '12px',
+      background: 'rgba(255,255,255,.03)',
+      border: '1px solid rgba(255,255,255,.06)'
+    }}
+  >
+    <div
+      style={{
+        color: '#718096',
+        fontSize: '8px',
+        fontWeight: '800',
+        marginBottom: '8px'
+      }}
+    >
+      CONTACT
+    </div>
+
+    {viewedMinistry.email && (
+      <button
+        type="button"
+        onClick={() => {
+          window.location.href = `mailto:${viewedMinistry.email}`;
+        }}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 0',
+          border: 'none',
+          background: 'transparent',
+          color: '#fff',
+          fontSize: '9px',
+          textAlign: 'left',
+          cursor: 'pointer'
+        }}
+      >
+        <MailIcon />
+        <span>{viewedMinistry.email}</span>
+      </button>
+    )}
+
+    {viewedMinistry.phone_number && (
+      <button
+        type="button"
+        onClick={() => {
+          window.location.href = `tel:${viewedMinistry.phone_number}`;
+        }}
+        style={{
+          width: '100%',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          padding: '8px 0',
+          border: 'none',
+          background: 'transparent',
+          color: '#fff',
+          fontSize: '9px',
+          textAlign: 'left',
+          cursor: 'pointer'
+        }}
+      >
+        <PhoneIcon />
+        <span>{viewedMinistry.phone_number}</span>
+      </button>
+    )}
+  </div>
+)}
+
+  {/* CONTENT */}
+  {viewedMinistryTab === 'CONTENT' && (
+    <div style={{ paddingTop: '16px' }}>
+
+      <div
+        style={{
+          color: '#fff',
+          fontSize: '12px',
+          fontWeight: '900',
+          marginBottom: '12px'
+        }}
+      >
+        Ministry Content
+      </div>
+
+      {ministryContentItems.length === 0 ? (
+        <div
+          style={{
+            padding: '18px 14px',
+            borderRadius: '13px',
+            background: 'rgba(255,255,255,.03)',
+            border: '1px solid rgba(255,255,255,.06)',
+            textAlign: 'center'
+          }}
+        >
+          <BookOpenIcon />
 
           <div
             style={{
-              marginTop:
-                '20px'
+              color: '#fff',
+              fontSize: '10px',
+              fontWeight: '800',
+              marginTop: '8px'
             }}
           >
-
-            <div
-              style={{
-                color:
-                  '#fff',
-
-                fontSize:
-                  '13px',
-
-                fontWeight:
-                  '900',
-
-                marginBottom:
-                  '10px'
-              }}
-            >
-              Ministry on KingdomPlus
-            </div>
-
-
-            <div
-              style={{
-                color:
-                  '#718096',
-
-                fontSize:
-                  '9px',
-
-                lineHeight:
-                  '1.6',
-
-                padding:
-                  '14px',
-
-                borderRadius:
-                  '13px',
-
-                background:
-                  'rgba(255,255,255,.03)',
-
-                border:
-                  '1px solid rgba(255,255,255,.06)'
-              }}
-            >
-              Follow this Ministry to keep up
-              with its teachings, devotionals,
-              Bible plans, announcements and
-              Kingdom activity.
-            </div>
-
+            No published content yet
           </div>
+
+          <div
+            style={{
+              color: '#718096',
+              fontSize: '9px',
+              lineHeight: '1.5',
+              marginTop: '5px'
+            }}
+          >
+            Published teachings, devotionals and Bible plans
+            will appear here.
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}
+        >
+          {ministryContentItems
+            .filter(item => item.isPublished !== false)
+            .slice(0, 10)
+            .map(item => (
+              <div
+                key={item.id}
+                style={{
+                  padding: '13px',
+                  borderRadius: '13px',
+                  background: 'rgba(255,255,255,.03)',
+                  border: '1px solid rgba(255,255,255,.06)'
+                }}
+              >
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '10px'
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        color: '#f3ca58',
+                        fontSize: '7px',
+                        fontWeight: '900',
+                        marginBottom: '5px'
+                      }}
+                    >
+                      {item.type || 'CONTENT'}
+                    </div>
+
+                    <div
+                      style={{
+                        color: '#fff',
+                        fontSize: '11px',
+                        fontWeight: '800'
+                      }}
+                    >
+                      {item.title || 'Untitled content'}
+                    </div>
+
+                    {item.scripture && (
+                      <div
+                        style={{
+                          color: '#8e9aab',
+                          fontSize: '8px',
+                          marginTop: '4px'
+                        }}
+                      >
+                        {item.scripture}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      alert(
+                        `Viewing "${item.title || 'content'}" will be connected next.`
+                      )
+                    }
+                    style={{
+                      flexShrink: 0,
+                      padding: '7px 11px',
+                      borderRadius: '9px',
+                      border: '1px solid #29beaf',
+                      background: 'rgba(41,190,175,.08)',
+                      color: '#29beaf',
+                      fontSize: '8px',
+                      fontWeight: '900',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    VIEW
+                  </button>
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+
+    </div>
+  )}
+
+  {/* ACTIVITY */}
+  {viewedMinistryTab === 'ACTIVITY' && (
+    <div style={{ paddingTop: '16px' }}>
+
+      <div
+        style={{
+          color: '#fff',
+          fontSize: '12px',
+          fontWeight: '900',
+          marginBottom: '12px'
+        }}
+      >
+        Recent Activity
+      </div>
+
+      {ministryActivities.length === 0 ? (
+        <div
+          style={{
+            padding: '18px 14px',
+            borderRadius: '13px',
+            background: 'rgba(255,255,255,.03)',
+            border: '1px solid rgba(255,255,255,.06)',
+            textAlign: 'center'
+          }}
+        >
+          <TimelineFeedIcon />
+
+          <div
+            style={{
+              color: '#fff',
+              fontSize: '10px',
+              fontWeight: '800',
+              marginTop: '8px'
+            }}
+          >
+            No public activity yet
+          </div>
+
+          <div
+            style={{
+              color: '#718096',
+              fontSize: '9px',
+              lineHeight: '1.5',
+              marginTop: '5px'
+            }}
+          >
+            Ministry announcements and published activity
+            will appear here.
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}
+        >
+          {ministryActivities
+            .filter(activity => activity.is_public !== false)
+            .slice(0, 10)
+            .map(activity => (
+              <div
+                key={activity.id}
+                style={{
+                  display: 'flex',
+                  gap: '10px',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  background: 'rgba(255,255,255,.03)',
+                  border: '1px solid rgba(255,255,255,.06)'
+                }}
+              >
+                <div
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '9px',
+                    background: 'rgba(41,190,175,.08)',
+                    border: '1px solid rgba(41,190,175,.18)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    color: '#29beaf'
+                  }}
+                >
+                  <TimelineFeedIcon />
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      color: '#fff',
+                      fontSize: '10px',
+                      fontWeight: '800'
+                    }}
+                  >
+                    {activity.title || 'Ministry activity'}
+                  </div>
+
+                  {activity.description && (
+                    <div
+                      style={{
+                        color: '#8e9aab',
+                        fontSize: '8px',
+                        lineHeight: '1.5',
+                        marginTop: '4px'
+                      }}
+                    >
+                      {activity.description}
+                    </div>
+                  )}
+
+                  {activity.created_at && (
+                    <div
+                      style={{
+                        color: '#64748b',
+                        fontSize: '7px',
+                        marginTop: '5px'
+                      }}
+                    >
+                      {new Date(activity.created_at).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+
+    </div>
+  )}
+</div>
 
         </div>
 
@@ -8545,11 +9132,20 @@ const renderViewedMinistryProfile =
 
             <button
               type="button"
-              onClick={() =>
-                setIsViewingMinistryProfile(
-                  false
-                )
-              }
+              onClick={() => {
+  setIsViewingMinistryProfile(false);
+
+  if (isMinistryContext) {
+    setActiveTab('sanctuary');
+    setMinistryWorkspaceSection('overview');
+    setStep(26);
+    return;
+  }
+
+  setActiveMinistryWorkspace(null);
+  setActiveTab('sanctuary');
+  setStep(6);
+}}
               style={{
                 position:
                   'absolute',
@@ -8586,15 +9182,13 @@ const renderViewedMinistryProfile =
 
 
           <div
-            style={{
-              overflowY:
-                'auto',
-              flex:
-                1,
-              padding:
-                '0 20px 30px'
-            }}
-          >
+  style={{
+    overflowY: 'auto',
+    flex: 1,
+    padding: '48px 20px 30px',
+    boxSizing: 'border-box'
+  }}
+>
 
             <div
               style={{
@@ -8659,7 +9253,9 @@ const renderViewedMinistryProfile =
                         height:
                           '100%',
                         objectFit:
-                          'cover'
+                          'contain',
+                         display: 'block',
+                         background: '#101926'
                       }}
                     />
 
@@ -8730,49 +9326,55 @@ const renderViewedMinistryProfile =
 
 
                 <button
-                  type="button"
-                  onClick={
-                    toggleViewedMinistryFollow
-                  }
-                  style={{
-                    padding:
-                      '9px 13px',
-                    borderRadius:
-                      '11px',
-                    border:
-                      isHome
-                        ? '1px solid rgba(243,202,88,.35)'
-                        : isViewedMinistryFollowing
-                          ? '1px solid #29beaf'
-                          : '1px solid #f3ca58',
-                    background:
-                      isHome
-                        ? 'rgba(243,202,88,.08)'
-                        : isViewedMinistryFollowing
-                          ? 'rgba(41,190,175,.08)'
-                          : 'rgba(243,202,88,.06)',
-                    color:
-                      isHome
-                        ? '#f3ca58'
-                        : isViewedMinistryFollowing
-                          ? '#29beaf'
-                          : '#f3ca58',
-                    fontSize:
-                      '8px',
-                    fontWeight:
-                      '900',
-                    cursor:
-                      isHome
-                        ? 'default'
-                        : 'pointer'
-                  }}
-                >
-                  {isHome
-                    ? 'HOME'
-                    : isViewedMinistryFollowing
-                      ? 'FOLLOWING'
-                      : 'FOLLOW'}
-                </button>
+  type="button"
+  onClick={() => {
+    if (isMinistryOwner) {
+      handleLogoutUser();
+      return;
+    }
+
+    toggleViewedMinistryFollow();
+  }}
+  style={{
+    padding: '9px 13px',
+    borderRadius: '11px',
+    border:
+      isMinistryOwner
+        ? '1px solid #e74c3c'
+        : isHome
+          ? '1px solid rgba(243,202,88,.35)'
+          : isViewedMinistryFollowing
+            ? '1px solid #29beaf'
+            : '1px solid #f3ca58',
+    background:
+      isMinistryOwner
+        ? 'rgba(231,76,60,.08)'
+        : isHome
+          ? 'rgba(243,202,88,.08)'
+          : isViewedMinistryFollowing
+            ? 'rgba(41,190,175,.08)'
+            : 'rgba(243,202,88,.06)',
+    color:
+      isMinistryOwner
+        ? '#e74c3c'
+        : isHome
+          ? '#f3ca58'
+          : isViewedMinistryFollowing
+            ? '#29beaf'
+            : '#f3ca58',
+    fontSize: '8px',
+    fontWeight: '900',
+    cursor: 'pointer'
+  }}
+>
+  {isMinistryOwner
+    ? 'LOGOUT'
+    : isHome
+      ? 'HOME'
+      : isViewedMinistryFollowing
+        ? 'FOLLOWING'
+        : 'FOLLOW'}
+</button>
 
               </div>
 
@@ -8895,30 +9497,480 @@ const renderViewedMinistryProfile =
 
 
               <div
+  style={{
+    marginTop: '20px',
+    borderTop: '1px solid rgba(255,255,255,.06)'
+  }}
+>
+  <div
+    style={{
+      display: 'grid',
+      gridTemplateColumns: 'repeat(3, 1fr)',
+      borderBottom: '1px solid rgba(255,255,255,.06)'
+    }}
+  >
+    {['ABOUT', 'CONTENT', 'ACTIVITY'].map(tab => (
+      <button
+        key={tab}
+        type="button"
+        onClick={() => setViewedMinistryTab(tab)}
+        style={{
+          padding: '12px 6px',
+          background: 'transparent',
+          border: 'none',
+          borderBottom:
+            viewedMinistryTab === tab
+              ? '2px solid #f3ca58'
+              : '2px solid transparent',
+          color:
+            viewedMinistryTab === tab
+              ? '#f3ca58'
+              : '#718096',
+          fontSize: '8px',
+          fontWeight: '900',
+          cursor: 'pointer'
+        }}
+      >
+        {tab}
+      </button>
+    ))}
+  </div>
+
+  {viewedMinistryTab === 'ABOUT' && (
+    <div style={{ paddingTop: '16px' }}>
+      <div
+        style={{
+          color: '#fff',
+          fontSize: '12px',
+          fontWeight: '900',
+          marginBottom: '12px'
+        }}
+      >
+        About this Ministry
+      </div>
+
+      <div
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '10px'
+        }}
+      >
+        {viewedMinistry.mission_statement && (
+          <div
+            style={{
+              padding: '12px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,.03)',
+              border: '1px solid rgba(255,255,255,.06)'
+            }}
+          >
+            <div
+              style={{
+                color: '#718096',
+                fontSize: '8px',
+                fontWeight: '800',
+                marginBottom: '4px'
+              }}
+            >
+              MISSION
+            </div>
+
+            <div
+              style={{
+                color: '#fff',
+                fontSize: '10px',
+                lineHeight: '1.6'
+              }}
+            >
+              {viewedMinistry.mission_statement}
+            </div>
+          </div>
+        )}
+
+        {(viewedMinistry.main_service_day ||
+          viewedMinistry.service_time) && (
+          <div
+            style={{
+              padding: '12px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,.03)',
+              border: '1px solid rgba(255,255,255,.06)'
+            }}
+          >
+            <div
+              style={{
+                color: '#718096',
+                fontSize: '8px',
+                fontWeight: '800',
+                marginBottom: '4px'
+              }}
+            >
+              MAIN GATHERING
+            </div>
+
+            <div
+              style={{
+                color: '#fff',
+                fontSize: '10px',
+                fontWeight: '700'
+              }}
+            >
+              {viewedMinistry.main_service_day || 'Service day not provided'}
+              {viewedMinistry.service_time
+                ? ` • ${viewedMinistry.service_time}`
+                : ''}
+            </div>
+          </div>
+        )}
+
+        {(viewedMinistry.city ||
+          viewedMinistry.country ||
+          viewedMinistry.street_address) && (
+          <div
+            style={{
+              padding: '12px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,.03)',
+              border: '1px solid rgba(255,255,255,.06)'
+            }}
+          >
+            <div
+              style={{
+                color: '#718096',
+                fontSize: '8px',
+                fontWeight: '800',
+                marginBottom: '4px'
+              }}
+            >
+              LOCATION
+            </div>
+
+            <div
+              style={{
+                color: '#fff',
+                fontSize: '10px',
+                lineHeight: '1.5'
+              }}
+            >
+              {[
+                viewedMinistry.street_address,
+                viewedMinistry.city,
+                viewedMinistry.country
+              ]
+                .filter(Boolean)
+                .join(', ')}
+            </div>
+          </div>
+        )}
+
+        {viewedMinistry.denomination && (
+          <div
+            style={{
+              padding: '12px',
+              borderRadius: '12px',
+              background: 'rgba(255,255,255,.03)',
+              border: '1px solid rgba(255,255,255,.06)'
+            }}
+          >
+            <div
+              style={{
+                color: '#718096',
+                fontSize: '8px',
+                fontWeight: '800',
+                marginBottom: '4px'
+              }}
+            >
+              DENOMINATION
+            </div>
+
+            <div
+              style={{
+                color: '#fff',
+                fontSize: '10px',
+                fontWeight: '700'
+              }}
+            >
+              {viewedMinistry.denomination}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  )}
+
+  {viewedMinistryTab === 'CONTENT' && (
+    <div style={{ paddingTop: '16px' }}>
+      <div
+        style={{
+          color: '#fff',
+          fontSize: '12px',
+          fontWeight: '900',
+          marginBottom: '12px'
+        }}
+      >
+        Ministry Content
+      </div>
+
+      {ministryContentItems.length === 0 ? (
+        <div
+          style={{
+            padding: '18px 14px',
+            borderRadius: '13px',
+            background: 'rgba(255,255,255,.03)',
+            border: '1px solid rgba(255,255,255,.06)',
+            textAlign: 'center'
+          }}
+        >
+          <BookOpenIcon />
+
+          <div
+            style={{
+              color: '#fff',
+              fontSize: '10px',
+              fontWeight: '800',
+              marginTop: '8px'
+            }}
+          >
+            No published content yet
+          </div>
+
+          <div
+            style={{
+              color: '#718096',
+              fontSize: '9px',
+              lineHeight: '1.5',
+              marginTop: '5px'
+            }}
+          >
+            Published teachings, devotionals and Bible plans
+            will appear here.
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}
+        >
+          {ministryContentItems
+            .filter(item => item.isPublished !== false)
+            .slice(0, 10)
+            .map(item => (
+              <div
+                key={item.id}
                 style={{
-                  marginTop:
-                    '18px',
-                  padding:
-                    '14px',
-                  borderRadius:
-                    '14px',
-                  background:
-                    'rgba(255,255,255,.03)',
-                  border:
-                    '1px solid rgba(255,255,255,.06)',
-                  color:
-                    '#718096',
-                  fontSize:
-                    '9px',
-                  lineHeight:
-                    '1.6'
+                  padding: '13px',
+                  borderRadius: '13px',
+                  background: 'rgba(255,255,255,.03)',
+                  border: '1px solid rgba(255,255,255,.06)'
                 }}
               >
-                Follow this Ministry to keep up
-                with its teachings, devotionals,
-                Bible plans, announcements and
-                Kingdom activity.
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '10px'
+                  }}
+                >
+                  <div style={{ minWidth: 0 }}>
+                    <div
+                      style={{
+                        color: '#f3ca58',
+                        fontSize: '7px',
+                        fontWeight: '900',
+                        marginBottom: '5px'
+                      }}
+                    >
+                      {item.type || 'CONTENT'}
+                    </div>
+
+                    <div
+                      style={{
+                        color: '#fff',
+                        fontSize: '11px',
+                        fontWeight: '800'
+                      }}
+                    >
+                      {item.title || 'Untitled content'}
+                    </div>
+
+                    {item.scripture && (
+                      <div
+                        style={{
+                          color: '#8e9aab',
+                          fontSize: '8px',
+                          marginTop: '4px'
+                        }}
+                      >
+                        {item.scripture}
+                      </div>
+                    )}
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      alert(
+                        `Viewing "${item.title || 'content'}" will be connected next.`
+                      )
+                    }
+                    style={{
+                      flexShrink: 0,
+                      padding: '7px 11px',
+                      borderRadius: '9px',
+                      border: '1px solid #29beaf',
+                      background: 'rgba(41,190,175,.08)',
+                      color: '#29beaf',
+                      fontSize: '8px',
+                      fontWeight: '900',
+                      cursor: 'pointer'
+                    }}
+                  >
+                    VIEW
+                  </button>
+                </div>
               </div>
+            ))}
+        </div>
+      )}
+    </div>
+  )}
+
+  {viewedMinistryTab === 'ACTIVITY' && (
+    <div style={{ paddingTop: '16px' }}>
+      <div
+        style={{
+          color: '#fff',
+          fontSize: '12px',
+          fontWeight: '900',
+          marginBottom: '12px'
+        }}
+      >
+        Recent Activity
+      </div>
+
+      {ministryActivities.length === 0 ? (
+        <div
+          style={{
+            padding: '18px 14px',
+            borderRadius: '13px',
+            background: 'rgba(255,255,255,.03)',
+            border: '1px solid rgba(255,255,255,.06)',
+            textAlign: 'center'
+          }}
+        >
+          <TimelineFeedIcon />
+
+          <div
+            style={{
+              color: '#fff',
+              fontSize: '10px',
+              fontWeight: '800',
+              marginTop: '8px'
+            }}
+          >
+            No public activity yet
+          </div>
+
+          <div
+            style={{
+              color: '#718096',
+              fontSize: '9px',
+              lineHeight: '1.5',
+              marginTop: '5px'
+            }}
+          >
+            Ministry announcements and published activity
+            will appear here.
+          </div>
+        </div>
+      ) : (
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px'
+          }}
+        >
+          {ministryActivities
+            .filter(activity => activity.is_public !== false)
+            .slice(0, 10)
+            .map(activity => (
+              <div
+                key={activity.id}
+                style={{
+                  display: 'flex',
+                  gap: '10px',
+                  padding: '12px',
+                  borderRadius: '12px',
+                  background: 'rgba(255,255,255,.03)',
+                  border: '1px solid rgba(255,255,255,.06)'
+                }}
+              >
+                <div
+                  style={{
+                    width: '30px',
+                    height: '30px',
+                    borderRadius: '9px',
+                    background: 'rgba(41,190,175,.08)',
+                    border: '1px solid rgba(41,190,175,.18)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexShrink: 0,
+                    color: '#29beaf'
+                  }}
+                >
+                  <TimelineFeedIcon />
+                </div>
+
+                <div style={{ minWidth: 0 }}>
+                  <div
+                    style={{
+                      color: '#fff',
+                      fontSize: '10px',
+                      fontWeight: '800'
+                    }}
+                  >
+                    {activity.title || 'Ministry activity'}
+                  </div>
+
+                  {activity.description && (
+                    <div
+                      style={{
+                        color: '#8e9aab',
+                        fontSize: '8px',
+                        lineHeight: '1.5',
+                        marginTop: '4px'
+                      }}
+                    >
+                      {activity.description}
+                    </div>
+                  )}
+
+                  {activity.created_at && (
+                    <div
+                      style={{
+                        color: '#64748b',
+                        fontSize: '7px',
+                        marginTop: '5px'
+                      }}
+                    >
+                      {new Date(activity.created_at).toLocaleDateString()}
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  )}
+</div>
 
             </div>
 
@@ -12062,16 +13114,17 @@ const MINISTRY_MEMBERS_PAGE_SIZE = 30;
 };
 
 const loadMinistryContent =
-  async () => {
+  async (ministryIdOverride = null) => {
 
     const ministryId =
-      activeMinistryWorkspace?.ministry?.id ||
-      (
-        userProfile?.account_type ===
-        'Ministry'
-          ? userProfile.id
-          : null
-      );
+  ministryIdOverride ||
+  activeMinistryWorkspace?.ministry?.id ||
+  (
+    userProfile?.account_type ===
+    'Ministry'
+      ? userProfile.id
+      : null
+  );
 
 
     if (!ministryId) {
@@ -14244,11 +15297,32 @@ const recordMinistryProfileVisit = async (ministryId) => {
   if (!ministryId) return;
 
   try {
-    const { error } = await supabase
+    const {
+      data: {
+        user
+      },
+      error: authError
+    } = await supabase.auth.getUser();
+
+    if (authError) {
+      console.error(
+        'Failed to get authenticated user for Ministry profile visit:',
+        authError
+      );
+      return;
+    }
+
+    if (!user) {
+      return;
+    }
+
+    const {
+      error
+    } = await supabase
       .from('ministry_profile_visits')
       .insert({
         ministry_id: ministryId,
-        visitor_id: authUserId || null
+        visitor_id: user.id
       });
 
     if (error) {
@@ -14264,7 +15338,6 @@ const recordMinistryProfileVisit = async (ministryId) => {
     );
   }
 };
-
 
 const registerMinistryActivity = async ({
   ministryId,
@@ -16400,6 +17473,11 @@ const [
   setIsViewedMinistryFollowing
 ] = useState(false);
 
+const [
+  viewedMinistryTab,
+  setViewedMinistryTab
+] = useState('ABOUT');
+
 const openPublicMinistryProfile =
   async (
     ministryId
@@ -16434,7 +17512,9 @@ const openPublicMinistryProfile =
             street_address,
             main_service_day,
             service_time,
-            mission_statement
+            mission_statement,
+            email,
+            phone_number
           `)
           .eq(
             'id',
@@ -16449,11 +17529,17 @@ const openPublicMinistryProfile =
 
 
       setViewedMinistry(
-        ministry
-      );
+  ministry
+);
 
+setViewedMinistryTab('ABOUT');
 
-      const following =
+await Promise.all([
+  loadMinistryContent(ministry.id),
+  loadMinistryActivities(ministry.id)
+]);
+
+const following =
         isFollowingMinistry(
           ministry.id
         );
@@ -16487,6 +17573,49 @@ const openPublicMinistryProfile =
     }
 
   };
+
+const openOwnMinistryProfile = async () => {
+  const ministryId =
+    activeMinistryWorkspace?.ministry?.id ||
+    (
+      userProfile?.account_type === 'Ministry'
+        ? userProfile?.id
+        : null
+    );
+
+  if (!ministryId) {
+    console.error(
+      'Cannot open Ministry profile: no Ministry ID found.'
+    );
+
+    setActiveTab('sanctuary');
+    setStep(26);
+    return;
+  }
+
+  await openPublicMinistryProfile(
+    ministryId
+  );
+};
+
+useEffect(() => {
+  if (!authReady) return;
+
+  if (
+    isMinistryOwner &&
+    step === 18 &&
+    !isViewingMinistryProfile
+  ) {
+    openOwnMinistryProfile();
+  }
+}, [
+  authReady,
+  step,
+  isMinistryOwner,
+  isViewingMinistryProfile,
+  activeMinistryWorkspace?.ministry?.id,
+  userProfile?.id
+]);
 
 const toggleViewedMinistryFollow =
   async () => {
@@ -17589,6 +18718,8 @@ const streamSessionIdRef =
 
 const streamCurrentTimeRef =
   useRef(0);
+const streamPersistedSecondsRef = useRef(0);
+const streamPersistingRef = useRef(false);
 
   const [selectedStoreBook, setSelectedStoreBook] = useState(null);
   const [isReadingBook, setIsReadingBook] = useState(false);
@@ -23316,7 +24447,7 @@ if (insertError) {
         <div className="feed-screen-container" style={{ position: 'relative', height: '100vh', width: '100vw', display: 'flex', flexDirection: 'column' }}>
           
           <div className="kingdom-top-header">
-            <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
+            <button className="back-button" onClick={handleContextBack} style={{ width: '36px', height: '36px' }}>
               <BackArrowIcon />
             </button>
             <h2 style={{ fontSize: '18px', fontWeight: '800', margin: '0' }} className="metallic-gold-text">
@@ -25378,7 +26509,10 @@ disabled={isUploadingBook}
   </div>
 )}
 
-          <AppBottomNav />
+          {isMinistryContext
+  ? <MinistryBottomNav />
+  : <AppBottomNav />
+}
         </div>
       )}
 
@@ -25390,7 +26524,7 @@ disabled={isUploadingBook}
         <div className="feed-screen-container">
 
           <div className="treasury-header-top">
-            <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
+            <button className="back-button" onClick={handleContextBack} style={{ width: '36px', height: '36px' }}>
               <BackArrowIcon />
             </button>
             <h2 style={{ fontSize: '16px', fontWeight: '800', margin: '0' }} className="metallic-gold-text">
@@ -25724,7 +26858,7 @@ disabled={isUploadingBook}
                 <span className="treasury-action-label">Give /<br />Send</span>
               </div>
               
-              {userProfile?.account_type === 'Ministry' ? (
+              {isMinistryContext ? (
                 <div className="treasury-action-item" onClick={() => setActiveModal('qr')}>
                   <div className="treasury-action-circle" style={{ color: '#29beaf', background: 'rgba(41, 190, 175, 0.1)' }}>
                     <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><rect x="7" y="7" width="3" height="3"></rect><rect x="14" y="7" width="3" height="3"></rect><rect x="7" y="14" width="3" height="3"></rect><rect x="14" y="14" width="3" height="3"></rect></svg>
@@ -25931,7 +27065,10 @@ disabled={isUploadingBook}
             </div>
           )}
 
-          <AppBottomNav />
+          {isMinistryContext
+  ? <MinistryBottomNav />
+  : <AppBottomNav />
+}
         </div>
       )}
 
@@ -27352,7 +28489,7 @@ disabled={isUploadingBook}
           {/* MEDIA HEADER */}
           <div className="media-header">
             <div className="media-header-left">
-              <button className="back-button" onClick={() => setStep(6)} style={{ width: '36px', height: '36px' }}>
+              <button className="back-button" onClick={handleContextBack} style={{ width: '36px', height: '36px' }}>
                 <BackArrowIcon />
               </button>
               <div className="media-header-text">
@@ -27554,7 +28691,10 @@ disabled={isUploadingBook}
             )}
 
           </div>
-          <AppBottomNav />
+         {isMinistryContext
+  ? <MinistryBottomNav />
+  : <AppBottomNav />
+}
         </div>
       )}
 
@@ -27656,6 +28796,64 @@ disabled={isUploadingBook}
 
                   <p className="profile-bio-text">{userProfile.bio || 'Add a bio to tell the community about yourself.'}</p>
 
+<div
+  style={{
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+    marginTop: '10px',
+    marginBottom: '14px'
+  }}
+>
+  <div
+    style={{
+      color: '#29beaf',
+      fontSize: '10px',
+      fontWeight: '800'
+    }}
+  >
+    @{userProfile.username || 'username'}
+  </div>
+
+  <div
+    style={{
+      color: '#64748b',
+      fontSize: '9px'
+    }}
+  >
+    •
+  </div>
+
+  <div
+    style={{
+      color: '#8e9aab',
+      fontSize: '9px'
+    }}
+  >
+    {globalPosts.filter(
+      post =>
+        post.user_profiles?.username === userProfile?.username
+    ).length} posts
+  </div>
+
+  <div
+    style={{
+      color: '#64748b',
+      fontSize: '9px'
+    }}
+  >
+    •
+  </div>
+
+  <div
+    style={{
+      color: '#8e9aab',
+      fontSize: '9px'
+    }}
+  >
+    {followedMinistries.length} ministries
+  </div>
+</div>
                   <div className="profile-location-church">
                     <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                       <IconMapPin /> {userProfile.address || 'Unknown City'}, {userProfile.country || 'Unknown Country'}
@@ -27928,7 +29126,14 @@ disabled={isUploadingBook}
                     <h3 className="profile-section-heading" style={{ marginTop: '25px' }}>Ministries Followed</h3>
                     <div className="ministries-row">
                       {followedMinistries.map(ministry => (
-                         <div key={ministry.id} className="ministry-avatar-wrapper">
+                         <div
+  key={ministry.id}
+  className="ministry-avatar-wrapper"
+  onClick={() => openPublicMinistryProfile(ministry.id)}
+  style={{
+    cursor: 'pointer'
+  }}
+>
                           <div
   className={`ministry-avatar ${
     ministry.isMain
@@ -28103,7 +29308,39 @@ disabled={isUploadingBook}
                                   </div>
                                 </div>
                               </div>
-                              <p style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '1.5', marginBottom: '12px' }}>{post.content}</p>
+                              <p
+  style={{
+    color: '#e2e8f0',
+    fontSize: '14px',
+    lineHeight: '1.5',
+    marginBottom: '12px'
+  }}
+>
+  {post.content &&
+  post.content.length > 150 &&
+  !expandedPosts[post.id]
+    ? `${post.content.substring(0, 150)}...`
+    : post.content}
+
+  {post.content &&
+  post.content.length > 150 && (
+    <span
+      onClick={() =>
+        togglePostExpand(post.id)
+      }
+      style={{
+        color: '#29beaf',
+        cursor: 'pointer',
+        fontWeight: 'bold',
+        marginLeft: '5px'
+      }}
+    >
+      {expandedPosts[post.id]
+        ? 'See less'
+        : 'See more'}
+    </span>
+  )}
+</p>
                               
                               {post.image_url && (
                                 isVideo ? (
@@ -28470,12 +29707,9 @@ disabled={isUploadingBook}
     `}</style>
 
     {!activeDbChat ? (
-      /* =========================================
-         INBOX
-         ========================================= */
       <div style={{ display: 'flex', flexDirection: 'column', width: '100%', flex: 1, overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px' }}>
-          <button onClick={() => setStep(6)} style={{ background: 'rgba(255,255,255,0.03)', border: 'none', color: '#fff', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+          <button onClick={handleContextBack} style={{ background: 'rgba(255,255,255,0.03)', border: 'none', color: '#fff', width: '40px', height: '40px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
             <BackArrowIcon />
           </button>
           <div style={{ textAlign: 'center' }}>
@@ -29583,7 +30817,10 @@ const displayName =
           </div>
         )}
         
-        <AppBottomNav />
+       {isMinistryContext
+  ? <MinistryBottomNav />
+  : <AppBottomNav />
+}
 
       </div>
     ) : (
@@ -30982,7 +32219,7 @@ const displayName =
   }}
 >
 
-  {userProfile?.account_type !== 'Ministry' && (
+{!isMinistryOwner && (
     <button
       onClick={() => {
         setActiveMinistryWorkspace(null);
@@ -35329,7 +36566,7 @@ const displayName =
         <div
           style={{
             position: 'relative',
-            overflow: 'hidden',
+            overflow: 'visible',
             height: '190px',
             borderRadius: '18px',
             marginBottom: '58px',
@@ -35399,9 +36636,9 @@ const displayName =
             style={{
               position: 'absolute',
               left: '18px',
-              bottom: '-42px',
-              width: '88px',
-              height: '88px',
+              bottom: '-38px',
+              width: '78px',
+              height: '78px',
               borderRadius: '22px',
               overflow: 'hidden',
               background: '#101926',
@@ -35422,7 +36659,7 @@ const displayName =
                 style={{
                   width: '100%',
                   height: '100%',
-                  objectFit: 'cover'
+                  objectFit: 'contain'
                 }}
               />
 
@@ -35464,8 +36701,8 @@ const displayName =
             }
             style={{
               position: 'absolute',
-              left: '120px',
-              bottom: '12px',
+              left: '108px',
+              bottom: '10px',
               padding:
                 '7px 10px',
               borderRadius:
