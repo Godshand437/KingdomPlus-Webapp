@@ -328,7 +328,7 @@ const VerifiedChurchIcon = () => (
     <svg width="14" height="14" viewBox="0 0 24 24" fill="#f3ca58" stroke="#09101a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon></svg>
   );
 
-const IconMapPin = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>;
+const IconMapPin = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>;
 const IconChurch = () => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 21h18"></path><path d="M3 7v1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1m0 1a3 3 0 0 0 6 0v-1h-18l2-4h14l2 4"></path><path d="M5 21V10.85"></path><path d="M19 21V10.85"></path><path d="M9 21v-4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v4"></path></svg>;
 const IconFlame = () => <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="grey" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>;
 const IconHeadphones = () => <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke="grey" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 18v-6a9 9 0 0 1 18 0v6"></path><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"></path></svg>;
@@ -619,6 +619,9 @@ useEffect(() => {
 const [statusCaption, setStatusCaption] = useState('');
 const [selectedStatusFile, setSelectedStatusFile] = useState(null);
 const [showMediaStatusComposer, setShowMediaStatusComposer] = useState(false);
+const [showStatusCamera, setShowStatusCamera] = useState(false);
+const statusCameraVideoRef = useRef(null);
+const statusCameraStreamRef = useRef(null);
   
   const [isStatusPaused, setIsStatusPaused] = useState(false);
   const statusVideoRef = useRef(null);
@@ -627,6 +630,17 @@ const [showMediaStatusComposer, setShowMediaStatusComposer] = useState(false);
   viewedStatusIds,
   setViewedStatusIds
 ] = useState([]);
+
+useEffect(() => {
+  if (
+    showStatusCamera &&
+    statusCameraVideoRef.current &&
+    statusCameraStreamRef.current
+  ) {
+    statusCameraVideoRef.current.srcObject =
+      statusCameraStreamRef.current;
+  }
+}, [showStatusCamera]);
 
 const getCurrentUserAvatar = () => {
   return (
@@ -2206,7 +2220,7 @@ const [solBalance, setSolBalance] =
 
 const [walletUsdRates, setWalletUsdRates] =
   useState({
-    KPC: 0.25,
+    KPC: 0.10,
     USDC: 1,
     SOL: 0
   });
@@ -2244,7 +2258,7 @@ const handleDemoSwap = async () => {
   }
 
 
-  const KPC_TO_USDC = 0.25;
+  const KPC_TO_USDC = 0.10;
 
 
   let receivedAmount = 0;
@@ -21035,7 +21049,7 @@ if (!isMinistryRegistration) {
                   <WalletIcon />
                   <div className="balance-text">
                     <span className="balance-kpc" style={{ fontWeight: '800', color: '#f3ca58' }}>{kpcBalance} KPC</span>
-                    <span className="balance-usd" style={{ color: '#8e9aab', fontSize: '11px' }}> / ${(kpcBalance * 0.25).toFixed(2)}</span>
+                    <span className="balance-usd" style={{ color: '#8e9aab', fontSize: '11px' }}> / ${(kpcBalance * 0.10).toFixed(2)}</span>
                   </div>
                 </div>
                 <div 
@@ -21890,10 +21904,37 @@ const isAnnouncementViewed =
       <button onClick={() => { setShowTestimonyChoice(false); setShowTextStatusModal(true); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'linear-gradient(90deg, #f3ca58, #29beaf)', color: '#101926', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Write a Moment</button>
       <button onClick={() => { setShowTestimonyChoice(false); fileInputRef.current.click(); }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Share Photo/Video</button>
 <button
-  onClick={() => {
+  onClick={async () => {
     setShowTestimonyChoice(false);
-    cameraInputRef.current?.click();
-  }} style={{ display: 'block', width: '100%', padding: '14px', marginBottom: '12px', background: 'rgba(255,255,255,0.1)', color: '#fff', border: 'none', borderRadius: '12px', fontWeight: '800', cursor: 'pointer' }}>Camera</button>
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment' },
+        audio: false
+      });
+
+      statusCameraStreamRef.current = stream;
+      setShowStatusCamera(true);
+    } catch (error) {
+      console.error('Camera access failed:', error);
+      alert('Unable to access the camera. Please allow camera permission.');
+    }
+  }}
+  style={{
+    display: 'block',
+    width: '100%',
+    padding: '14px',
+    marginBottom: '12px',
+    background: 'rgba(255,255,255,0.1)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '12px',
+    fontWeight: '800',
+    cursor: 'pointer'
+  }}
+>
+  Camera
+</button>
 {showMediaStatusComposer && selectedStatusFile && (
   <div
     style={{
@@ -21975,6 +22016,107 @@ const isAnnouncementViewed =
         Share
       </button>
     </div>
+{showStatusCamera && (
+  <div
+    style={{
+      position: 'fixed',
+      inset: 0,
+      zIndex: 1000001,
+      background: '#000',
+      display: 'flex',
+      flexDirection: 'column'
+    }}
+  >
+    <video
+      ref={statusCameraVideoRef}
+      autoPlay
+      playsInline
+      muted
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover'
+      }}
+    />
+
+    <button
+      onClick={() => {
+        if (statusCameraStreamRef.current) {
+          statusCameraStreamRef.current
+            .getTracks()
+            .forEach(track => track.stop());
+        }
+
+        statusCameraStreamRef.current = null;
+        setShowStatusCamera(false);
+      }}
+      style={{
+        position: 'absolute',
+        top: '20px',
+        right: '20px',
+        width: '42px',
+        height: '42px',
+        borderRadius: '50%',
+        border: 'none',
+        background: 'rgba(0,0,0,0.55)',
+        color: '#fff',
+        fontSize: '20px',
+        cursor: 'pointer'
+      }}
+    >
+      ×
+    </button>
+
+    <button
+      onClick={() => {
+        const video = statusCameraVideoRef.current;
+
+        if (!video) return;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(blob => {
+          if (!blob) return;
+
+          const file = new File(
+            [blob],
+            `status-${Date.now()}.jpg`,
+            { type: 'image/jpeg' }
+          );
+
+          if (statusCameraStreamRef.current) {
+            statusCameraStreamRef.current
+              .getTracks()
+              .forEach(track => track.stop());
+          }
+
+          statusCameraStreamRef.current = null;
+          setShowStatusCamera(false);
+          setSelectedStatusFile(file);
+          setStatusCaption('');
+          setShowMediaStatusComposer(true);
+        }, 'image/jpeg', 0.92);
+      }}
+      style={{
+        position: 'absolute',
+        bottom: '35px',
+        left: '50%',
+        transform: 'translateX(-50%)',
+        width: '70px',
+        height: '70px',
+        borderRadius: '50%',
+        border: '5px solid #fff',
+        background: '#fff',
+        cursor: 'pointer'
+      }}
+    />
+  </div>
+)}
 
     <div
       style={{
@@ -23397,16 +23539,139 @@ if (insertError) {
     <div className="card-icon" style={{ color: '#8e9aab' }}><ChatIcon /></div>
   </div>
   
-  <div style={{ marginTop: '15px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-    <div style={{ display: 'flex' }}>
-      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#29beaf', border: '2px solid #101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', zIndex: 3 }}>⛪</div>
-      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#f3ca58', border: '2px solid #101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', marginLeft: '-10px', zIndex: 2 }}>🕊️</div>
-      <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: '#1e293b', border: '2px solid #101926', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '10px', color: '#fff', marginLeft: '-10px', zIndex: 1 }}>+3</div>
-    </div>
-    <div style={{ fontSize: '12px', color: '#8e9aab', lineHeight: '1.4' }}>
-      New posts from <strong>{userProfile?.local_church || 'your church'}</strong> and friends.
-    </div>
+<div
+  style={{
+    marginTop: '15px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px'
+  }}
+>
+  <div
+    style={{
+      display: 'flex',
+      alignItems: 'center',
+      minWidth: '92px'
+    }}
+  >
+    {globalPosts
+      .slice(0, 3)
+      .map((post, index) => (
+        <div
+          key={post.id}
+          onClick={e => {
+            e.stopPropagation();
+            handleViewProfile(post.author_id);
+          }}
+          style={{
+            width: '32px',
+            height: '32px',
+            borderRadius: '50%',
+            overflow: 'hidden',
+            background: '#1e293b',
+            border: '2px solid #101926',
+            marginLeft:
+              index === 0
+                ? '0'
+                : '-10px',
+            zIndex:
+              3 - index,
+            cursor: 'pointer',
+            flexShrink: 0
+          }}
+        >
+          {post.user_profiles?.avatar_url ? (
+            <img
+              src={
+                post.user_profiles.avatar_url
+              }
+              alt=""
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'cover'
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '100%',
+                height: '100%',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#29beaf',
+                fontSize: '10px',
+                fontWeight: '900'
+              }}
+            >
+              {(
+                post.user_profiles?.username ||
+                'U'
+              )
+                .replace(/^@/, '')
+                .substring(0, 2)
+                .toUpperCase()}
+            </div>
+          )}
+        </div>
+      ))}
+
+    {globalPosts.length > 3 && (
+      <div
+        style={{
+          width: '32px',
+          height: '32px',
+          borderRadius: '50%',
+          background: '#1e293b',
+          border: '2px solid #101926',
+          marginLeft: '-10px',
+          zIndex: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          color: '#fff',
+          fontSize: '9px',
+          fontWeight: '900'
+        }}
+      >
+        +{globalPosts.length - 3}
+      </div>
+    )}
   </div>
+
+  <div
+    style={{
+      fontSize: '12px',
+      color: '#8e9aab',
+      lineHeight: '1.4'
+    }}
+  >
+    {globalPosts.length > 0 ? (
+      <>
+        New posts from{' '}
+        <strong style={{ color: '#fff' }}>
+          {globalPosts[0]?.user_profiles?.username
+            ? `@${globalPosts[0].user_profiles.username.replace(/^@/, '')}`
+            : 'your community'}
+        </strong>
+        {globalPosts.length > 1 && (
+          <>
+            {' '}and{' '}
+            <strong style={{ color: '#fff' }}>
+              {globalPosts.length - 1} others
+            </strong>
+          </>
+        )}
+      </>
+    ) : (
+      <>
+        New posts from your church
+        and Kingdom community.
+      </>
+    )}
+  </div>
+</div>
   
   <div className="card-action" style={{ marginTop: '30px' }}>
     <span style={{ color: '#f3ca58', fontSize: '13px', fontWeight: '700' }}>Open feed {'>'}</span>
@@ -26705,7 +26970,7 @@ disabled={isUploadingBook}
           {(
             Number(
               kpcBalance
-            ) * 0.25
+            ) * 0.10
           ).toFixed(2)}
         </div>
 
@@ -28116,7 +28381,7 @@ disabled={isUploadingBook}
                     value={sendAmount}
                     onChange={(e) => setSendAmount(e.target.value)}
                   />
-                  <span className="amount-usd">≈ ${(Number(sendAmount) * 0.25 || 0).toFixed(2)} USD</span>
+                  <span className="amount-usd">≈ ${(Number(sendAmount) * 0.10 || 0).toFixed(2)} USD</span>
                 </div>
 
                 <label className="form-label">Memo (optional)</label>
@@ -29075,11 +29340,25 @@ disabled={isUploadingBook}
         </div>
 
         <div className="activity-num">
-          {Number(
-            userProfile.stream_time_hours ||
-            0
-          ).toFixed(1)}h
-        </div>
+  {(() => {
+    const totalSeconds = Math.round(
+      Number(userProfile?.stream_time_hours || 0) * 3600
+    );
+
+    const hours = Math.floor(totalSeconds / 3600);
+    const seconds = totalSeconds % 3600;
+
+    if (hours > 0 && seconds > 0) {
+      return `${hours}h ${seconds}s`;
+    }
+
+    if (hours > 0) {
+      return `${hours}h`;
+    }
+
+    return `${seconds}s`;
+  })()}
+</div>
 
         <div className="activity-label">
           Streamed
