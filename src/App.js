@@ -337,6 +337,23 @@ const IconMail = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="non
 const IconPhone = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>;
 const IconCalendar = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>;
 const IconGlobe = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>;
+const FriendsIcon = () => (
+  <svg
+    width="25"
+    height="25"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="grey"
+    strokeWidth="2"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+  >
+    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+    <circle cx="9" cy="7" r="4" />
+    <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+  </svg>
+);
 
 
 export default function App() {
@@ -746,42 +763,217 @@ const handleMarkAllRead = () => {
 
 const [isNotifOpen, setIsNotifOpen] = useState(false);
 const [notifications, setNotifications] = useState([]);
-useEffect(() => {
+const createNotification = async ({
+  recipientId,
+  senderId = null,
+  ministryId = null,
+  type,
+  title,
+  message,
+  contentId = null,
+  chatId = null
+}) => {
+  if (!recipientId) {
+    return null;
+  }
+
+  try {
+    const {
+      data,
+      error
+    } = await supabase
+      .from('notifications')
+      .insert({
+        recipient_id: recipientId,
+        sender_id: senderId,
+        ministry_id: ministryId,
+        notification_type: type,
+        title,
+        message,
+        content_id: contentId,
+        chat_id: chatId,
+        is_read: false
+      })
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    return data;
+
+  } catch (error) {
+    console.error(
+      'Notification creation failed:',
+      error
+    );
+
+    return null;
+  }
+};
+const notifyMinistryAudience = async ({
+  ministryId,
+  senderId,
+  type,
+  title,
+  message,
+  contentId = null
+}) => {
+  if (!ministryId) {
+    return;
+  }
+
+  try {
+    const [
+      membersResult,
+      followsResult
+    ] = await Promise.all([
+      supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('local_church_id', ministryId)
+        .eq('account_type', 'User'),
+
+      supabase
+        .from('ministry_follows')
+        .select('user_id')
+        .eq('ministry_id', ministryId)
+    ]);
+
+    if (membersResult.error) {
+      throw membersResult.error;
+    }
+
+    if (followsResult.error) {
+      throw followsResult.error;
+    }
+
+    const recipientIds = [
+      ...(membersResult.data || []).map(
+        row => row.id
+      ),
+      ...(followsResult.data || []).map(
+        row => row.user_id
+      )
+    ];
+
+    const uniqueRecipientIds = [
+      ...new Set(
+        recipientIds.filter(
+          id =>
+            id &&
+            String(id) !== String(senderId)
+        )
+      )
+    ];
+
+    if (!uniqueRecipientIds.length) {
+      return;
+    }
+
+    const rows =
+      uniqueRecipientIds.map(
+        recipientId => ({
+          recipient_id:
+            recipientId,
+
+          sender_id:
+            senderId,
+
+          ministry_id:
+            ministryId,
+
+          notification_type:
+            type,
+
+          title,
+
+          message,
+
+          content_id:
+            contentId,
+
+          is_read:
+            false
+        })
+      );
+
+    const {
+      error
+    } = await supabase
+      .from('notifications')
+      .insert(rows);
+
+    if (error) {
+      throw error;
+    }
+
+  } catch (error) {
+    console.error(
+      'Failed to notify Ministry audience:',
+      error
+    );
+  }
+};
+
+const loadNotifications = async () => {
   if (!currentUser?.id) {
     setNotifications([]);
     return;
   }
 
-  const storageKey = `kp_notifs_${currentUser.id}`;
-  const saved = localStorage.getItem(storageKey);
+  try {
+    const {
+      data,
+      error
+    } = await supabase
+      .from('notifications')
+      .select(`
+        id,
+        sender_id,
+        ministry_id,
+        notification_type,
+        title,
+        message,
+        content_id,
+        chat_id,
+        is_read,
+        created_at
+      `)
+      .eq('recipient_id', currentUser.id)
+      .order('created_at', {
+        ascending: false
+      })
+      .limit(100);
 
-  if (saved) {
-    try {
-      setNotifications(JSON.parse(saved));
-    } catch (error) {
-      console.error('Failed to load notifications:', error);
-
-      setNotifications([]);
+    if (error) {
+      throw error;
     }
-  } else {
-    const welcomeNotification = {
-      id: `welcome-${currentUser.id}`,
-      type: 'SYSTEM',
-      title: 'Welcome to KingdomPlus',
-      message: 'Your Kingdom Vault is ready. Start exploring! and dont forget to drop Feedback / Suggestion',
-      time: 'Just now',
-      isRead: false
-    };
 
-    setNotifications([welcomeNotification]);
+    setNotifications(
+      (data || []).map(notification => ({
+        ...notification,
+        type:
+          notification.notification_type,
+        isRead:
+          notification.is_read,
+        time:
+          notification.created_at
+      }))
+    );
 
-    localStorage.setItem(
-      storageKey,
-      JSON.stringify([welcomeNotification])
+  } catch (error) {
+    console.error(
+      'Failed to load notifications:',
+      error
     );
   }
-}, [currentUser?.id]);
+};
 
+useEffect(() => {
+  loadNotifications();
+}, [currentUser?.id]);
 
   const getNotifIcon = (type) => {
     switch(type) {
@@ -1261,7 +1453,6 @@ const fetchWelcomeStatusComments = async () => {
 const getStatusRingBackground = (
   group
 ) => {
-
   const statuses =
     group.statuses || [];
 
@@ -1275,23 +1466,12 @@ const getStatusRingBackground = (
     360 / total;
 
   const gap =
-  total === 1
-    ? 0
-    : Math.min(
-        4,
-        segmentSize * 0.08
-      );
-
-  const rainbow = [
-    '#ff1744',
-    '#ff9100',
-    '#ffd600',
-    '#00e676',
-    '#00b8d4',
-    '#2979ff',
-    '#7c4dff',
-    '#d500f9'
-  ];
+    total === 1
+      ? 0
+      : Math.min(
+          4,
+          segmentSize * 0.08
+        );
 
   const stops = [];
 
@@ -1300,7 +1480,6 @@ const getStatusRingBackground = (
       status,
       index
     ) => {
-
       const start =
         index *
         segmentSize;
@@ -1316,22 +1495,25 @@ const getStatusRingBackground = (
               'welcome-001'
             )
           : viewedStatusIds.includes(
-              String(
-                status.id
-              )
+              String(status.id)
             );
 
-      const color =
-  viewed
-    ? '#737b88'
-    : rainbow[
-        index %
-        rainbow.length
-      ];
-
-      stops.push(
-        `${color} ${start}deg ${end}deg`
-      );
+      if (viewed) {
+        stops.push(
+          `#737b88 ${start}deg ${end}deg`
+        );
+      } else {
+        stops.push(
+          `#ff1744 ${start}deg ${end * 0.16}deg`,
+          `#ff9100 ${end * 0.16}deg ${end * 0.28}deg`,
+          `#ffd600 ${end * 0.28}deg ${end * 0.40}deg`,
+          `#00e676 ${end * 0.40}deg ${end * 0.52}deg`,
+          `#00b8d4 ${end * 0.52}deg ${end * 0.64}deg`,
+          `#2979ff ${end * 0.64}deg ${end * 0.76}deg`,
+          `#7c4dff ${end * 0.76}deg ${end * 0.88}deg`,
+          `#d500f9 ${end * 0.88}deg ${end}deg`
+        );
+      }
 
       stops.push(
         `rgba(0,0,0,0) ${end}deg ${end + gap}deg`
@@ -11872,38 +12054,43 @@ if (
 ) {
 
   const {
-    error
-  } = await supabase
-    .from('devotions')
-    .insert([{
+  data: createdDevotion,
+  error
+} = await supabase
+  .from('devotions')
+  .insert([{
+    title: studioTitle.trim(),
+    scripture:
+      studioSub.trim() || null,
+    body: studioBody.trim(),
+    reward,
+    is_featured: false,
+    img_url: coverUrl,
+    author_id:
+      isMinistryPublish
+        ? ministryId
+        : user.id,
+    church_name: authorName
+  }])
+  .select('id')
+  .single();
 
-      title:
-        studioTitle.trim(),
+if (error) {
+  throw error;
+}
 
-      scripture:
-        studioSub.trim() ||
-        null,
-
-      body:
-        studioBody.trim(),
-
-      reward,
-
-      is_featured:
-        false,
-
-      img_url:
-        coverUrl,
-
-      author_id:
-        isMinistryPublish
-          ? ministryId
-          : user.id,
-
-      church_name:
-        authorName
-
-    }]);
+if (isMinistryPublish) {
+  await notifyMinistryAudience({
+    ministryId,
+    senderId: user.id,
+    type: 'MINISTRY_DEVOTION',
+    title: 'New Devotion Published',
+    message:
+      `${authorName} published a new devotion: "${studioTitle.trim()}"`,
+    contentId:
+      createdDevotion.id
+  });
+}
 
       if (error) {
         throw error;
@@ -12073,10 +12260,11 @@ else if (
     );
 
   const {
-    error
-  } = await supabase
-    .from('kingdom_content')
-    .insert([{
+  data: createdPlan,
+  error
+} = await supabase
+  .from('kingdom_content')
+  .insert([{
 
       author_id:
         isMinistryPublish
@@ -12117,6 +12305,19 @@ else if (
   if (error) {
     throw error;
   }
+
+if (isMinistryPublish) {
+  await notifyMinistryAudience({
+    ministryId,
+    senderId: user.id,
+    type: 'MINISTRY_PLAN',
+    title: 'New Bible Plan Published',
+    message:
+      `${authorName} published a new Bible plan: "${studioTitle.trim()}"`,
+    contentId:
+      createdPlan.id
+  });
+}
 
 }
     else {
@@ -14078,12 +14279,6 @@ useEffect(() => {
 
 const [newsArticles, setNewsArticles] = useState(newsData);
 
-useEffect(() => {
-  if (currentUser) {
-    localStorage.setItem(`kp_notifs_${currentUser.id}`, JSON.stringify(notifications));
-  }
-}, [notifications, currentUser]);
-
 
   const [isAdmin, setIsAdmin] = useState(true); 
   const [profileTab, setProfileTab] = useState('All');
@@ -14120,10 +14315,15 @@ const hasDiscipleAccess = (profile) => {
 };
 
 const loadMinistryMembers = async () => {
-  if (
-    !userProfile?.id ||
-    userProfile?.account_type !== 'Ministry'
-  ) {
+  const ministryId =
+    activeMinistryWorkspace?.ministry?.id ||
+    (
+      userProfile?.account_type === 'Ministry'
+        ? userProfile?.id
+        : null
+    );
+
+  if (!ministryId) {
     setMinistryMembers([]);
     setMinistryMemberCount(0);
     return;
@@ -14146,20 +14346,11 @@ const loadMinistryMembers = async () => {
         local_church_id,
         created_at
       `)
-      .eq(
-        'local_church_id',
-        userProfile.id
-      )
-      .eq(
-        'account_type',
-        'User'
-      )
-      .order(
-        'created_at',
-        {
-          ascending: false
-        }
-      );
+      .eq('local_church_id', ministryId)
+      .eq('account_type', 'User')
+      .order('created_at', {
+        ascending: false
+      });
 
     if (memberError) {
       throw memberError;
@@ -14169,38 +14360,26 @@ const loadMinistryMembers = async () => {
       (memberUsers || []).map(user => ({
         id: user.id,
         userId: user.id,
-
         name:
           user.full_name ||
           user.username ||
           'Kingdom Member',
-
         username:
           user.username || null,
-
         avatarUrl:
           user.avatar_url || null,
-
         membershipTier:
           user.membership_tier ||
           'Standard',
-
         status: 'active',
-
         joinedAt:
           user.created_at,
-
         updatedAt:
           user.created_at
       }));
 
-    setMinistryMembers(
-      formattedMembers
-    );
-
-    setMinistryMemberCount(
-      formattedMembers.length
-    );
+    setMinistryMembers(formattedMembers);
+    setMinistryMemberCount(formattedMembers.length);
 
   } catch (error) {
     console.error(
@@ -14210,16 +14389,26 @@ const loadMinistryMembers = async () => {
 
     setMinistryMembers([]);
     setMinistryMemberCount(0);
-
   } finally {
     setIsLoadingMinistryMembers(false);
   }
 };
 
 useEffect(() => {
+  const ministryId =
+    activeMinistryWorkspace?.ministry?.id ||
+    (
+      userProfile?.account_type === 'Ministry'
+        ? userProfile?.id
+        : null
+    );
+
   if (
-    step !== 6 ||
-    userProfile?.account_type !== 'Ministry'
+    !ministryId ||
+    !(
+      step === 6 ||
+      step === 26
+    )
   ) {
     return;
   }
@@ -14228,7 +14417,8 @@ useEffect(() => {
 }, [
   step,
   userProfile?.id,
-  userProfile?.account_type
+  userProfile?.account_type,
+  activeMinistryWorkspace?.ministry?.id
 ]);
 
 const loadMinistryMemberDirectory = async (
@@ -17335,23 +17525,47 @@ try {
         return;
       }
 
-      const { data: profileData, error: profileError } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', authorId)
-        .single();
+      const { data: profileData, error: profileError } =
+  await supabase
+    .from('user_profiles')
+    .select(`
+      *,
+      devotions_read,
+      stream_time_hours
+    `)
+    .eq('id', authorId)
+    .single();
 
       if (profileError) throw profileError;
       setViewedProfile(profileData);
 
-      const { data: servicesData, error: servicesError } = await supabase
-        .from('services')
-        .select('*')
-        .eq('provider_id', authorId);
+      const { data: servicesData, error: servicesError } =
+  await supabase
+    .from('services')
+    .select('*')
+    .eq('provider_id', authorId)
+    .order('created_at', {
+      ascending: false
+    });
 
-      if (!servicesError) {
-        setViewedUserServices(servicesData || []);
-      }
+if (servicesError) {
+  console.error(
+    'Failed to load user services:',
+    servicesError
+  );
+
+  setViewedUserServices([]);
+} else {
+  setViewedUserServices(
+    (servicesData || []).map(service => ({
+      ...service,
+      price:
+        Number(service.price_kpc || 0),
+      desc:
+        service.description || ''
+    }))
+  );
+}
 
       setProfileTab('All'); 
       setStep(25);
@@ -19158,8 +19372,17 @@ useEffect(() => {
       if (error) throw error;
 
       if (isMounted) {
-        setDbMessages(data || []);
-      }
+  const uniqueMessages = Array.from(
+    new Map(
+      (data || []).map(msg => [
+        String(msg.id),
+        msg
+      ])
+    ).values()
+  );
+
+  setDbMessages(uniqueMessages);
+}
 
     } catch (error) {
       console.error(
@@ -19245,12 +19468,14 @@ markChatAsRead();
           setDbMessages(prev => {
 
             if (
-              prev.some(
-                msg => msg.id === newMessage.id
-              )
-            ) {
-              return prev;
-            }
+  prev.some(
+    msg =>
+      String(msg.id) ===
+      String(newMessage.id)
+  )
+) {
+  return prev;
+}
 
             return [...prev, newMessage];
           });
@@ -32336,13 +32561,38 @@ const displayName =
                   <div className="faith-activity-grid">
                     {/* Replaced Day Streak with Friends count for Public View */}
                     <div className="faith-activity-card">
-                      <div className="activity-icon-container"><span style={{fontSize: '16px'}}>👥</span></div>
+                      <div className="activity-icon-container"><span style={{fontSize: '16px'}}><FriendsIcon/></span></div>
                       <div className="activity-num">{viewedProfile.friends_count || 0}</div>
                       <div className="activity-label">Friends</div>
                     </div>
                     <div className="faith-activity-card">
                       <div className="activity-icon-container"><IconHeadphones /></div>
-                      <div className="activity-num">{viewedProfile.stream_time_hours || 0}h</div>
+                      <div className="activity-num">
+  {(() => {
+    const totalSeconds = Math.round(
+      Number(
+        viewedProfile?.stream_time_hours || 0
+      ) * 3600
+    );
+
+    const hours = Math.floor(
+      totalSeconds / 3600
+    );
+
+    const seconds =
+      totalSeconds % 3600;
+
+    if (hours > 0 && seconds > 0) {
+      return `${hours}h ${seconds}s`;
+    }
+
+    if (hours > 0) {
+      return `${hours}h`;
+    }
+
+    return `${seconds}s`;
+  })()}
+</div>
                       <div className="activity-label">Streamed</div>
                     </div>
                     <div className="faith-activity-card">
@@ -32422,15 +32672,68 @@ const displayName =
                                   </div>
                                 )}
                                 <div className="post-meta">
-                                  <strong style={{ color: '#fff', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                                    {viewedProfile.full_name} 
-                                    hasDiscipleAccess(viewedProfile) && <span style={{ color: '#29beaf', fontSize: '12px' }}><CheckIcon /></span>}
-                                  </strong>
+                                  <strong
+  style={{
+    color: '#fff',
+    fontSize: '14px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '4px'
+  }}
+>
+  {viewedProfile.username}
+
+  {hasDiscipleAccess(viewedProfile) && (
+    <span
+      style={{
+        color: '#29beaf',
+        fontSize: '12px',
+        display: 'inline-flex',
+        alignItems: 'center'
+      }}
+      title="Verified Kingdom member"
+    >
+      <CheckIcon />
+    </span>
+  )}
+</strong>
                                   <span style={{ color: '#8e9aab', fontSize: '11px' }}>{new Date(post.created_at).toLocaleDateString()}</span>
                                 </div>
                               </div>
                             </div>
-                            <p style={{ color: '#e2e8f0', fontSize: '14px', lineHeight: '1.5', marginBottom: '12px' }}>{post.content}</p>
+                            <p
+  style={{
+    color: '#e2e8f0',
+    fontSize: '14px',
+    lineHeight: '1.5',
+    marginBottom: '12px'
+  }}
+>
+  {post.content &&
+  post.content.length > 150 &&
+  !expandedPosts[post.id]
+    ? `${post.content.substring(0, 150)}...`
+    : post.content}
+
+  {post.content &&
+    post.content.length > 150 && (
+      <span
+        onClick={() =>
+          togglePostExpand(post.id)
+        }
+        style={{
+          color: '#29beaf',
+          cursor: 'pointer',
+          fontWeight: 'bold',
+          marginLeft: '5px'
+        }}
+      >
+        {expandedPosts[post.id]
+          ? 'See less'
+          : 'See more'}
+      </span>
+    )}
+</p>
                             
                             {post.image_url && (
                               isVideo ? (
