@@ -742,23 +742,46 @@ const normalizeAvatarUrl = (avatar, username = 'User') => {
     false
 };
 
-const handleMarkAllRead = () => {
-  setNotifications(prev => {
-    const updated = prev.map(notification => ({
-      ...notification,
-      isRead: true
-    }));
+const handleMarkAllRead = async () => {
+  if (!currentUser?.id) {
+    return;
+  }
 
-    const currentUserId =
-      currentUser?.id || 'guest';
+  try {
+    const {
+      error
+    } = await supabase
+      .from('notifications')
+      .update({
+        is_read: true
+      })
+      .eq(
+        'recipient_id',
+        currentUser.id
+      )
+      .eq(
+        'is_read',
+        false
+      );
 
-    localStorage.setItem(
-      `kp_notifs_${currentUserId}`,
-      JSON.stringify(updated)
+    if (error) {
+      throw error;
+    }
+
+    setNotifications(prev =>
+      prev.map(notification => ({
+        ...notification,
+        is_read: true,
+        isRead: true
+      }))
     );
 
-    return updated;
-  });
+  } catch (error) {
+    console.error(
+      'Failed to mark notifications read:',
+      error
+    );
+  }
 };
 
 const [isNotifOpen, setIsNotifOpen] = useState(false);
@@ -3882,12 +3905,15 @@ const handlePostComment = async (commentText) => {
     const userName = currentUser?.formData?.username || 'User';
 
     const newComment = {
-      article_id: activeNewsArticle.id,
-      user_id: currentUser?.id || `temp-${Date.now()}`,
-      author_name: `@${userName}`,
-      avatar: currentUser?.formData?.avatar || currentUser?.image || `https://ui-avatars.com/api/?name=${userName}&background=f3ca58&color=000`,
-      content: commentText
-    };
+  article_id: activeNewsArticle.id,
+  user_id: currentUser?.id || `temp-${Date.now()}`,
+  author_name: `@${userName}`,
+  avatar: normalizeAvatarUrl(
+    getCurrentUserAvatar(),
+    userName
+  ),
+  content: commentText
+};
 
     try {
       const { data, error } = await supabase
@@ -6967,14 +6993,20 @@ const MinistryBottomNav = () => (
     };
 
     const handleAddComment = async () => {
-  if (!newComment.trim()) return;
-  
+  if (!newComment.trim() || !activeMedia?.id) return;
+
+  const username = getCurrentUsername();
+  const avatar = getCurrentUserAvatar();
+
   const commentObj = {
     media_id: activeMedia.id,
-    author: currentUser?.formData?.username || 'You',
+    author: username,
     text: newComment,
-    avatar: currentUser?.formData?.avatar || 'K',
-    time: 'Just now'
+    avatar: normalizeAvatarUrl(
+      avatar,
+      username
+    ),
+    time: `temp-${Date.now()}`
   };
   
   setComments([commentObj, ...comments]);
@@ -7248,7 +7280,9 @@ const MinistryBottomNav = () => (
               <div className="social-comments-header">
                 <div className="social-comments-title">
                   <MessageIcon /> Community Thoughts
-                  <span className="social-comments-count">{comments.length + 45}</span>
+                  <span className="social-comments-count">
+  {comments.length}
+</span>
                 </div>
                 <div style={{ color: '#8e9aab', fontSize: '12px' }}>Live Feed</div>
               </div>
@@ -7272,7 +7306,21 @@ const MinistryBottomNav = () => (
               <div className="social-comments-list">
                 {comments.map((comment, idx) => (
                   <div key={comment.id || idx} className="social-comment-card">
-                    <div className="social-comment-avatar">{comment.avatar}</div>
+                    <img
+  src={normalizeAvatarUrl(
+    comment.avatar,
+    comment.author || 'User'
+  )}
+  alt={comment.author || 'User'}
+  className="social-comment-avatar"
+  style={{
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    objectFit: 'cover',
+    flexShrink: 0
+  }}
+/>
                     <div className="social-comment-body">
                       <div className="social-comment-meta">
                         <span className="social-comment-author">{comment.author}</span>
@@ -12087,8 +12135,7 @@ if (isMinistryPublish) {
     title: 'New Devotion Published',
     message:
       `${authorName} published a new devotion: "${studioTitle.trim()}"`,
-    contentId:
-      createdDevotion.id
+    contentId: createdDevotion.id
   });
 }
 
@@ -12203,11 +12250,22 @@ await registerMinistryActivity({
   isPublic: true,
   createdBy: user.id
 });
+        if (isMinistryPublish) {
+      await notifyMinistryAudience({
+        ministryId,
+        senderId: user.id,
+        type: 'MINISTRY_MESSAGE',
+        title: 'New Message Published',
+        message:
+          `${authorName} published a new message: "${studioTitle.trim()}"`,
+        contentId: createdContent.id
+      });
     }
+  }
 
-else if (
-  publishCategory === 'Bible Plans'
-) {
+  else if (
+    publishCategory === 'Bible Plans'
+  ) {
 
   if (
     !Array.isArray(
@@ -12507,6 +12565,17 @@ const handleMinistryAnnouncementPublish =
       if (error) {
         throw error;
       }
+
+await notifyMinistryAudience({
+  ministryId,
+  senderId: user.id,
+  type: 'MINISTRY_ANNOUNCEMENT',
+  title: 'New Ministry Announcement',
+  message:
+    `${ministryName}: ${announceTitleInput.trim()}`,
+  contentId:
+    data.id
+});
 
       const newAnnouncement = {
 
@@ -19488,7 +19557,12 @@ markChatAsRead();
         }
       }
     )
-    .subscribe();
+    .subscribe(status => {
+  console.log(
+    'Active chat realtime status:',
+    status
+  );
+});
 
   return () => {
     isMounted = false;
@@ -19966,6 +20040,7 @@ useEffect(() => {
  useEffect(() => {
   if (!authReady) return;
   let globalSub = null;
+let globalNotificationSub = null;
   let isMounted = true;
 
   const initNotificationListener = async () => {
@@ -19975,6 +20050,55 @@ useEffect(() => {
 
       if (authError) throw authError;
       if (!user || !isMounted) return;
+
+const notificationChannel =
+  supabase
+    .channel(
+      `notifications-${user.id}`
+    )
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'notifications',
+        filter:
+          `recipient_id=eq.${user.id}`
+      },
+      payload => {
+        const notification =
+          payload.new;
+
+        setNotifications(prev => {
+          if (
+            prev.some(
+              item =>
+                String(item.id) ===
+                String(notification.id)
+            )
+          ) {
+            return prev;
+          }
+
+          return [
+            {
+              ...notification,
+              type:
+                notification.notification_type,
+              isRead:
+                notification.is_read,
+              time:
+                notification.created_at
+            },
+            ...prev
+          ];
+        });
+      }
+    )
+    .subscribe();
+
+globalNotificationSub =
+  notificationChannel;
 
       const { data: myChatParticipants, error: chatError } =
         await supabase
@@ -20127,14 +20251,24 @@ useEffect(() => {
 
   initNotificationListener();
 
-  return () => {
-    isMounted = false;
+return () => {
+  isMounted = false;
 
-    if (globalSub) {
-      supabase.removeChannel(globalSub);
-      globalSub = null;
-    }
-  };
+  if (globalSub) {
+    supabase.removeChannel(
+      globalSub
+    );
+    globalSub = null;
+  }
+
+  if (globalNotificationSub) {
+    supabase.removeChannel(
+      globalNotificationSub
+    );
+    globalNotificationSub = null;
+  }
+};
+
 }, [authReady]);
 
 
@@ -22241,6 +22375,76 @@ const isAnnouncementViewed =
         Share
       </button>
     </div>
+    <div
+      style={{
+        flex: 1,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '15px'
+      }}
+    >
+      {selectedStatusFile.type.startsWith('video/') ? (
+        <video
+          src={URL.createObjectURL(selectedStatusFile)}
+          controls
+          playsInline
+          style={{
+            maxWidth: '100%',
+            maxHeight: '65vh',
+            objectFit: 'contain'
+          }}
+        />
+      ) : (
+        <img
+          src={URL.createObjectURL(selectedStatusFile)}
+          alt="Status preview"
+          style={{
+            maxWidth: '100%',
+            maxHeight: '65vh',
+            objectFit: 'contain'
+          }}
+        />
+      )}
+    </div>
+
+    <div
+      style={{
+        padding: '14px 16px 28px',
+        background:
+          'linear-gradient(to top,rgba(0,0,0,.95),rgba(0,0,0,.65))'
+      }}
+    >
+      <input
+        type="text"
+        value={statusCaption}
+        onChange={e =>
+          setStatusCaption(
+            e.target.value
+          )
+        }
+        placeholder="Add a caption..."
+        maxLength={500}
+        style={{
+          width: '100%',
+          boxSizing: 'border-box',
+          border: '1px solid rgba(255,255,255,.2)',
+          background: 'rgba(255,255,255,.1)',
+          color: '#fff',
+          borderRadius: '24px',
+          padding: '12px 16px',
+          outline: 'none',
+          fontSize: '14px'
+        }}
+      />
+    </div>
+  </div>
+)}
+      <button onClick={() => setShowTestimonyChoice(false)} style={{ display: 'block', width: '100%', padding: '12px', background: 'transparent', color: '#8e9aab', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
+    </div>
+  </div>
+)}
+
 {showStatusCamera && (
   <div
     style={{
@@ -22343,75 +22547,6 @@ const isAnnouncementViewed =
   </div>
 )}
 
-    <div
-      style={{
-        flex: 1,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        padding: '15px'
-      }}
-    >
-      {selectedStatusFile.type.startsWith('video/') ? (
-        <video
-          src={URL.createObjectURL(selectedStatusFile)}
-          controls
-          playsInline
-          style={{
-            maxWidth: '100%',
-            maxHeight: '65vh',
-            objectFit: 'contain'
-          }}
-        />
-      ) : (
-        <img
-          src={URL.createObjectURL(selectedStatusFile)}
-          alt="Status preview"
-          style={{
-            maxWidth: '100%',
-            maxHeight: '65vh',
-            objectFit: 'contain'
-          }}
-        />
-      )}
-    </div>
-
-    <div
-      style={{
-        padding: '14px 16px 28px',
-        background:
-          'linear-gradient(to top,rgba(0,0,0,.95),rgba(0,0,0,.65))'
-      }}
-    >
-      <input
-        type="text"
-        value={statusCaption}
-        onChange={e =>
-          setStatusCaption(
-            e.target.value
-          )
-        }
-        placeholder="Add a caption..."
-        maxLength={500}
-        style={{
-          width: '100%',
-          boxSizing: 'border-box',
-          border: '1px solid rgba(255,255,255,.2)',
-          background: 'rgba(255,255,255,.1)',
-          color: '#fff',
-          borderRadius: '24px',
-          padding: '12px 16px',
-          outline: 'none',
-          fontSize: '14px'
-        }}
-      />
-    </div>
-  </div>
-)}
-      <button onClick={() => setShowTestimonyChoice(false)} style={{ display: 'block', width: '100%', padding: '12px', background: 'transparent', color: '#8e9aab', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Cancel</button>
-    </div>
-  </div>
-)}
 
 {/* --- FULL SCREEN STATUS VIEWER MODAL --- */}
 {activeViewStatus && (() => {
@@ -23698,7 +23833,21 @@ if (insertError) {
 <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', paddingBottom: '80px' }}>
   {realComments.map(comment => (
     <div key={comment.id} style={{ display: 'flex', alignItems: 'flex-start' }}>
-      <img src={comment.avatar} alt="User" style={{ width: '40px', height: '40px', borderRadius: '50%', marginRight: '12px', flexShrink: 0 }} />
+      <img
+  src={normalizeAvatarUrl(
+    comment.avatar,
+    comment.author_name || 'User'
+  )}
+  alt={comment.author_name || 'User'}
+  style={{
+    width: '40px',
+    height: '40px',
+    borderRadius: '50%',
+    objectFit: 'cover',
+    marginRight: '12px',
+    flexShrink: 0
+  }}
+/>
       <div style={{ background: '#1a2436', padding: '12px 16px', borderRadius: '0 16px 16px 16px', flexGrow: 1 }}>
         <div style={{ color: '#8e9aab', fontSize: '12px', marginBottom: '6px', fontWeight: 'bold' }}>{comment.author_name}</div>
         <div style={{ color: '#fff', fontSize: '14px', lineHeight: '1.5' }}>{comment.content}</div>
