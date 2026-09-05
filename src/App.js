@@ -14495,14 +14495,16 @@ const loadMinistryMemberDirectory = async (
   append = false
 ) => {
   const ministryId =
-    userProfile?.id;
+  activeMinistryWorkspace?.ministry?.id ||
+  (
+    userProfile?.account_type === 'Ministry'
+      ? userProfile.id
+      : null
+  );
 
-  if (
-    !ministryId ||
-    userProfile?.account_type !== 'Ministry'
-  ) {
-    return;
-  }
+if (!ministryId) {
+  return;
+}
 
   setIsLoadingMemberDirectory(true);
 
@@ -19009,6 +19011,46 @@ const getFaithActivityLevel =
     };
 
   };
+
+const formatStreamDuration = (
+  hoursValue
+) => {
+  const totalSeconds = Math.max(
+    0,
+    Math.round(
+      Number(hoursValue || 0) * 3600
+    )
+  );
+
+  const hours = Math.floor(
+    totalSeconds / 3600
+  );
+
+  const minutes = Math.floor(
+    (totalSeconds % 3600) / 60
+  );
+
+  const seconds =
+    totalSeconds % 60;
+
+  if (hours > 0) {
+    if (minutes > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+
+    return `${hours}h`;
+  }
+
+  if (minutes > 0) {
+    if (seconds > 0) {
+      return `${minutes}m ${seconds}s`;
+    }
+
+    return `${minutes}m`;
+  }
+
+  return `${seconds}s`;
+};
 
 const streamSessionIdRef =
   useRef(null);
@@ -29714,24 +29756,9 @@ disabled={isUploadingBook}
         </div>
 
         <div className="activity-num">
-  {(() => {
-    const totalSeconds = Math.round(
-      Number(userProfile?.stream_time_hours || 0) * 3600
-    );
-
-    const hours = Math.floor(totalSeconds / 3600);
-    const seconds = totalSeconds % 3600;
-
-    if (hours > 0 && seconds > 0) {
-      return `${hours}h ${seconds}s`;
-    }
-
-    if (hours > 0) {
-      return `${hours}h`;
-    }
-
-    return `${seconds}s`;
-  })()}
+  {formatStreamDuration(
+  userProfile?.stream_time_hours
+)}
 </div>
 
         <div className="activity-label">
@@ -32590,11 +32617,30 @@ const displayName =
               <div className="profile-identity-section">
                 <div className="profile-avatar-overlap" style={{ zIndex: 10 }}>
                   {viewedProfile.avatar_url ? (
-                    <img src={viewedProfile.avatar_url} alt="Profile" className="profile-avatar-circle" style={{ objectFit: 'cover' }} />
+                    <img
+  src={viewedProfile.avatar_url}
+  alt="Profile"
+  className="profile-avatar-circle"
+  style={{
+    objectFit: 'cover',
+    border: '4px solid #29beaf',
+    boxSizing: 'border-box'
+  }}
+/>
                   ) : (
-                    <div className="profile-avatar-circle">
-                      {viewedProfile.full_name ? viewedProfile.full_name.substring(0, 2).toUpperCase() : 'U'}
-                    </div>
+                    <div
+  className="profile-avatar-circle"
+  style={{
+    border: '4px solid #29beaf',
+    boxSizing: 'border-box'
+  }}
+>
+  {viewedProfile.full_name
+    ? viewedProfile.full_name
+        .substring(0, 2)
+        .toUpperCase()
+    : 'U'}
+</div>
                   )}
                   
                   {hasDiscipleAccess(viewedProfile) && (
@@ -32717,30 +32763,9 @@ const displayName =
                     <div className="faith-activity-card">
                       <div className="activity-icon-container"><IconHeadphones /></div>
                       <div className="activity-num">
-  {(() => {
-    const totalSeconds = Math.round(
-      Number(
-        viewedProfile?.stream_time_hours || 0
-      ) * 3600
-    );
-
-    const hours = Math.floor(
-      totalSeconds / 3600
-    );
-
-    const seconds =
-      totalSeconds % 3600;
-
-    if (hours > 0 && seconds > 0) {
-      return `${hours}h ${seconds}s`;
-    }
-
-    if (hours > 0) {
-      return `${hours}h`;
-    }
-
-    return `${seconds}s`;
-  })()}
+  {formatStreamDuration(
+  viewedProfile?.stream_time_hours
+)}
 </div>
                       <div className="activity-label">Streamed</div>
                     </div>
@@ -41350,11 +41375,13 @@ community.
                       member.id ||
                       member.userId
                     }
-                    onClick={() =>
-                      handleViewProfile(
-                        member.userId
-                      )
-                    }
+                    onClick={async () => {
+  setIsMinistryMembersModalOpen(false);
+
+  await handleViewProfile(
+    member.userId
+  );
+}}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
