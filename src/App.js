@@ -5805,18 +5805,13 @@ const [musicQueueIndex, setMusicQueueIndex] = useState(-1);
 const [shuffleEnabled, setShuffleEnabled] = useState(true);
 const [repeatEnabled, setRepeatEnabled] = useState(false);
 
-  // --- MEDIA SOCIAL & COMMENTS STATE ---
   const [isLiked, setIsLiked] = useState(false);
   const [likesCount, setLikesCount] = useState(0);
   const [isTipping, setIsTipping] = useState(false);
   const [isCommentsOpen, setIsCommentsOpen] = useState(false);
   const [newComment, setNewComment] = useState("");
-  const [comments, setComments] = useState([
-    { id: 1, author: 'Grace D.', text: 'This message is so timely! 🙏', avatar: 'G' },
-    { id: 2, author: 'Elijah P.', text: 'Hallelujah, I am claiming this.', avatar: 'E' }
-  ]);
+  const [comments, setComments] = useState([]);
 
-  // Reset social state when a new media file is opened
 useEffect(() => {
   if (activeMedia) {
     setIsLiked(false);
@@ -19410,7 +19405,8 @@ const fetchMessengerData = async () => {
         const otherParticipant =
           chat.chat_participants?.find(
             participant =>
-              participant.user_id !== user.id
+  String(participant.user_id) !==
+  String(user.id)
           );
 
         const otherUserId =
@@ -20335,6 +20331,54 @@ globalNotificationSub =
               ...newMessage,
               sender: senderProfile || null
             };
+const senderName =
+  senderProfile?.full_name ||
+  senderProfile?.username ||
+  'Someone';
+
+const messageNotification = {
+  id: `message-${newMessage.id}`,
+  type: 'SOCIAL',
+  title: `New message from ${senderName}`,
+  message:
+    newMessage.content ||
+    'You received a new message.',
+  time: new Date(
+    newMessage.created_at
+  ).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit'
+  }),
+  isRead: false,
+  sender_id:
+    newMessage.sender_id,
+  chat_id:
+    newMessage.chat_id
+};
+
+setNotifications(prev => {
+  if (
+    prev.some(
+      notification =>
+        notification.id ===
+        messageNotification.id
+    )
+  ) {
+    return prev;
+  }
+
+  const updated = [
+    messageNotification,
+    ...prev
+  ];
+
+  localStorage.setItem(
+    `kp_notifs_${user.id}`,
+    JSON.stringify(updated)
+  );
+
+  return updated;
+});
 
             setDbChats(prevChats => {
               const updatedChats = prevChats.map(chat => {
@@ -20454,28 +20498,32 @@ const fetchGlobalUsers =
     try {
 
       const {
-        data:
-          users,
-        error:
-          usersError
-      } =
-        await supabase
-          .from(
-            'user_profiles'
-          )
-          .select(`
-            id,
-            full_name,
-            username,
-            avatar_url,
-            denomination,
-            account_type
-          `)
-          .neq(
-            'id',
-            user.id
-          )
-          .limit(100);
+  data:
+    users,
+  error:
+    usersError
+} =
+  await supabase
+    .from(
+      'user_profiles'
+    )
+    .select(`
+      id,
+      full_name,
+      username,
+      avatar_url,
+      denomination,
+      account_type
+    `)
+    .neq(
+      'id',
+      user.id
+    )
+    .neq(
+      'account_type',
+      'Ministry'
+    )
+    .limit(100);
 
 
       if (usersError) {
@@ -20608,7 +20656,33 @@ const fetchConnections = async () => {
 
   if (incoming) setIncomingRequests(incoming);
   if (sent) setSentRequests(sent);
-  if (friendsList) setFriends(friendsList);
+  if (friendsList) {
+  const uniqueFriends = [];
+  const seenUsers = new Set();
+
+  for (const friendship of friendsList) {
+    const friendProfile =
+      friendship.sender_id === user.id
+        ? friendship.receiver
+        : friendship.sender;
+
+    const friendId =
+      friendProfile?.id;
+
+    if (!friendId) {
+      continue;
+    }
+
+    if (seenUsers.has(String(friendId))) {
+      continue;
+    }
+
+    seenUsers.add(String(friendId));
+    uniqueFriends.push(friendship);
+  }
+
+  setFriends(uniqueFriends);
+}
 };
 
 useEffect(() => {
@@ -22363,7 +22437,8 @@ const isAnnouncementViewed =
       style={{
         width: '100%',
         height: '100%',
-        objectFit: 'cover',
+        objectFit: 'contain',
+        background: '#000',
         display: 'block'
       }}
     />
@@ -30718,9 +30793,25 @@ const displayName =
                           <div style={{ color: '#fff', fontSize: '15px', fontWeight: '800' }}>
                             {displayName}
                           </div>
-                          <div style={{ color: '#8e9aab', fontSize: '12px', marginTop: '2px' }}>
-                            Tap to open conversation
-                          </div>
+                          <div
+  style={{
+    color: '#8e9aab',
+    fontSize: '12px',
+    marginTop: '2px',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+    maxWidth: '230px'
+  }}
+>
+  {chat.last_message?.content
+    ? (
+        chat.last_message.sender_id === userProfile?.id
+          ? `You: ${chat.last_message.content}`
+          : chat.last_message.content
+      )
+    : 'No messages yet'}
+</div>
                         </div>
                       </div>
                     </div>
@@ -31584,9 +31675,43 @@ const displayName =
                     return (
                       <div key={friendReq.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.02)', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.05)' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                          <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(41, 190, 175, 0.1)', color: '#29beaf', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold' }}>
-                            {friendProfile?.full_name?.charAt(0) || 'U'}
-                          </div>
+                          <div
+  style={{
+    width: '42px',
+    height: '42px',
+    borderRadius: '50%',
+    background: 'rgba(41, 190, 175, 0.1)',
+    color: '#29beaf',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontWeight: 'bold',
+    overflow: 'hidden',
+    flexShrink: 0,
+    border: '1px solid rgba(41,190,175,0.35)'
+  }}
+>
+  {friendProfile?.avatar_url ? (
+    <img
+      src={friendProfile.avatar_url}
+      alt={
+        friendProfile.full_name ||
+        friendProfile.username ||
+        'Friend'
+      }
+      style={{
+        width: '100%',
+        height: '100%',
+        objectFit: 'cover',
+        display: 'block'
+      }}
+    />
+  ) : (
+    friendProfile?.full_name?.charAt(0) ||
+    friendProfile?.username?.charAt(0) ||
+    'U'
+  )}
+</div>
                           <div style={{ color: '#fff', fontSize: '14px', fontWeight: '700' }}>
                             {friendProfile?.full_name || 'Believer'}
                           </div>
