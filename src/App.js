@@ -6993,26 +6993,84 @@ const MinistryBottomNav = () => (
     };
 
     const handleAddComment = async () => {
-  if (!newComment.trim() || !activeMedia?.id) return;
+  if (
+    !newComment.trim() ||
+    !activeMedia?.id
+  ) {
+    return;
+  }
 
-  const username = getCurrentUsername();
-  const avatar = getCurrentUserAvatar();
+  const {
+    data: {
+      user
+    }
+  } = await supabase.auth.getUser();
 
-  const commentObj = {
-    media_id: activeMedia.id,
-    author: username,
-    text: newComment,
-    avatar: normalizeAvatarUrl(
-      avatar,
+  if (!user) {
+    alert('Please sign in to comment.');
+    return;
+  }
+
+  const username =
+    getCurrentUsername();
+
+  const avatar =
+    normalizeAvatarUrl(
+      getCurrentUserAvatar(),
       username
-    ),
-    time: `temp-${Date.now()}`
-  };
-  
-  setComments([commentObj, ...comments]);
-  setNewComment("");
+    );
 
-  await supabase.from('media_comments').insert([commentObj]);
+  const commentPayload = {
+    media_id:
+      activeMedia.id,
+
+    author:
+      username,
+
+    text:
+      newComment.trim(),
+
+    avatar:
+      avatar,
+
+    time:
+      'Just now'
+  };
+
+  try {
+    const {
+      data: insertedComment,
+      error
+    } = await supabase
+      .from('media_comments')
+      .insert([
+        commentPayload
+      ])
+      .select()
+      .single();
+
+    if (error) {
+      throw error;
+    }
+
+    setComments(prev => [
+      insertedComment,
+      ...prev
+    ]);
+
+    setNewComment('');
+
+  } catch (error) {
+    console.error(
+      'Failed to save media comment:',
+      error
+    );
+
+    alert(
+      error?.message ||
+      'Unable to post comment.'
+    );
+  }
 };
 
     const togglePlayPauseEvent = (e) => {
@@ -17245,6 +17303,60 @@ const isFollowingMinistry =
   const [userServices, setUserServices] = useState([]);
   const [isAddServiceModalOpen, setIsAddServiceModalOpen] = useState(false);
   const [newServiceForm, setNewServiceForm] = useState({ title: '', desc: '', price: '' });
+
+const loadUserServices = async () => {
+  if (!authUserId) {
+    setUserServices([]);
+    return;
+  }
+
+  try {
+    const {
+      data,
+      error
+    } = await supabase
+      .from('services')
+      .select('*')
+      .eq('provider_id', authUserId)
+      .order('created_at', {
+        ascending: false
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    setUserServices(
+      (data || []).map(service => ({
+        ...service,
+        price: Number(
+          service.price_kpc || 0
+        ),
+        desc:
+          service.description || ''
+      }))
+    );
+  } catch (error) {
+    console.error(
+      'Failed to load user services:',
+      error
+    );
+
+    setUserServices([]);
+  }
+};
+
+useEffect(() => {
+  if (
+    step === 18 &&
+    authUserId
+  ) {
+    loadUserServices();
+  }
+}, [
+  step,
+  authUserId
+]);
 
   const handleOpenAddService = () => {
     const isStandard = userProfile?.account_type?.toLowerCase() === 'standard' || !userProfile?.account_type;
@@ -32594,7 +32706,7 @@ const displayName =
           
           <div className="feed-header-top" style={{ position: 'absolute', top: 0, left: 0, right: 0, zIndex: 50 }}>
             {/* Navigates back to the feed */}
-            <button className="back-button" onClick={() => setStep(7)} style={{ width: '36px', height: '36px', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
+            <button className="back-button" onClick={handleContextHome} style={{ width: '36px', height: '36px', background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(4px)' }}>
               <BackArrowIcon />
             </button>
           </div>
