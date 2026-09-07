@@ -7865,6 +7865,48 @@ const [isLoadingMinistryLeaders, setIsLoadingMinistryLeaders] = useState(false);
     return;
   }
 
+const {
+  count: activeLeaderCount,
+  error: activeLeaderCountError
+} = await supabase
+  .from('ministry_leaders')
+  .select('id', {
+    count: 'exact',
+    head: true
+  })
+  .eq(
+    'ministry_id',
+    ministryId
+  )
+  .eq(
+    'status',
+    'active'
+  );
+
+if (activeLeaderCountError) {
+  console.error(
+    'Failed to check Ministry leader limit:',
+    activeLeaderCountError
+  );
+
+  alert(
+    'Unable to check available Ministry leader slots.'
+  );
+
+  return;
+}
+
+if (
+  activeLeaderCount >= 3 &&
+  existingLeader?.status !== 'active'
+) {
+  alert(
+    'This Ministry already has 3 active leaders. Remove a leader before adding another.'
+  );
+
+  return;
+}
+
   if (existingLeader?.status === 'active') {
     alert(
       `@${foundUser.username || cleanSearch} is already a leader in this Ministry.`
@@ -41871,15 +41913,14 @@ community.
           </div>
 
           <div
-            style={{
-              color: '#8e9aab',
-              fontSize: '10px',
-              marginTop: '3px'
-            }}
-          >
-            {verifiedMinistersList.length} active leader
-            {verifiedMinistersList.length === 1 ? '' : 's'}
-          </div>
+  style={{
+    color: '#8e9aab',
+    fontSize: '10px',
+    marginTop: '3px'
+  }}
+>
+  {verifiedMinistersList.length} / 3 active leaders
+</div>
         </div>
 
         <button
@@ -41904,6 +41945,43 @@ community.
         >
           <XIcon />
         </button>
+
+<button
+  type="button"
+  onClick={() => {
+    setMinisterSearchInput('');
+    setSelectedLeaderRole('Pastor');
+    setSelectedLeaderAccess('limited');
+    setSelectedMinistryLeader({
+      addNew: true
+    });
+  }}
+  disabled={
+    verifiedMinistersList.length >= 3
+  }
+  style={{
+    padding: '9px 13px',
+    borderRadius: '10px',
+    border: '1px solid rgba(41,190,175,0.35)',
+    background:
+      verifiedMinistersList.length >= 3
+        ? 'rgba(255,255,255,0.04)'
+        : 'rgba(41,190,175,0.08)',
+    color:
+      verifiedMinistersList.length >= 3
+        ? '#596a7d'
+        : '#29beaf',
+    fontSize: '10px',
+    fontWeight: '900',
+    cursor:
+      verifiedMinistersList.length >= 3
+        ? 'not-allowed'
+        : 'pointer'
+  }}
+>
+  + Add Ministry User
+</button>
+
       </div>
 
       <div
@@ -41913,6 +41991,178 @@ community.
           padding: '18px 20px 24px'
         }}
       >
+{selectedMinistryLeader?.addNew && (
+  <div
+    style={{
+      marginBottom: '18px',
+      padding: '16px',
+      borderRadius: '16px',
+      background: 'rgba(41,190,175,0.05)',
+      border:
+        '1px solid rgba(41,190,175,0.20)'
+    }}
+  >
+    <div
+      style={{
+        color: '#29beaf',
+        fontSize: '10px',
+        fontWeight: '900',
+        letterSpacing: '1px',
+        marginBottom: '12px'
+      }}
+    >
+      ADD MINISTRY USER
+    </div>
+
+    <input
+      type="text"
+      value={ministerSearchInput}
+      onChange={e =>
+        setMinisterSearchInput(
+          e.target.value
+        )
+      }
+      placeholder="@username or email"
+      className="app-input"
+      style={{
+        width: '100%',
+        boxSizing: 'border-box',
+        marginBottom: '10px'
+      }}
+    />
+
+    <div
+      style={{
+        display: 'grid',
+        gridTemplateColumns:
+          '1fr 1fr',
+        gap: '10px'
+      }}
+    >
+      <select
+        value={selectedLeaderRole}
+        onChange={e =>
+          setSelectedLeaderRole(
+            e.target.value
+          )
+        }
+        className="app-input"
+      >
+        <option value="Pastor">Pastor</option>
+        <option value="Evangelist">
+          Evangelist
+        </option>
+        <option value="Minister">
+          Minister
+        </option>
+        <option value="Deacon">
+          Deacon
+        </option>
+        <option value="Leader">
+          Leader
+        </option>
+      </select>
+
+      <select
+        value={selectedLeaderAccess}
+        onChange={e =>
+          setSelectedLeaderAccess(
+            e.target.value
+          )
+        }
+        className="app-input"
+      >
+        <option value="limited">
+          Limited Access
+        </option>
+        <option value="content">
+          Content Access
+        </option>
+        <option value="members">
+          Member Management
+        </option>
+        <option value="outreach">
+          Outreach Access
+        </option>
+        <option value="checkins">
+          Check-in Access
+        </option>
+        <option value="full">
+          Full Dashboard
+        </option>
+      </select>
+    </div>
+
+    <div
+      style={{
+        display: 'flex',
+        gap: '8px',
+        marginTop: '10px'
+      }}
+    >
+      <button
+        type="button"
+        onClick={() =>
+          setSelectedMinistryLeader(null)
+        }
+        style={{
+          flex: 1,
+          padding: '10px',
+          borderRadius: '9px',
+          border:
+            '1px solid rgba(255,255,255,0.08)',
+          background:
+            'rgba(255,255,255,0.03)',
+          color: '#fff',
+          fontWeight: '800',
+          cursor: 'pointer'
+        }}
+      >
+        Cancel
+      </button>
+
+      <button
+        type="button"
+        onClick={async e => {
+          if (
+            verifiedMinistersList.length >= 3
+          ) {
+            alert(
+              'This Ministry can only have 3 active leaders.'
+            );
+            return;
+          }
+
+          await handleVerifyMinister(e);
+
+          setSelectedMinistryLeader(null);
+
+          const ministryId =
+            activeMinistryWorkspace?.ministry?.id ||
+            userProfile?.id;
+
+          if (ministryId) {
+            await loadMinistryLeaders(
+              ministryId
+            );
+          }
+        }}
+        style={{
+          flex: 2,
+          padding: '10px',
+          border: 'none',
+          borderRadius: '9px',
+          background: '#29beaf',
+          color: '#08111d',
+          fontWeight: '900',
+          cursor: 'pointer'
+        }}
+      >
+        Add User
+      </button>
+    </div>
+  </div>
+)}
         {verifiedMinistersList.length === 0 ? (
           <div
             style={{
