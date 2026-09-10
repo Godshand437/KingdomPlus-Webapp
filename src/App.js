@@ -21169,7 +21169,7 @@ const membersToNextMilestone =
             <img src="/assets/logo.png" alt="Logo" className="logo-img" />
             <div className="brand-details">
               <h1 className="metallic-gold-text">KINGDOMPLUS</h1>
-              <p>FAITH & REWARDS APPS | <span>Powered by Solana</span></p>
+              <p>FAITH & REWARDS APPS | <span>NO PAYMENT NEEDED</span></p>
             </div>
           </header>
 
@@ -21180,7 +21180,7 @@ const membersToNextMilestone =
           </div>
 
           <div className="main-content">
-            <h1 className="hero-headline">Empower Your Faith,<br />Earn <span className="metallic-gold-text">KingdomPlus</span> (KPC)</h1>
+            <h1 className="hero-headline">Empower Your Faith,<br />Build <span className="metallic-gold-text">Consistency</span></h1>
             <div className="features-row">
               <div className="feature-card">
                 <div className="card-image-box"><img src="/assets/bible.png" alt="bible" /></div>
