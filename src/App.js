@@ -354,6 +354,15 @@ const FriendsIcon = () => (
     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
   </svg>
 );
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-DXSDLZV5K1"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-DXSDLZV5K1');
+</script>
 
 
 export default function App() {
@@ -1872,7 +1881,7 @@ const handleTapTransaction = async (
 
 
     alert(
-      'Hallelujah! 5 KPC has been tapped into this testimony.'
+      '5 KPC has been tapped into this testimony.'
     );
 
   } catch (error) {
@@ -2413,10 +2422,7 @@ alert(
   const [swapAmount, setSwapAmount] =
   useState('');
 
-  // =========================================================
 // TREASURY ASSET BALANCES
-// =========================================================
-
 const [usdcBalance, setUsdcBalance] =
   useState(0);
 
@@ -2650,12 +2656,7 @@ await logTransaction(
   const [videoSubTab, setVideoSubTab] = useState('All');
 
   // Social Feed Posts
-  const [posts, setPosts] = useState([
-    { id: 1, authorName: 'Sarah_f', authorHandle: '@sarah', time: '2h ago', avatar: 'https://images.unsplash.com/photo-1506804886640-ed09fb0317e0?auto=format&fit=crop&w=100&h=100', content: 'Feeling incredibly blessed today! Just finished reading Psalm 23 and it really spoke to my current situation. God is truly our shepherd. 🙏✨', image: null, likes: 0, comments: 0, isVerified: false },
-    { id: 2, authorName: 'Pastor David', authorHandle: '@pdavid', time: '5h ago', avatar: 'https://images.unsplash.com/photo-1531123897727-8f129e1bf98c?auto=format&fit=crop&w=100&h=100', content: 'Such a powerful time of worship at Grace Sanctuary this morning. The presence of God was so heavy in the room. Who else was blessed?', image: 'https://images.unsplash.com/photo-1438232992991-995b7058bbb3?auto=format&fit=crop&w=400&q=80', likes: 0, comments: 0, isVerified: true }
-  ]);
-
-  
+  const [posts, setPosts] = useState([]);
 
   const [activeRoom, setActiveRoom] = useState(null);
   const [roomTitleInput, setRoomTitleInput] = useState('');
@@ -2687,10 +2688,8 @@ const [isLoadingChurches, setIsLoadingChurches] = useState(false);
   const [announceDescInput, setAnnounceDescInput] = useState('');
   const [announceBadgeInput, setAnnounceBadgeInput] = useState('ANNOUNCEMENT');
 
-// =========================================================
-// ANNOUNCEMENT VISUAL TEMPLATES
-// =========================================================
 
+// ANNOUNCEMENT VISUAL TEMPLATES
 const ANNOUNCEMENT_TEMPLATES = {
   announcement: {
     image: '/announcement-images/announcement.jpg',
@@ -3282,23 +3281,7 @@ const handleStep1Validation = (e) => {
   const [isSubmittingDream, setIsSubmittingDream] = useState(false);
   const [isAiComingSoonOpen, setIsAiComingSoonOpen] = useState(false);
 
-  const [dreams, setDreams] = useState([
-    {
-      id: 1, date: 'WED 8 JUL 2026', title: 'Dream of eating',
-      desc: "I had a dream I went to the market to get some goods and there's this particular lady shop I usually buy something from. She's very kind and generous and I was recalling with someone how generous this lady was that when we wants to buy something and don't have enough money for it she still gives it to us. Now in my other dream I went to a restaurant, a fancy one that has a private night club. While a co worker or someone that I know forcefully take his friend to the night club to party anyways I went to the one serving food and brought fries with chicken.",
-      status: 'PENDING', mood: 'Peaceful'
-    },
-    {
-      id: 2, date: 'WED 1 JUL 2026', title: 'A river of Gold',
-      desc: 'I had a dream of seeing gold rivers flowing endlessly.',
-      status: null, mood: 'Prophetic'
-    },
-    {
-      id: 3, date: 'WED 17 JUN 2026', title: 'Had a dream of buying anointing oil',
-      desc: "I had a dream last night and in the dream i went to market on a bike and getting there i branch into a man's shop where I brought things from. I was holding a nylon bag and brought a bottle of anointing oil and two other items.",
-      status: 'PENDING', mood: 'Mystery'
-    }
-  ]);
+  const [dreams, setDreams] = useState([]);
 
   const moods = [
     { name: 'Peaceful', icon: <LeafIcon />, color: '#2ecc71', bgClass: 'dream-bg-peaceful' },
@@ -5592,7 +5575,7 @@ const handleUpgradeMembershipTier = async () => {
     setIsClaiming(false);
   };
 
-  // --- STREAM-TO-EARN PLAYER STATE ---
+  // STREAM-TO-EARN PLAYER STATE
 const [activeMedia, setActiveMedia] = useState(null);
 const [mediaType, setMediaType] = useState('');
 const [isPlayerExpanded, setIsPlayerExpanded] = useState(false);
@@ -5934,10 +5917,7 @@ const playNextMusicTrack = async () => {
   }
 
   try {
-    // Stop the ended state first.
     audio.pause();
-
-    // Reset the actual audio position.
     audio.currentTime = 0;
 
     setCurrentTime(0);
@@ -5946,7 +5926,6 @@ const playNextMusicTrack = async () => {
       setDuration(audio.duration);
     }
 
-    // Explicitly start the audio again.
     const playPromise = audio.play();
 
     if (playPromise !== undefined) {
@@ -6947,7 +6926,7 @@ const MinistryBottomNav = () => (
 );
 
 
-  // --- THE PLAYER RENDER FUNCTION (SCROLLABLE & INTEGRATED SOCIAL COMMENTS) ---
+  // THE PLAYER RENDER FUNCTION
   const renderStreamPlayer = () => {
     if (!activeMedia) return null;
 
@@ -7085,7 +7064,6 @@ const MinistryBottomNav = () => (
     return (
       <div className="global-media-wrapper">
 
-        {/* --- PERSISTENT MEDIA ELEMENTS --- */}
         {mediaType === 'video' ? (
           <div className={`video-host ${isPlayerExpanded ? 'expanded' : 'minimized'}`}>
             <video
@@ -7110,7 +7088,7 @@ const MinistryBottomNav = () => (
 />
         )}
 
-        {/* --- 1. UNIVERSAL MINI PLAYER --- */}
+        {/* UNIVERSAL MINI PLAYER */}
 
         {!isPlayerExpanded && (
   <div
@@ -7156,9 +7134,7 @@ const MinistryBottomNav = () => (
     </div>
 
 
-    {/* ========================================
-        MINI PLAYER PASSIVE PROGRESS BAR
-        ======================================== */}
+    {/* MINI PLAYER PASSIVE PROGRESS BAR */}
 
     <div
       className="mini-player-progress"
@@ -7177,7 +7153,7 @@ const MinistryBottomNav = () => (
   </div>
 )}
 
-        {/* --- 2. SPOTIFY AUDIO UI (Scrollable with Integrated Comments) --- */}
+        {/* AUDIO UI */}
         {isPlayerExpanded && mediaType === 'audio' && (
           <div className="spotify-audio-layout">
 
@@ -7328,7 +7304,7 @@ const MinistryBottomNav = () => (
 </button>
             </div>
 
-            {/* --- INTEGRATED MODERN SOCIAL COMMENTS SEGMENT --- */}
+            {/* INTEGRATED MODERN SOCIAL COMMENTS SEGMENT */}
             <div className="integrated-comments-section">
               <div className="social-comments-header">
                 <div className="social-comments-title">
@@ -7389,7 +7365,7 @@ const MinistryBottomNav = () => (
           </div>
         )}
 
-        {/* --- 3. VIDEO UI (Scrollable Expanded) --- */}
+        {/* VIDEO UI */}
         {isPlayerExpanded && mediaType === 'video' && (
           <div className="media-player-overlay" style={{ background: '#000', overflowY: 'auto' }}>
             <div className="player-header" style={{ position: 'sticky', top: 0, background: 'rgba(0,0,0,0.8)', backdropFilter: 'blur(10px)', zIndex: 10 }}>
@@ -7436,7 +7412,7 @@ const MinistryBottomNav = () => (
                 <button className="secondary-btn" onClick={() => skipTime(10)}><Forward10Icon /></button>
               </div>
 
-              {/* Integrated Comments for Video too! */}
+              {/* Comments for Video */}
               <div className="integrated-comments-section" style={{ marginTop: '30px' }}>
                 <div className="social-comments-header">
                   <div className="social-comments-title"><MessageIcon /> Comments <span className="social-comments-count">{comments.length + 45}</span></div>
@@ -7726,7 +7702,7 @@ useEffect(() => {
       
       logTransaction(`Sent to ${targetName}`, -amount, 'SPEND', signature);
 
-      // --- SUPABASE UPDATE ---
+      // SUPABASE UPDATE
       if (!isWalletAddress && recipientRecord) {
         const newBalance = (recipientRecord.wallet_balance || 0) + amount;
         const tableName = recipientRecord.church_name ? 'church_profiles' : 'user_profiles';
@@ -7755,7 +7731,7 @@ useEffect(() => {
     setIsTransferring(false);
   };
 
-  // 2. HIRE MINISTER SERVICES HANDLER
+  // HIRE MINISTER SERVICES HANDLER
   const handleHireSubmit = () => {
     if (!selectedService) { alert("Please select a ministry service."); return; }
     if (kpcBalance < selectedService.price) { alert("Insufficient KPC balance to hire this service."); return; }
@@ -7770,7 +7746,7 @@ useEffect(() => {
   };
 
   
-// --- CHURCH DASHBOARD STATE & HANDLERS ---
+// CHURCH DASHBOARD STATE & HANDLERS
   const [ministerSearchInput, setMinisterSearchInput] = useState('');
 const [selectedLeaderRole, setSelectedLeaderRole] = useState('Pastor');
 const [selectedLeaderAccess, setSelectedLeaderAccess] = useState('limited');
@@ -8004,7 +7980,7 @@ membership_source
 
 
 
-// --- CHURCH STUDIO REFS, LIVE STREAM & MODAL STATES ---
+// CHURCH STUDIO REFS, LIVE STREAM & MODAL STATES
   const coverInputRef = useRef(null);
   const avatarInputRef = useRef(null);
   
@@ -8013,7 +7989,7 @@ membership_source
   const [liveStreamTitle, setLiveStreamTitle] = useState('Sunday Worship Service — Live Broadcast');
   const [conferenceRoomId, setConferenceRoomId] = useState(null);
 
-// --- 1. HANDLE WALLPAPER & PROFILE PICTURE UPLOADS ---
+// HANDLE WALLPAPER & PROFILE PICTURE UPLOADS
   const handleImageUpload = (e, type) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -8036,7 +8012,7 @@ membership_source
     reader.readAsDataURL(file);
   };
 
-  // --- 2. TOGGLE LIVE SERVICE BROADCAST ALERT ---
+  // TOGGLE LIVE SERVICE BROADCAST ALERT
   const handleToggleLiveBroadcast = () => {
     if (!isLiveStreaming) {
       if (window.confirm(`Start live broadcast: "${liveStreamTitle}"? All Members will see a live pulsing alert at the top of their feeds!`)) {
