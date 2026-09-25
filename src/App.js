@@ -354,15 +354,6 @@ const FriendsIcon = () => (
     <path d="M16 3.13a4 4 0 0 1 0 7.75" />
   </svg>
 );
-<!-- Google tag (gtag.js) -->
-<script async src="https://www.googletagmanager.com/gtag/js?id=G-DXSDLZV5K1"></script>
-<script>
-  window.dataLayer = window.dataLayer || [];
-  function gtag(){dataLayer.push(arguments);}
-  gtag('js', new Date());
-
-  gtag('config', 'G-DXSDLZV5K1');
-</script>
 
 
 export default function App() {
